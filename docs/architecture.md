@@ -43,6 +43,7 @@ FFmpeg/OpenCV deterministic feature extraction
 - `OFFLINE_REHEARSAL` and `UNAVAILABLE` reject every state-changing request.
 - `FAIL`, `ERROR`, `NOT_CHECKED`, missing integrations, malformed media, and command timeouts all block publishing.
 - `Approve for Delivery` is a separate human action and is accepted only for a current `READY` proof.
+- Mutation routes accept bounded `Idempotency-Key` headers and reject reuse with a different request fingerprint. Idempotency records share the process-local durability boundary below.
 
 ## State machine
 

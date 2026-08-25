@@ -72,7 +72,14 @@ def readyz():
                 "missing": missing,
             },
         )
-    return {"status": "ready", "mode": settings.mode, "live_verified": False}
+    return {
+        "status": "ready",
+        "mode": settings.mode,
+        "live_credentials_configured": (
+            settings.mode is ExecutionMode.LIVE and not settings.live_missing_settings
+        ),
+        "integration_execution_verified": False,
+    }
 
 
 FRONTEND_DIST = Path(__file__).resolve().parent / "static"

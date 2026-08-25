@@ -54,3 +54,25 @@ async def test_second_media_pipeline_request_fails_fast(
             service.generate_previews(snapshot.run_id)
     finally:
         service._media_slot.release()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_idempotency_replays_same_mutation_and_rejects_key_reuse(
+    service: RevisionProofService,
+) -> None:
+    request = CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback="Make the reveal more intentional")
+    first = await service.create_run(request, "create:stable-demo-key")
+    replay = await service.create_run(request, "create:stable-demo-key")
+    assert replay.run_id == first.run_id
+
+    with pytest.raises(ValueError, match="different request"):
+        await service.create_run(
+            CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback="Bring the product reveal closer"),
+            "create:stable-demo-key",
+        )
+
+    rendered = service.generate_previews(first.run_id, f"{first.run_id}:previews")
+    event_count = len(rendered.events)
+    replayed_render = service.generate_previews(first.run_id, f"{first.run_id}:previews")
+    assert replayed_render.run_id == first.run_id
+    assert len(replayed_render.events) == event_count

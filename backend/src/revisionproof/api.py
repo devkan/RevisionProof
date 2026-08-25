@@ -4,7 +4,17 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import StreamingResponse
 
 from revisionproof.assets import list_demo_assets
@@ -48,7 +58,7 @@ def runtime_status(service: ServiceDep):
         "live_ready": mode is ExecutionMode.LIVE and not service.settings.live_missing_settings,
         "missing_settings": service.settings.live_missing_settings,
         "message": (
-            "Current Gemini and MCP integrations"
+            "Live integrations are configured; successful calls are proven per run"
             if mode is ExecutionMode.LIVE and not service.settings.live_missing_settings
             else "Deterministic development fixtures; not live evidence"
             if mode is ExecutionMode.FIXTURE
@@ -65,9 +75,13 @@ def demo_assets(service: ServiceDep):
 
 
 @router.post("/runs", response_model=RunSnapshot, status_code=status.HTTP_201_CREATED)
-async def create_run(payload: CreateRunRequest, service: ServiceDep) -> RunSnapshot:
+async def create_run(
+    payload: CreateRunRequest,
+    service: ServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> RunSnapshot:
     try:
-        return await service.create_run(payload)
+        return await service.create_run(payload, idempotency_key)
     except Exception as exc:
         raise as_http_error(exc) from exc
 
@@ -119,9 +133,13 @@ def get_run_events(run_id: str, request: Request, service: ServiceDep):
 
 
 @router.post("/runs/{run_id}/previews", response_model=RunSnapshot)
-def create_previews(run_id: str, service: ServiceDep) -> RunSnapshot:
+def create_previews(
+    run_id: str,
+    service: ServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> RunSnapshot:
     try:
-        return service.generate_previews(run_id)
+        return service.generate_previews(run_id, idempotency_key)
     except Exception as exc:
         raise as_http_error(exc) from exc
 
@@ -131,9 +149,10 @@ def approve(
     run_id: str,
     payload: ApprovalRequest,
     service: ServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> RunSnapshot:
     try:
-        return service.approve(run_id, payload)
+        return service.approve(run_id, payload, idempotency_key)
     except Exception as exc:
         raise as_http_error(exc) from exc
 
@@ -155,6 +174,7 @@ def upload_version(
     version_label: Annotated[str, Form()],
     file: Annotated[UploadFile, File()],
     service: ServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> RunSnapshot:
     if file.content_type not in {"video/mp4", "application/mp4", "application/octet-stream"}:
         raise HTTPException(status_code=415, detail="only MP4 uploads are accepted")
@@ -169,6 +189,7 @@ def upload_version(
             version_label=version_label,
             stream=file.file,
             size=size,
+            idempotency_key=idempotency_key,
         )
     except Exception as exc:
         raise as_http_error(exc) from exc
@@ -188,8 +209,12 @@ def get_proof(run_id: str, service: ServiceDep):
 
 
 @router.post("/runs/{run_id}/delivery-approval", response_model=RunSnapshot)
-def approve_for_delivery(run_id: str, service: ServiceDep) -> RunSnapshot:
+def approve_for_delivery(
+    run_id: str,
+    service: ServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> RunSnapshot:
     try:
-        return service.approve_for_delivery(run_id)
+        return service.approve_for_delivery(run_id, idempotency_key)
     except Exception as exc:
         raise as_http_error(exc) from exc

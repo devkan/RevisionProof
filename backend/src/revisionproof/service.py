@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 import shutil
@@ -25,6 +26,7 @@ from revisionproof.contracts import (
     SafetyClassification,
     TimeRange,
     VerificationManifest,
+    VerificationProof,
 )
 from revisionproof.evidence.fixture import FixtureEvidenceLocator, FixtureInterpreter
 from revisionproof.ids import new_ulid
@@ -82,6 +84,16 @@ class RevisionProofService:
             raise ValueError("runtime integrations are unavailable")
 
     @staticmethod
+    def _validate_idempotency_key(key: str | None) -> str | None:
+        if key is not None and not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", key):
+            raise ValueError("Idempotency-Key must contain 8-128 safe characters")
+        return key
+
+    @staticmethod
+    def _fingerprint(value: str) -> str:
+        return hashlib.sha256(value.encode()).hexdigest()
+
+    @staticmethod
     def _feedback_from_notes(snapshot: RunSnapshot, source: str) -> ParsedFeedback | None:
         note = next(
             (
@@ -101,8 +113,15 @@ class RevisionProofService:
             interpreter_source=source,
         )
 
-    async def create_run(self, request: CreateRunRequest) -> RunSnapshot:
+    async def create_run(
+        self, request: CreateRunRequest, idempotency_key: str | None = None
+    ) -> RunSnapshot:
         self._assert_mutable_mode()
+        key = self._validate_idempotency_key(idempotency_key)
+        fingerprint = self._fingerprint(request.model_dump_json())
+        replay = self.repository.recall_idempotent("create_run", key, fingerprint)
+        if replay is not None:
+            return replay
         asset, source_path = await asyncio.to_thread(
             require_demo_asset,
             request.asset_id,
@@ -127,6 +146,7 @@ class RevisionProofService:
                 "Feedback classified by fixture adapter; unsupported notes held back",
             )
             if snapshot.feedback is None:
+                self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
                 return snapshot
             snapshot.evidence = self.fixture_locator.locate(snapshot.feedback)[:3]
             self._transition(
@@ -134,6 +154,7 @@ class RevisionProofService:
                 RunState.EVIDENCE_ANCHORED,
                 "Evidence anchored by fixture segment index",
             )
+            self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
             return snapshot
         if self.settings.mode is ExecutionMode.LIVE:
             if self.settings.live_missing_settings:
@@ -141,12 +162,14 @@ class RevisionProofService:
                     self.settings.live_missing_settings
                 )
                 self._transition(snapshot, RunState.FAILED, snapshot.error)
+                self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
                 return snapshot
             try:
                 await self._run_live_interpretation(snapshot, request.feedback)
             except Exception:
                 snapshot.error = "Live interpretation or evidence lookup failed"
                 self._transition(snapshot, RunState.FAILED, snapshot.error)
+            self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
             return snapshot
         raise ValueError("execution mode cannot create runs")
 
@@ -201,28 +224,48 @@ class RevisionProofService:
             "Evidence selected through mcp-clickhouse.run_query",
         )
 
-    def generate_previews(self, run_id: str) -> RunSnapshot:
+    def generate_previews(self, run_id: str, idempotency_key: str | None = None) -> RunSnapshot:
         self._assert_mutable_mode()
+        key = self._validate_idempotency_key(idempotency_key)
+        fingerprint = self._fingerprint(run_id)
+        replay = self.repository.recall_idempotent(f"{run_id}:previews", key, fingerprint)
+        if replay is not None:
+            return replay
         with self._exclusive_media_pipeline(), self.repository.locked(run_id):
-            return self._generate_previews_locked(run_id)
+            snapshot = self._generate_previews_locked(run_id)
+            self.repository.remember_idempotent(f"{run_id}:previews", key, fingerprint, run_id)
+            return snapshot
 
     def _generate_previews_locked(self, run_id: str) -> RunSnapshot:
         snapshot = self.repository.get(run_id)
         if snapshot.state is not RunState.EVIDENCE_ANCHORED:
             raise ValueError("previews require EVIDENCE_ANCHORED state")
         anchor = snapshot.evidence[0]
+        anchor_duration = anchor.time_range.end_seconds - anchor.time_range.start_seconds
+        preview_duration = min(8.0, max(4.0, anchor_duration))
+        midpoint = (anchor.time_range.start_seconds + anchor.time_range.end_seconds) / 2
+        preview_start = max(
+            0.0,
+            min(
+                midpoint - preview_duration / 2, snapshot.asset.duration_seconds - preview_duration
+            ),
+        )
+        preview_range = TimeRange(
+            start_seconds=preview_start,
+            end_seconds=preview_start + preview_duration,
+        )
         preview_dir = self.settings.runtime_dir / "runs" / run_id / "previews"
         candidates = [
             PatchCandidate(
                 candidate_id="A",
                 scale=1.05,
-                time_range=anchor.time_range,
+                time_range=preview_range,
                 preview_url=f"/media/runs/{run_id}/previews/A.mp4",
             ),
             PatchCandidate(
                 candidate_id="B",
                 scale=1.12,
-                time_range=anchor.time_range,
+                time_range=preview_range,
                 preview_url=f"/media/runs/{run_id}/previews/B.mp4",
             ),
         ]
@@ -238,10 +281,22 @@ class RevisionProofService:
         self._transition(snapshot, RunState.PREVIEWS_READY, "Two constrained previews rendered")
         return snapshot
 
-    def approve(self, run_id: str, request: ApprovalRequest) -> RunSnapshot:
+    def approve(
+        self,
+        run_id: str,
+        request: ApprovalRequest,
+        idempotency_key: str | None = None,
+    ) -> RunSnapshot:
         self._assert_mutable_mode()
+        key = self._validate_idempotency_key(idempotency_key)
+        fingerprint = self._fingerprint(request.model_dump_json())
+        replay = self.repository.recall_idempotent(f"{run_id}:approval", key, fingerprint)
+        if replay is not None:
+            return replay
         with self.repository.locked(run_id):
-            return self._approve_locked(run_id, request)
+            snapshot = self._approve_locked(run_id, request)
+            self.repository.remember_idempotent(f"{run_id}:approval", key, fingerprint, run_id)
+            return snapshot
 
     def _approve_locked(self, run_id: str, request: ApprovalRequest) -> RunSnapshot:
         snapshot = self.repository.get(run_id)
@@ -339,32 +394,55 @@ class RevisionProofService:
         if snapshot.spec is None:
             raise RuntimeError("immutable spec is missing")
         checked_at = proof.generated_at
-        checks = {item.check_id: item for item in proof.checks}
-        feature_values = {
-            "patch_similarity": float(checks["approved_patch"].measured["normalized_similarity"]),
-            "patch_passing_ratio": float(checks["approved_patch"].measured["ratio"]),
-            "patch_winner_margin": float(
-                checks["approved_patch"].measured["minimum_winner_margin_observed"]
-            ),
-            "cta_passing_ratio": float(checks["locked_cta"].measured["ratio"]),
-            "audio_rms_dbfs": float(checks["locked_audio"].measured["candidate_rms_dbfs"]),
-            "audio_peak_dbfs": float(checks["locked_audio"].measured["candidate_peak_dbfs"]),
+        baseline_proof = self.verifier.verify(
+            source=self.repository.source_path(snapshot.run_id),
+            candidate=self.repository.source_path(snapshot.run_id),
+            spec=snapshot.spec,
+            version_label="v1",
+        )
+
+        def feature_values(source_proof: VerificationProof) -> dict[str, float]:
+            checks = {item.check_id: item for item in source_proof.checks}
+            return {
+                "patch_similarity": float(
+                    checks["approved_patch"].measured["normalized_similarity"]
+                ),
+                "patch_passing_ratio": float(checks["approved_patch"].measured["ratio"]),
+                "patch_winner_margin": float(
+                    checks["approved_patch"].measured["minimum_winner_margin_observed"]
+                ),
+                "cta_passing_ratio": float(checks["locked_cta"].measured["ratio"]),
+                "audio_rms_dbfs": float(checks["locked_audio"].measured["candidate_rms_dbfs"]),
+                "audio_peak_dbfs": float(checks["locked_audio"].measured["candidate_peak_dbfs"]),
+            }
+
+        current_values = feature_values(proof)
+        baseline_values = feature_values(baseline_proof)
+        patch_range = snapshot.spec.manifest_for("approved_patch").time_range
+        cta_range = snapshot.spec.manifest_for("locked_cta").time_range
+        audio_range = snapshot.spec.manifest_for("locked_audio").time_range
+        feature_ranges = {
+            "patch_similarity": patch_range,
+            "patch_passing_ratio": patch_range,
+            "patch_winner_margin": patch_range,
+            "cta_passing_ratio": cta_range,
+            "audio_rms_dbfs": audio_range,
+            "audio_peak_dbfs": audio_range,
         }
-        baseline_values = {
-            "patch_similarity": 0.0,
-            "patch_passing_ratio": 0.0,
-            "patch_winner_margin": 0.0,
-            "cta_passing_ratio": 1.0,
-            "audio_rms_dbfs": float(checks["locked_audio"].measured["source_rms_dbfs"]),
-            "audio_peak_dbfs": float(checks["locked_audio"].measured["source_peak_dbfs"]),
-        }
-        rows = [
-            [snapshot.run_id, "v1", name, value, 0.0, 30.0, checked_at]
-            for name, value in baseline_values.items()
-        ] + [
-            [snapshot.run_id, version_label, name, value, 0.0, 30.0, checked_at]
-            for name, value in feature_values.items()
-        ]
+        rows = []
+        for label, values in (("v1", baseline_values), (version_label, current_values)):
+            rows.extend(
+                [
+                    snapshot.run_id,
+                    label,
+                    name,
+                    value,
+                    feature_ranges[name].start_seconds,
+                    feature_ranges[name].end_seconds,
+                    checked_at,
+                ]
+                for name, value in values.items()
+            )
         writer = ClickHouseWriter(self.settings)
         writer.insert_features(rows)
         GcsObjectStore(self.settings).upload(
@@ -430,15 +508,23 @@ class RevisionProofService:
         version_label: str,
         stream: BinaryIO,
         size: int,
+        idempotency_key: str | None = None,
     ) -> RunSnapshot:
         self._assert_mutable_mode()
+        key = self._validate_idempotency_key(idempotency_key)
+        fingerprint = self._fingerprint(f"{version_label}:{size}")
+        replay = self.repository.recall_idempotent(f"{run_id}:version", key, fingerprint)
+        if replay is not None:
+            return replay
         with self._exclusive_media_pipeline(), self.repository.locked(run_id):
-            return self._upload_and_verify_locked(
+            snapshot = self._upload_and_verify_locked(
                 run_id=run_id,
                 version_label=version_label,
                 stream=stream,
                 size=size,
             )
+            self.repository.remember_idempotent(f"{run_id}:version", key, fingerprint, run_id)
+            return snapshot
 
     def _upload_and_verify_locked(
         self,
@@ -505,8 +591,13 @@ class RevisionProofService:
             raise
         return snapshot
 
-    def approve_for_delivery(self, run_id: str) -> RunSnapshot:
+    def approve_for_delivery(self, run_id: str, idempotency_key: str | None = None) -> RunSnapshot:
         self._assert_mutable_mode()
+        key = self._validate_idempotency_key(idempotency_key)
+        fingerprint = self._fingerprint(run_id)
+        replay = self.repository.recall_idempotent(f"{run_id}:delivery-approval", key, fingerprint)
+        if replay is not None:
+            return replay
         with self.repository.locked(run_id):
             snapshot = self.repository.get(run_id)
             if (
@@ -520,4 +611,7 @@ class RevisionProofService:
                 self.repository.append_event(
                     run_id, RunState.READY, "Human approved the verified version for delivery"
                 )
+            self.repository.remember_idempotent(
+                f"{run_id}:delivery-approval", key, fingerprint, run_id
+            )
             return snapshot
