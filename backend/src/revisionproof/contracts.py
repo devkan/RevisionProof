@@ -288,6 +288,7 @@ class RunSnapshot(BaseModel):
     retryable: bool = False
     events: list[RunEvent] = Field(default_factory=list)
     error: str | None = None
+    source_feedback: str | None = Field(default=None, exclude=True)
 
 
 class CreateRunRequest(BaseModel):

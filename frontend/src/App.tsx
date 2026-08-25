@@ -175,6 +175,15 @@ export default function App() {
         </section>
 
         {error && <div className="error-banner"><ShieldAlert size={17} /><span>{error}</span></div>}
+        {run?.state === 'FAILED' && run.retryable && (
+          <div className="error-banner">
+            <ShieldAlert size={17} />
+            <span>{run.error ?? 'The live interpretation failed closed.'}</span>
+            <button className="quiet-button" onClick={() => void action(() => api.retryRun(run.run_id))} disabled={busy}>
+              {busy ? 'Retrying…' : 'Retry preserved feedback'}
+            </button>
+          </div>
+        )}
         {runtime && runtime.mode !== 'LIVE' && (
           <div className="runtime-banner">
             <CircleDot size={16} />

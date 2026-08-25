@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import threading
+from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -14,20 +15,29 @@ class RunNotFoundError(KeyError):
 
 
 class InMemoryRunRepository:
-    def __init__(self) -> None:
+    def __init__(self, max_runs: int = 64) -> None:
+        if max_runs < 1:
+            raise ValueError("max_runs must be positive")
+        self._max_runs = max_runs
         self._runs: dict[str, RunSnapshot] = {}
         self._source_paths: dict[str, Path] = {}
         self._version_paths: dict[str, Path] = {}
         self._locks: dict[str, threading.RLock] = {}
-        self._idempotency: dict[tuple[str, str], tuple[str, str]] = {}
+        self._idempotency: OrderedDict[tuple[str, str], tuple[str, str]] = OrderedDict()
+        self._max_idempotency_records = max_runs * 16
         self._idempotency_lock = threading.RLock()
 
     def create(self, snapshot: RunSnapshot, source_path: Path) -> RunSnapshot:
-        self._runs[snapshot.run_id] = snapshot
-        self._source_paths[snapshot.run_id] = source_path
-        self._locks[snapshot.run_id] = threading.RLock()
-        self.append_event(snapshot.run_id, snapshot.state, "Source asset indexed")
-        return snapshot
+        with self._idempotency_lock:
+            if snapshot.run_id in self._runs:
+                raise ValueError("run already exists")
+            if len(self._runs) >= self._max_runs:
+                raise ValueError("run capacity reached; restart the ephemeral demo service")
+            self._runs[snapshot.run_id] = snapshot
+            self._source_paths[snapshot.run_id] = source_path
+            self._locks[snapshot.run_id] = threading.RLock()
+            self.append_event(snapshot.run_id, snapshot.state, "Source asset indexed")
+            return snapshot
 
     @contextmanager
     def locked(self, run_id: str) -> Iterator[None]:
@@ -76,6 +86,7 @@ class InMemoryRunRepository:
             recorded_fingerprint, run_id = record
             if recorded_fingerprint != fingerprint:
                 raise ValueError("idempotency key was already used with a different request")
+            self._idempotency.move_to_end((scope, key))
             return self.get(run_id)
 
     def remember_idempotent(
@@ -88,3 +99,6 @@ class InMemoryRunRepository:
             if existing is not None and existing != (fingerprint, run_id):
                 raise ValueError("idempotency key was already used with a different request")
             self._idempotency[(scope, key)] = (fingerprint, run_id)
+            self._idempotency.move_to_end((scope, key))
+            while len(self._idempotency) > self._max_idempotency_records:
+                self._idempotency.popitem(last=False)

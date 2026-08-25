@@ -75,13 +75,22 @@ if gcloud projects describe "${PROJECT_ID}" >/dev/null 2>&1; then
     gcloud alpha projects update "${PROJECT_ID}" \
       --update-labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}"
   fi
+  if ! gcloud projects describe "${PROJECT_ID}" --format=json \
+    | jq -e --arg managed_label "${managed_label}" \
+      '.labels.app == "revisionproof"
+        and .labels.environment == "hackathon"
+        and .labels["managed-by"] == $managed_label' >/dev/null; then
+    gcloud alpha projects update "${PROJECT_ID}" \
+      --update-labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}"
+  fi
 else
   echo "Project ${PROJECT_ID} does not exist. Create it first, record its project number, then rerun this script." >&2
   exit 3
 fi
 
 expected_billing="billingAccounts/${BILLING_ACCOUNT_ID}"
-current_billing="$(gcloud billing projects describe "${PROJECT_ID}" --format='value(billingAccountName)' 2>/dev/null || true)"
+current_billing="$(gcloud billing projects describe "${PROJECT_ID}" \
+  --format='value(billingAccountName)')"
 if [[ -n "${current_billing}" && "${current_billing}" != "${expected_billing}" ]]; then
   echo "Refusing to relink ${PROJECT_ID}: it is already attached to ${current_billing}." >&2
   exit 3
@@ -127,7 +136,7 @@ for role in roles/aiplatform.user roles/logging.logWriter; do
     --role="${role}" \
     --condition=None >/dev/null
 done
-for role in roles/artifactregistry.writer roles/logging.logWriter roles/run.admin roles/storage.objectViewer; do
+for role in roles/logging.logWriter roles/run.admin; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${build_sa}" \
     --role="${role}" \
@@ -146,7 +155,31 @@ if ! gcloud artifacts repositories describe "${ARTIFACT_REPOSITORY}" \
     --description="RevisionProof hackathon images" \
     --labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}" \
     --project="${PROJECT_ID}"
+else
+  repository_json="$(gcloud artifacts repositories describe "${ARTIFACT_REPOSITORY}" \
+    --location="${REGION}" --project="${PROJECT_ID}" --format=json)"
+  expected_repository="projects/${PROJECT_ID}/locations/${REGION}/repositories/${ARTIFACT_REPOSITORY}"
+  if ! jq -e --arg expected "${expected_repository}" \
+    '.name == $expected and .format == "DOCKER"' <<<"${repository_json}" >/dev/null; then
+    echo "Refusing repository drift: expected Docker repository ${expected_repository}." >&2
+    exit 3
+  fi
+  if ! jq -e --arg managed_label "${managed_label}" \
+    '.labels.app == "revisionproof"
+      and .labels.environment == "hackathon"
+      and .labels["managed-by"] == $managed_label' <<<"${repository_json}" >/dev/null; then
+    gcloud artifacts repositories update "${ARTIFACT_REPOSITORY}" \
+      --location="${REGION}" \
+      --update-labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}" \
+      --project="${PROJECT_ID}"
+  fi
 fi
+
+gcloud artifacts repositories add-iam-policy-binding "${ARTIFACT_REPOSITORY}" \
+  --location="${REGION}" \
+  --member="serviceAccount:${build_sa}" \
+  --role="roles/artifactregistry.writer" \
+  --project="${PROJECT_ID}" >/dev/null
 
 if ! gcloud storage buckets describe "gs://${GCS_BUCKET}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
   gcloud storage buckets create "gs://${GCS_BUCKET}" \
@@ -156,13 +189,59 @@ if ! gcloud storage buckets describe "gs://${GCS_BUCKET}" --project="${PROJECT_I
     --public-access-prevention \
     --soft-delete-duration=0
 fi
+bucket_json="$(gcloud storage buckets describe "gs://${GCS_BUCKET}" --format=json)"
+bucket_project_number="$(jq -r '.projectNumber // .project_number // empty' <<<"${bucket_json}")"
+if [[ "${bucket_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]]; then
+  echo "Refusing bucket drift: gs://${GCS_BUCKET} belongs to project ${bucket_project_number:-unknown}." >&2
+  exit 3
+fi
+bucket_location="$(jq -r '.location // empty | ascii_downcase' <<<"${bucket_json}")"
+if [[ "${bucket_location}" != "${REGION}" ]]; then
+  echo "Refusing bucket drift: expected ${REGION}, got ${bucket_location:-unknown}." >&2
+  exit 3
+fi
+if ! jq -e '.uniform_bucket_level_access == true' <<<"${bucket_json}" >/dev/null; then
+  gcloud storage buckets update "gs://${GCS_BUCKET}" --uniform-bucket-level-access
+fi
+if ! jq -e '.public_access_prevention == "enforced"' <<<"${bucket_json}" >/dev/null; then
+  gcloud storage buckets update "gs://${GCS_BUCKET}" --public-access-prevention
+fi
 gcloud storage buckets update "gs://${GCS_BUCKET}" \
-  --lifecycle-file="infra/gcp/media-lifecycle.json" \
-  --soft-delete-duration=0 \
-  --update-labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}"
+  --lifecycle-file="infra/gcp/media-lifecycle.json"
+gcloud storage buckets update "gs://${GCS_BUCKET}" \
+  --clear-soft-delete
+
+if ! gcloud storage buckets describe "gs://${GCS_BUCKET}" --format=json \
+  | jq -e --arg managed_label "${managed_label}" \
+    '.labels.app == "revisionproof"
+      and .labels.environment == "hackathon"
+      and .labels["managed-by"] == $managed_label' >/dev/null; then
+  gcloud storage buckets update "gs://${GCS_BUCKET}" \
+    --update-labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}"
+fi
 gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
   --member="serviceAccount:${runtime_sa}" \
   --role="roles/storage.objectAdmin" >/dev/null
+gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
+  --member="serviceAccount:${build_sa}" \
+  --role="roles/storage.objectViewer" >/dev/null
+
+remove_project_binding_if_present() {
+  local member="$1" role="$2" policy
+  policy="$(gcloud projects get-iam-policy "${PROJECT_ID}" --format=json)"
+  if jq -e --arg member "${member}" --arg role "${role}" \
+    'any(.bindings[]?; .role == $role and any(.members[]?; . == $member))' \
+    <<<"${policy}" >/dev/null; then
+    gcloud projects remove-iam-policy-binding "${PROJECT_ID}" \
+      --member="${member}" --role="${role}" --condition=None --quiet >/dev/null
+  fi
+}
+
+# Converge older foundation runs from project-wide access to exact resource bindings.
+remove_project_binding_if_present \
+  "serviceAccount:${build_sa}" "roles/artifactregistry.writer"
+remove_project_binding_if_present \
+  "serviceAccount:${build_sa}" "roles/storage.objectViewer"
 
 budget_name="$(gcloud billing budgets list \
   --billing-account="${BILLING_ACCOUNT_ID}" \
@@ -179,6 +258,24 @@ if [[ -z "${budget_name}" ]]; then
     --threshold-rule=percent=0.90 \
     --threshold-rule=percent=1.00 \
     --format='value(name)')"
+else
+  budget_json="$(gcloud billing budgets list \
+    --billing-account="${BILLING_ACCOUNT_ID}" \
+    --filter="displayName='${BUDGET_DISPLAY_NAME}'" \
+    --format=json \
+    --limit=1)"
+  if ! jq -e \
+    --arg units "${BUDGET_AMOUNT_UNITS}" \
+    --arg currency "${BUDGET_CURRENCY_CODE}" \
+    --arg project "projects/${project_number}" \
+    '.[0].amount.specifiedAmount.currencyCode == $currency
+      and (.[0].amount.specifiedAmount.units | tostring) == $units
+      and .[0].budgetFilter.projects == [$project]
+      and ([.[0].thresholdRules[].thresholdPercent] | sort) == [0.5, 0.9, 1]' \
+    <<<"${budget_json}" >/dev/null; then
+    echo "Refusing budget drift: ${BUDGET_DISPLAY_NAME} does not match the locked amount, project, currency, and thresholds." >&2
+    exit 3
+  fi
 fi
 
 echo "RevisionProof GCP foundation is ready."

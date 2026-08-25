@@ -40,4 +40,4 @@ Only treat the demo as ready when all three runs report `PASS`. Run this again a
 
 ## Live-mode rule
 
-Do not switch the badge to `LIVE` for a recording unless `/readyz` is healthy and the run trace itself reports `google.vertex.gemini` plus `mcp-clickhouse.run_query`. Fixture evidence is deterministic development evidence, not a live integration claim. Recorded offline rehearsal mode is read-only.
+Do not switch the badge to `LIVE` for a recording unless `/ready` is healthy and the run trace itself reports `google.vertex.gemini` plus `mcp-clickhouse.run_query`. Fixture evidence is deterministic development evidence, not a live integration claim. Recorded offline rehearsal mode is read-only.

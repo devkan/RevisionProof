@@ -19,7 +19,10 @@ from revisionproof.settings import get_settings
 async def lifespan(app: FastAPI):
     settings = get_settings()
     settings.runtime_dir.mkdir(parents=True, exist_ok=True)
-    app.state.service = RevisionProofService(settings, InMemoryRunRepository())
+    app.state.service = RevisionProofService(
+        settings,
+        InMemoryRunRepository(max_runs=settings.max_in_memory_runs),
+    )
     yield
 
 
@@ -55,12 +58,14 @@ def public_media(media_path: str):
     return FileResponse(resolve_public_media(media_path))
 
 
-@app.get("/healthz")
+@app.get("/healthz", include_in_schema=False)
+@app.get("/health")
 def healthz():
     return {"status": "ok", "version": __version__, "mode": settings.mode}
 
 
-@app.get("/readyz")
+@app.get("/readyz", include_in_schema=False)
+@app.get("/ready")
 def readyz():
     missing = settings.live_missing_settings
     if settings.mode is ExecutionMode.UNAVAILABLE or missing:

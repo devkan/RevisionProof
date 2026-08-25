@@ -6,7 +6,7 @@ RevisionProof is a revision approval firewall. It does not expose a timeline edi
 
 ## Runtime
 
-One Cloud Run container serves the built React application and FastAPI API. Cloud Run accepts up to eight concurrent HTTP requests so the SSE trace does not block action requests, while a non-blocking application lock permits only one FFmpeg/OpenCV pipeline at a time. The hackathon deployment is capped at one 4 GiB instance. Live candidate media is copied to private GCS; the public media allowlist exposes only demo assets, A/B previews, and proof PNGs.
+One Cloud Run container serves the built React application and FastAPI API. Cloud Run accepts up to eight concurrent HTTP requests so the SSE trace does not block action requests, while a non-blocking application lock permits only one FFmpeg/OpenCV pipeline at a time. The hackathon deployment is capped at one 4 GiB instance. The public FIXTURE demo also caps new runs per minute, bounds the in-memory repository and idempotency ledger, and removes per-key async locks once all waiters exit. Live candidate media is copied to private GCS; the public media allowlist exposes only demo assets, A/B previews, and proof PNGs.
 
 ```text
 Client note
@@ -52,13 +52,14 @@ INDEXED → NOTES_PARSED → EVIDENCE_ANCHORED → PREVIEWS_READY
 → HUMAN_APPROVED → VERSION_UPLOADED → VERIFYING → BLOCKED | READY
 
 BLOCKED → VERSION_UPLOADED → VERIFYING → READY
-any processing state → FAILED → retry at the last safe persisted boundary
+LIVE interpretation/evidence failure → FAILED → retry preserved source feedback
+version verification failure → FAILED → retry upload from the frozen approved spec
 ```
 
 ## API
 
-The OpenAPI contract is available at `/docs`. Core routes include `/api/runtime`, `/api/demo-assets`, `/api/runs`, resumable `/events`, `/previews`, `/approvals`, `/spec`, `/versions`, `/proof`, and `/delivery-approval`. Health and readiness probes are `/healthz` and `/readyz`.
+The OpenAPI contract is available at `/docs`. Core routes include `/api/runtime`, `/api/demo-assets`, `/api/runs`, resumable `/events`, `/previews`, `/approvals`, `/spec`, `/versions`, `/proof`, and `/delivery-approval`. Cloud Run-safe health and readiness routes are `/health` and `/ready`; the legacy `z`-suffixed aliases remain for local compatibility only because Cloud Run reserves some paths ending in `z`.
 
 ## Hackathon durability boundary
 
-ClickHouse audit tables are defined with append-only `MergeTree` engines; the current implementation writes frozen specs, version features, and checks. The API run snapshot and trace are still process memory, and full restart hydration of in-progress previews is not implemented. `max-instances=1` prevents cross-instance state splits but does not make memory durable; a Cloud Run restart requires starting a new run. This is a known live-spike gate, not a recovered-state claim.
+ClickHouse audit tables are defined with append-only `MergeTree` engines; the current implementation writes frozen specs, version features, and checks. The API run snapshot and trace are still process memory, and full restart hydration of in-progress previews is not implemented. Cloud Run service-level `--max=1` prevents cross-revision state splits but does not make memory durable; a Cloud Run restart requires starting a new run. The preserved feedback retry works only while that process remains alive. This is a known live-spike gate, not a recovered-state claim.

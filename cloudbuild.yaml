@@ -1,9 +1,9 @@
 substitutions:
   _CONFIRM_LIVE: "NO"
   _REGION: us-central1
-  _SERVICE: revisionproof
-  _REPOSITORY: hackathon
-  _GCS_BUCKET: revisionproof-media
+  _SERVICE: revisionproof-staging
+  _REPOSITORY: revisionproof
+  _GCS_BUCKET: ${PROJECT_ID}-media
   _CLICKHOUSE_HOST: replace-me.clickhouse.cloud
 
 steps:
@@ -42,18 +42,24 @@ steps:
       - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
       - --region=${_REGION}
       - --platform=managed
-      - --allow-unauthenticated
+      - --no-allow-unauthenticated
+      - --service-account=revisionproof-runtime@${PROJECT_ID}.iam.gserviceaccount.com
       - --memory=4Gi
       - --cpu=2
       - --concurrency=8
-      - --max-instances=1
-      - --min-instances=1
+      - --max=1
+      - --min=1
       - --timeout=300
-      - --set-env-vars=REVISIONPROOF_MODE=LIVE,REVISIONPROOF_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},REVISIONPROOF_GCS_BUCKET=${_GCS_BUCKET},REVISIONPROOF_CLICKHOUSE_HOST=${_CLICKHOUSE_HOST}
+      - --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=3,timeoutSeconds=3,periodSeconds=10
+      - --liveness-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=5,failureThreshold=3,timeoutSeconds=3,periodSeconds=30
+      - --readiness-probe=httpGet.path=/ready,httpGet.port=8080,failureThreshold=3,successThreshold=1,timeoutSeconds=3,periodSeconds=10
+      - --set-env-vars=REVISIONPROOF_MODE=LIVE,REVISIONPROOF_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},REVISIONPROOF_GOOGLE_CLOUD_LOCATION=${_REGION},REVISIONPROOF_GCS_BUCKET=${_GCS_BUCKET},REVISIONPROOF_CLICKHOUSE_HOST=${_CLICKHOUSE_HOST}
       - --set-secrets=REVISIONPROOF_CLICKHOUSE_WRITER_PASSWORD=revisionproof-clickhouse-writer-password:latest,REVISIONPROOF_CLICKHOUSE_MCP_PASSWORD=revisionproof-clickhouse-mcp-password:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
+
+serviceAccount: projects/${PROJECT_ID}/serviceAccounts/revisionproof-build@${PROJECT_ID}.iam.gserviceaccount.com
 
 options:
   logging: CLOUD_LOGGING_ONLY

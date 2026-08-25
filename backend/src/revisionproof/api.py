@@ -94,6 +94,18 @@ def get_run(run_id: str, service: ServiceDep) -> RunSnapshot:
         raise as_http_error(exc) from exc
 
 
+@router.post("/runs/{run_id}/retry", response_model=RunSnapshot)
+async def retry_run(
+    run_id: str,
+    service: ServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> RunSnapshot:
+    try:
+        return await service.retry_live_interpretation(run_id, idempotency_key)
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+
+
 @router.get("/runs/{run_id}/events")
 def get_run_events(run_id: str, request: Request, service: ServiceDep):
     try:

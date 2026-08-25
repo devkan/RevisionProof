@@ -1,3 +1,4 @@
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -76,3 +77,21 @@ async def test_idempotency_replays_same_mutation_and_rejects_key_reuse(
     replayed_render = service.generate_previews(first.run_id, f"{first.run_id}:previews")
     assert replayed_render.run_id == first.run_id
     assert len(replayed_render.events) == event_count
+
+
+@pytest.mark.asyncio
+async def test_concurrent_same_key_create_run_returns_one_run(
+    service: RevisionProofService,
+) -> None:
+    request = CreateRunRequest(
+        asset_id=DEMO_ASSET_ID,
+        feedback="Make the reveal more intentional",
+    )
+    results = await asyncio.gather(
+        *(service.create_run(request, "create:concurrent-demo-key") for _ in range(20))
+    )
+
+    assert len({snapshot.run_id for snapshot in results}) == 1
+    assert len(service.repository._runs) == 1  # noqa: SLF001
+    assert service._create_idempotency_locks == {}  # noqa: SLF001
+    assert service._create_idempotency_waiters == {}  # noqa: SLF001

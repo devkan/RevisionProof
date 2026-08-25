@@ -30,6 +30,11 @@ export const api = {
       headers: mutationHeaders(`create:${crypto.randomUUID()}`, true),
       body: JSON.stringify({ asset_id: assetId, feedback }),
     }),
+  retryRun: (runId: string) =>
+    request<RunSnapshot>(`/api/runs/${runId}/retry`, {
+      method: 'POST',
+      headers: mutationHeaders(`${runId}:retry:${crypto.randomUUID()}`),
+    }),
   previews: (runId: string) =>
     request<RunSnapshot>(`/api/runs/${runId}/previews`, {
       method: 'POST',

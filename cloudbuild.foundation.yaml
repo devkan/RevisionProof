@@ -36,9 +36,12 @@ steps:
       - --memory=4Gi
       - --cpu=2
       - --concurrency=8
-      - --max-instances=1
-      - --min-instances=${_MIN_INSTANCES}
+      - --max=1
+      - --min=${_MIN_INSTANCES}
       - --timeout=300
+      - --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=3,timeoutSeconds=3,periodSeconds=10
+      - --liveness-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=5,failureThreshold=3,timeoutSeconds=3,periodSeconds=30
+      - --readiness-probe=httpGet.path=/ready,httpGet.port=8080,failureThreshold=3,successThreshold=1,timeoutSeconds=3,periodSeconds=10
       - --set-env-vars=REVISIONPROOF_MODE=FIXTURE,REVISIONPROOF_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},REVISIONPROOF_GOOGLE_CLOUD_LOCATION=${_REGION},REVISIONPROOF_GCS_BUCKET=${_GCS_BUCKET}
 
 images:

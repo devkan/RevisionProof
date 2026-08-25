@@ -9,7 +9,7 @@ The foundation build sets `REVISIONPROOF_INSTALL_LIVE=false`, so Google ADK and 
 - The project ID must start with `revisionproof-` and carry `managed-by=revisionproof-gcp`.
 - The media bucket must be exactly `${PROJECT_ID}-media`.
 - All commands pass `--project` explicitly; no global gcloud project is changed.
-- Cloud Run uses `max-instances=1`. Foundation deploys use `min-instances=1` only after the credit-bearing billing account is verified.
+- Cloud Run uses service-level `--max=1`. Foundation deploys use service-level `--min=1` only after the credit-bearing billing account is verified.
 - A project-filtered KRW 30,000 monthly budget sends alerts at 50%, 90%, and 100%. It matches the billing account currency and is an alert, not a hard spending cap.
 - No ClickHouse secret or host is created in this phase.
 
@@ -31,11 +31,22 @@ source infra/gcp/foundation.env
 gcloud builds submit \
   --project="${PROJECT_ID}" \
   --config=cloudbuild.foundation.yaml \
+  --gcs-source-staging-dir="gs://${GCS_BUCKET}/cloud-build-source" \
   --substitutions="_REGION=${REGION},_SERVICE=${SERVICE_NAME},_REPOSITORY=${ARTIFACT_REPOSITORY},_GCS_BUCKET=${GCS_BUCKET},_MIN_INSTANCES=${MIN_INSTANCES}" \
   .
 ```
 
-The staging URL must report `FIXTURE` and `live_ready=false` at `/api/runtime`. This is billed GCP infrastructure evidence, not final Gemini/ClickHouse runtime evidence.
+The staging URL must return HTTP 200 from `/health` and `/ready`, then report `FIXTURE` and `live_ready=false` at `/api/runtime`. Do not use `z`-suffixed operational paths on Cloud Run because the platform reserves some of them. This is billed GCP infrastructure evidence, not final Gemini/ClickHouse runtime evidence.
+
+The explicit source staging directory keeps future source archives in the labeled media bucket under its one-day lifecycle. The first pre-hardening build may still appear in the automatically created `${PROJECT_ID}_cloudbuild` bucket; inventory and cleanup cover that exact project-owned bucket.
+
+Before a later LIVE deployment, create only the two named Secret Manager secrets with the same three RevisionProof labels, add their versions without committing values, and scope access per secret:
+
+```bash
+bash infra/gcp/setup-live-secret-access.sh infra/gcp/foundation.env
+```
+
+The script does not create or read secret values. It only grants the runtime service account `secretAccessor` on the two exact labeled secrets after checking project number and ownership labels.
 
 ## Inventory and modification
 

@@ -6,9 +6,11 @@ import json
 import re
 import shutil
 import threading
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections import deque
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
+from time import monotonic
 from typing import BinaryIO
 
 from revisionproof.assets import require_demo_asset
@@ -61,6 +63,11 @@ class RevisionProofService:
         self.fixture_interpreter = FixtureInterpreter()
         self.fixture_locator = FixtureEvidenceLocator()
         self._media_slot = threading.Lock()
+        self._create_idempotency_locks: dict[str, asyncio.Lock] = {}
+        self._create_idempotency_waiters: dict[str, int] = {}
+        self._create_idempotency_locks_guard = threading.Lock()
+        self._create_timestamps: deque[float] = deque()
+        self._create_rate_lock = threading.Lock()
 
     def _transition(self, snapshot: RunSnapshot, target: RunState, message: str) -> None:
         assert_transition(snapshot.state, target)
@@ -93,6 +100,32 @@ class RevisionProofService:
     def _fingerprint(value: str) -> str:
         return hashlib.sha256(value.encode()).hexdigest()
 
+    @asynccontextmanager
+    async def _create_idempotency_lock(self, key: str) -> AsyncIterator[None]:
+        with self._create_idempotency_locks_guard:
+            lock = self._create_idempotency_locks.setdefault(key, asyncio.Lock())
+            self._create_idempotency_waiters[key] = self._create_idempotency_waiters.get(key, 0) + 1
+        try:
+            async with lock:
+                yield
+        finally:
+            with self._create_idempotency_locks_guard:
+                remaining = self._create_idempotency_waiters[key] - 1
+                if remaining:
+                    self._create_idempotency_waiters[key] = remaining
+                else:
+                    self._create_idempotency_waiters.pop(key, None)
+                    self._create_idempotency_locks.pop(key, None)
+
+    def _record_new_run(self) -> None:
+        now = monotonic()
+        with self._create_rate_lock:
+            while self._create_timestamps and self._create_timestamps[0] <= now - 60:
+                self._create_timestamps.popleft()
+            if len(self._create_timestamps) >= self.settings.max_new_runs_per_minute:
+                raise ValueError("new run rate limit reached; retry in one minute")
+            self._create_timestamps.append(now)
+
     @staticmethod
     def _feedback_from_notes(snapshot: RunSnapshot, source: str) -> ParsedFeedback | None:
         note = next(
@@ -119,9 +152,21 @@ class RevisionProofService:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
         fingerprint = self._fingerprint(request.model_dump_json())
+        if key is not None:
+            async with self._create_idempotency_lock(key):
+                replay = self.repository.recall_idempotent("create_run", key, fingerprint)
+                if replay is not None:
+                    return replay
+                return await self._create_run_once(request, key, fingerprint)
+        return await self._create_run_once(request, key, fingerprint)
+
+    async def _create_run_once(
+        self, request: CreateRunRequest, key: str | None, fingerprint: str
+    ) -> RunSnapshot:
         replay = self.repository.recall_idempotent("create_run", key, fingerprint)
         if replay is not None:
             return replay
+        self._record_new_run()
         asset, source_path = await asyncio.to_thread(
             require_demo_asset,
             request.asset_id,
@@ -134,6 +179,7 @@ class RevisionProofService:
             asset=asset,
             mode=self.settings.mode,
             state=RunState.INDEXED,
+            source_feedback=request.feedback,
         )
         self.repository.create(snapshot, source_path)
 
@@ -172,6 +218,42 @@ class RevisionProofService:
             self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
             return snapshot
         raise ValueError("execution mode cannot create runs")
+
+    async def retry_live_interpretation(
+        self, run_id: str, idempotency_key: str | None = None
+    ) -> RunSnapshot:
+        self._assert_mutable_mode()
+        if self.settings.mode is not ExecutionMode.LIVE:
+            raise ValueError("interpretation retry is only available in LIVE mode")
+        key = self._validate_idempotency_key(idempotency_key)
+        lock_key = f"retry:{run_id}"
+        async with self._create_idempotency_lock(lock_key):
+            fingerprint = self._fingerprint(run_id)
+            replay = self.repository.recall_idempotent(lock_key, key, fingerprint)
+            if replay is not None:
+                return replay
+            snapshot = self.repository.get(run_id)
+            if snapshot.state is not RunState.FAILED or not snapshot.retryable:
+                raise ValueError("interpretation retry requires a retryable FAILED run")
+            if not snapshot.source_feedback:
+                raise ValueError("original feedback is unavailable for retry")
+            if self.settings.live_missing_settings:
+                raise ValueError(
+                    "live settings are incomplete: "
+                    + ", ".join(self.settings.live_missing_settings)
+                )
+            snapshot.notes = []
+            snapshot.feedback = None
+            snapshot.evidence = []
+            snapshot.error = None
+            self._transition(snapshot, RunState.INDEXED, "Retrying preserved source feedback")
+            try:
+                await self._run_live_interpretation(snapshot, snapshot.source_feedback)
+            except Exception:
+                snapshot.error = "Live interpretation or evidence lookup failed"
+                self._transition(snapshot, RunState.FAILED, snapshot.error)
+            self.repository.remember_idempotent(lock_key, key, fingerprint, run_id)
+            return snapshot
 
     async def _run_live_interpretation(self, snapshot: RunSnapshot, raw_feedback: str) -> None:
         from revisionproof.evidence.live import (
@@ -228,13 +310,16 @@ class RevisionProofService:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
         fingerprint = self._fingerprint(run_id)
-        replay = self.repository.recall_idempotent(f"{run_id}:previews", key, fingerprint)
-        if replay is not None:
-            return replay
-        with self._exclusive_media_pipeline(), self.repository.locked(run_id):
-            snapshot = self._generate_previews_locked(run_id)
-            self.repository.remember_idempotent(f"{run_id}:previews", key, fingerprint, run_id)
-            return snapshot
+        with self.repository.locked(run_id):
+            replay = self.repository.recall_idempotent(f"{run_id}:previews", key, fingerprint)
+            if replay is not None:
+                return replay
+            with self._exclusive_media_pipeline():
+                snapshot = self._generate_previews_locked(run_id)
+                self.repository.remember_idempotent(
+                    f"{run_id}:previews", key, fingerprint, run_id
+                )
+                return snapshot
 
     def _generate_previews_locked(self, run_id: str) -> RunSnapshot:
         snapshot = self.repository.get(run_id)
@@ -290,10 +375,10 @@ class RevisionProofService:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
         fingerprint = self._fingerprint(request.model_dump_json())
-        replay = self.repository.recall_idempotent(f"{run_id}:approval", key, fingerprint)
-        if replay is not None:
-            return replay
         with self.repository.locked(run_id):
+            replay = self.repository.recall_idempotent(f"{run_id}:approval", key, fingerprint)
+            if replay is not None:
+                return replay
             snapshot = self._approve_locked(run_id, request)
             self.repository.remember_idempotent(f"{run_id}:approval", key, fingerprint, run_id)
             return snapshot
@@ -527,18 +612,21 @@ class RevisionProofService:
             if digest.hexdigest() != content_sha256.lower():
                 raise ValueError("X-Content-SHA256 does not match the uploaded file")
         fingerprint = self._fingerprint(f"{version_label}:{size}:{(content_sha256 or '').lower()}")
-        replay = self.repository.recall_idempotent(f"{run_id}:version", key, fingerprint)
-        if replay is not None:
-            return replay
-        with self._exclusive_media_pipeline(), self.repository.locked(run_id):
-            snapshot = self._upload_and_verify_locked(
-                run_id=run_id,
-                version_label=version_label,
-                stream=stream,
-                size=size,
-            )
-            self.repository.remember_idempotent(f"{run_id}:version", key, fingerprint, run_id)
-            return snapshot
+        with self.repository.locked(run_id):
+            replay = self.repository.recall_idempotent(f"{run_id}:version", key, fingerprint)
+            if replay is not None:
+                return replay
+            with self._exclusive_media_pipeline():
+                snapshot = self._upload_and_verify_locked(
+                    run_id=run_id,
+                    version_label=version_label,
+                    stream=stream,
+                    size=size,
+                )
+                self.repository.remember_idempotent(
+                    f"{run_id}:version", key, fingerprint, run_id
+                )
+                return snapshot
 
     def _upload_and_verify_locked(
         self,
@@ -609,10 +697,12 @@ class RevisionProofService:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
         fingerprint = self._fingerprint(run_id)
-        replay = self.repository.recall_idempotent(f"{run_id}:delivery-approval", key, fingerprint)
-        if replay is not None:
-            return replay
         with self.repository.locked(run_id):
+            replay = self.repository.recall_idempotent(
+                f"{run_id}:delivery-approval", key, fingerprint
+            )
+            if replay is not None:
+                return replay
             snapshot = self.repository.get(run_id)
             if (
                 snapshot.state is not RunState.READY

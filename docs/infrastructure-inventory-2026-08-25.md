@@ -68,3 +68,5 @@ Locked isolated defaults:
 - ClickHouse resources and secrets: not part of this foundation phase
 
 The local `infra/gcp/foundation.env` contains the exact IDs and is intentionally gitignored. `setup-foundation.sh` refuses an ID/number mismatch; the project is already labeled, so its one-time `ADOPT_EXISTING_PROJECT` switch is locked back to `NO`. The setup script is now idempotent against the console-created foundation and uses the billing account's explicit KRW currency. After deployment, record the image digest, Cloud Build ID, Cloud Run revision and URL here. Use `infra/gcp/inventory.sh` as the CLI source of truth once Cloud Shell authentication is restored.
+
+Cloud Shell verification note: the installed gcloud rejected the combined bucket metadata update with HTTP 400. Isolated commands proved `--clear-soft-delete` and the lifecycle file succeed, while rewriting already-identical labels returns 400. CLI describe confirmed all three labels are already exact, so the script now separates metadata updates and skips the label write when current values match. No unrelated bucket was targeted.

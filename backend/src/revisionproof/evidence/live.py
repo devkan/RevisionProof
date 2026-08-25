@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,39 @@ from revisionproof.ids import new_ulid
 from revisionproof.settings import Settings
 
 _ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
+
+
+def _normalize_note(text: str) -> str:
+    without_marker = re.sub(r"^\s*(?:\d+[.)]|[-*])\s+", "", text)
+    return re.sub(r"\s+", " ", without_marker).strip().casefold()
+
+
+def _split_source_notes(raw_text: str) -> list[str]:
+    markers = list(re.finditer(r"(?m)^\s*(?:\d+[.)]|[-*])\s+", raw_text))
+    if markers:
+        return [
+            raw_text[
+                marker.end() : markers[index + 1].start()
+                if index + 1 < len(markers)
+                else None
+            ]
+            for index, marker in enumerate(markers)
+        ]
+    lines = [line for line in raw_text.splitlines() if line.strip()]
+    return lines or [raw_text]
+
+
+def validate_interpretation_grounding(raw_text: str, notes: list[RevisionNote]) -> None:
+    expected_notes = Counter(_normalize_note(item) for item in _split_source_notes(raw_text))
+    returned_notes = Counter(_normalize_note(note.raw_text) for note in notes)
+    if not expected_notes or "" in expected_notes or returned_notes != expected_notes:
+        raise RuntimeError("Gemini notes do not exactly cover the client feedback")
+    for note in notes:
+        normalized_note = _normalize_note(note.raw_text)
+        if note.target_phrase:
+            normalized_target = _normalize_note(note.target_phrase)
+            if normalized_target not in normalized_note:
+                raise RuntimeError("Gemini returned a target phrase absent from its source note")
 
 
 def decode_clickhouse_result(payload: Any) -> list[dict[str, Any]]:
@@ -162,6 +196,10 @@ class VertexGeminiInterpreter:
                 "supported but lacks a precise target or has confidence 0.55-0.82; ask one "
                 "clarifying question. MANUAL_CREATIVE covers B-roll, restructuring, speed ramps, "
                 "or other unsupported creation. Never approve or verify a revision."
+                " Return one output note for every input list item or non-empty line. Preserve "
+                "each note's raw_text verbatim, excluding only a leading list marker. Never merge, "
+                "duplicate, or invent notes. A target_phrase must be a verbatim substring of that "
+                "same note."
             ),
             output_schema=InterpretationOutput,
         )
@@ -173,27 +211,30 @@ class VertexGeminiInterpreter:
         content = types.Content(role="user", parts=[types.Part.from_text(text=raw_text)])
         final_text = ""
         try:
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=session.id,
-                new_message=content,
-            ):
-                if event.content and event.content.parts:
-                    texts = [part.text for part in event.content.parts if part.text]
-                    if texts:
-                        final_text = "\n".join(texts)
+            async with asyncio.timeout(self.settings.gemini_timeout_seconds):
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session.id,
+                    new_message=content,
+                ):
+                    if event.content and event.content.parts:
+                        texts = [part.text for part in event.content.parts if part.text]
+                        if texts:
+                            final_text = "\n".join(texts)
         finally:
             await runner.close()
         if not final_text:
             raise RuntimeError("Google ADK returned no interpretation")
         data = InterpretationOutput.model_validate_json(final_text)
-        return [
+        notes = [
             RevisionNote(
                 note_id=f"note_{index:02d}",
                 **note.model_dump(),
             )
             for index, note in enumerate(data.notes, start=1)
         ]
+        validate_interpretation_grounding(raw_text, notes)
+        return notes
 
     async def interpret(self, raw_text: str) -> ParsedFeedback:
         notes = await self.interpret_many(raw_text)
@@ -324,7 +365,8 @@ class LiveEvidenceLocator:
     interpreter: VertexGeminiInterpreter
 
     async def locate(self, asset_id: str, feedback: ParsedFeedback) -> list[EvidenceAnchor]:
-        embedding = await asyncio.to_thread(self.interpreter.embed, feedback.target_phrase)
+        async with asyncio.timeout(self.settings.gemini_timeout_seconds):
+            embedding = await asyncio.to_thread(self.interpreter.embed, feedback.target_phrase)
         rows = await self.reader.run_query(build_segment_search_query(asset_id, embedding, 5))
         anchors = [
             EvidenceAnchor(
