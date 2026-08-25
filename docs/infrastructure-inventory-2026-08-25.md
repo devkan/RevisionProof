@@ -49,8 +49,9 @@ Verified in the Google Cloud Console while signed in as `secureis@gmail.com`:
 - Build service account: `revisionproof-build@revisionproof-agentic-2026-kan.iam.gserviceaccount.com`, unique ID `100413539935602962847`, no keys. Project roles: `roles/artifactregistry.writer`, `roles/logging.logWriter`, `roles/run.admin`, `roles/storage.objectViewer`.
 - Runtime service-account policy grants only the build service account `roles/iam.serviceAccountUser`; the console tree was expanded to verify the exact principal.
 - Billing budget: `billingAccounts/0134C0-F341A5-D149BA/costViews/6e7d6d40-1b10-455a-98d3-13f100e3b233`, display name `RevisionProof revisionproof-agentic-2026-kan`; monthly KRW 30,000 alert scoped only to the RevisionProof project at 50%, 90%, and 100% actual spend. It is not a hard cap.
+- Temporary private deployment source: `gs://revisionproof-agentic-2026-kan-media/revisionproof-deploy-ba10532.zip`, 194,661 local bytes (console: 194.7 KB), SHA-256 `59409F060C3B8765355A92465618BCBEB6AEB1E1E7F653BEEFAD4DE2175BAEFA`. It was generated from tracked commit `ba10532`, is not public, and the bucket lifecycle deletes it after it becomes at least one day old.
 - No Cloud Build, container image, Cloud Run service/revision, or ClickHouse resource has been created yet.
-- Blocker: the console session is authenticated, but Cloud Shell reports no valid CLI credentials for `secureis@gmail.com`; the user must complete `gcloud auth login` directly without sharing the OAuth verification code.
+- Blocker: the console session is authenticated and the Cloud Shell authorization prompt was approved, but `gcloud auth list --filter=status:ACTIVE` still reports `No credentialed accounts.` The user must complete `gcloud auth login secureis@gmail.com` directly without sharing the OAuth verification code. Cloud Shell's direct file-transfer backend failed twice, so the private lifecycle-managed GCS object above is the authenticated handoff path.
 
 Locked isolated defaults:
 

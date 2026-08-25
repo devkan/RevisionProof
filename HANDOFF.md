@@ -10,7 +10,7 @@ Verified baseline: 36 backend tests, Ruff, ESLint, Vite build, the 12-video zero
 
 ## Remaining work
 
-Complete `gcloud auth login secureis@gmail.com` inside Cloud Shell, then run the idempotent foundation inventory and submit Cloud Build for the visibly labeled FIXTURE staging service. The isolated project `revisionproof-agentic-2026-kan` (number `348672234012`) is linked to billing account `0134C0-F341A5-D149BA`; APIs, least-privilege IAM, Artifact Registry, private GCS, and the KRW 30,000 project budget are already console-created and verified. ClickHouse Cloud database/roles/secrets and the guarded LIVE deployment remain the following phase. Full restart hydration of an in-progress run remains unimplemented.
+Complete `gcloud auth login secureis@gmail.com` inside Cloud Shell, copy the tracked source from `gs://revisionproof-agentic-2026-kan-media/revisionproof-deploy-ba10532.zip`, then run the idempotent foundation inventory and submit Cloud Build for the visibly labeled FIXTURE staging service. The isolated project `revisionproof-agentic-2026-kan` (number `348672234012`) is linked to billing account `0134C0-F341A5-D149BA`; APIs, least-privilege IAM, Artifact Registry, private GCS, and the KRW 30,000 project budget are already console-created and verified. ClickHouse Cloud database/roles/secrets and the guarded LIVE deployment remain the following phase. Full restart hydration of an in-progress run remains unimplemented.
 
 ## Watchouts
 
