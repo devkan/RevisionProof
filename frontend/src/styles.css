@@ -203,6 +203,7 @@ footer { height: 62px; max-width: 1480px; margin: 0 auto; padding: 0 28px; borde
   .hero { padding: 52px 0 42px; }
   .hero h1 { font-size: 52px; }
   .panel { padding: 18px; }
+  textarea { min-height: 186px; }
   .candidate-grid { grid-template-columns: 1fr; }
   .evidence-list article { grid-template-columns: 1fr auto; }
   .evidence-list article > div:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
