@@ -10,11 +10,11 @@ Verified baseline: 36 backend tests, Ruff, ESLint, Vite build, the 12-video zero
 
 ## Remaining work
 
-Provision or attach the target GCP project, Vertex/ADK credentials, private GCS bucket with 24-hour lifecycle, ClickHouse Cloud database and roles, and Secret Manager values. Then run the live integration spike, rebuild the Docker image with Docker Desktop running, rehearse LIVE three times, and deploy only after explicit authorization. Full restart hydration of an in-progress run remains unimplemented.
+Complete Google account reauthentication in the in-app browser, verify the active credit-bearing billing account, then run the dedicated GCP foundation scripts to create the project, private GCS bucket, Artifact Registry, service accounts, budget, Cloud Build, and visibly labeled FIXTURE staging service. ClickHouse Cloud database/roles/secrets and the guarded LIVE deployment remain the following phase. Full restart hydration of an in-progress run remains unimplemented.
 
 ## Watchouts
 
-Never present fixture traces as live. A configured `LIVE` badge is not success evidence; the run must show actual Gemini and `mcp-clickhouse.run_query` events and persisted rows. `max-instances=1` prevents in-memory state from splitting across instances but does not survive a restart. Docker rebuild for this hardening branch was blocked because the daemon was stopped. Codex-assisted source may also affect hackathon eligibility; the user plans a separate Gemini review/rework before submission.
+Never present fixture traces as live. A configured `LIVE` badge is not success evidence; the run must show actual Gemini and `mcp-clickhouse.run_query` events and persisted rows. `max-instances=1` prevents in-memory state from splitting across instances but does not survive a restart. Docker Desktop now runs and both the full and foundation images passed non-root local health checks; see `docs/infrastructure-inventory-2026-08-25.md`. No GCP resource has been created yet because the console requires user reauthentication. Codex-assisted source may also affect hackathon eligibility; the user plans a separate Gemini review/rework before submission.
 
 ## Git state
 
