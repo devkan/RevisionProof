@@ -1,0 +1,14 @@
+[
+  {"file":"revisionproof_v3_ready.mp4","expected":"PASS"},
+  {"file":"regression_pass_audio_plus2db.mp4","expected":"PASS"},
+  {"file":"regression_pass_audio_minus2db.mp4","expected":"PASS"},
+  {"file":"revisionproof_v2_blocked.mp4","expected":"FAIL","code":"LOCKED_OVERLAY_MISSING"},
+  {"file":"regression_fail_wrong_scale.mp4","expected":"FAIL","code":"APPROVED_PATCH_MISMATCH"},
+  {"file":"regression_fail_no_patch.mp4","expected":"FAIL","code":"APPROVED_PATCH_MISMATCH"},
+  {"file":"regression_fail_loud_audio.mp4","expected":"FAIL","code":"LOCKED_AUDIO_CHANGED"},
+  {"file":"regression_fail_clipped_audio.mp4","expected":"FAIL","code":"LOCKED_AUDIO_CHANGED"},
+  {"file":"regression_fail_silent_audio.mp4","expected":"FAIL","code":"LOCKED_AUDIO_CHANGED"},
+  {"file":"regression_fail_partial_cta.mp4","expected":"FAIL","code":"LOCKED_OVERLAY_MISSING"},
+  {"file":"regression_fail_shifted_cta.mp4","expected":"FAIL","code":"LOCKED_OVERLAY_MISSING"},
+  {"file":"regression_fail_patch_and_cta.mp4","expected":"FAIL","code":"APPROVED_PATCH_MISMATCH"}
+]

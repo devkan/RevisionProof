@@ -1,0 +1,43 @@
+substitutions:
+  _REGION: us-central1
+  _SERVICE: revisionproof
+  _REPOSITORY: hackathon
+  _GCS_BUCKET: revisionproof-media
+  _CLICKHOUSE_HOST: replace-me.clickhouse.cloud
+
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}
+      - .
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --memory=2Gi
+      - --cpu=2
+      - --concurrency=1
+      - --timeout=300
+      - --set-env-vars=REVISIONPROOF_MODE=LIVE,REVISIONPROOF_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},REVISIONPROOF_GCS_BUCKET=${_GCS_BUCKET},REVISIONPROOF_CLICKHOUSE_HOST=${_CLICKHOUSE_HOST}
+      - --set-secrets=REVISIONPROOF_CLICKHOUSE_WRITER_PASSWORD=revisionproof-clickhouse-writer-password:latest,REVISIONPROOF_CLICKHOUSE_MCP_PASSWORD=revisionproof-clickhouse-mcp-password:latest
+
+images:
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}
+
+options:
+  logging: CLOUD_LOGGING_ONLY

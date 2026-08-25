@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.6.14"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install backend
+        run: uv sync --project backend --frozen --extra dev
+      - name: Install frontend
+        run: npm ci --prefix frontend
+      - name: Generate deterministic fixtures
+        run: backend/.venv/bin/python scripts/generate_demo_assets.py
+      - name: Backend lint
+        run: |
+          backend/.venv/bin/ruff check backend scripts
+          backend/.venv/bin/ruff format --check backend scripts
+      - name: Backend tests
+        run: backend/.venv/bin/pytest backend --cov=revisionproof --cov-report=term-missing
+      - name: Rehearse the release gate three times
+        run: backend/.venv/bin/python scripts/rehearse_demo.py --runs 3
+      - name: Frontend lint
+        run: npm run lint --prefix frontend
+      - name: Frontend build
+        run: npm run build --prefix frontend
+      - name: Container build
+        run: docker build --tag revisionproof:ci .
