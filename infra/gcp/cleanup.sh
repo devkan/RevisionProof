@@ -92,9 +92,11 @@ media_bucket_exists=false
 if resource_exists gcloud storage buckets describe "gs://${GCS_BUCKET}" --format=json; then
   media_bucket_exists=true
   bucket_json="$(gcloud storage buckets describe "gs://${GCS_BUCKET}" --format=json)"
-  bucket_project_number="$(jq -r '.projectNumber // .project_number // empty' \
-    <<<"${bucket_json}")"
-  if [[ "${bucket_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]] \
+  bucket_owner_match="$(gcloud storage buckets list \
+    --project="${PROJECT_ID}" \
+    --filter="name=${GCS_BUCKET}" \
+    --format='value(name)')"
+  if [[ "${bucket_owner_match}" != "${GCS_BUCKET}" ]] \
     || ! jq -e '.labels.app == "revisionproof"
       and .labels.environment == "hackathon"
       and .labels["managed-by"] == "revisionproof-gcp"' \
@@ -110,10 +112,11 @@ mcp_secret="${CLICKHOUSE_MCP_SECRET:-revisionproof-clickhouse-mcp-password}"
 build_bucket_exists=false
 if resource_exists gcloud storage buckets describe "gs://${default_build_bucket}" --format=json; then
   build_bucket_exists=true
-  build_bucket_json="$(gcloud storage buckets describe "gs://${default_build_bucket}" --format=json)"
-  build_bucket_project_number="$(jq -r '.projectNumber // .project_number // empty' \
-    <<<"${build_bucket_json}")"
-  if [[ "${build_bucket_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]]; then
+  build_bucket_owner_match="$(gcloud storage buckets list \
+    --project="${PROJECT_ID}" \
+    --filter="name=${default_build_bucket}" \
+    --format='value(name)')"
+  if [[ "${build_bucket_owner_match}" != "${default_build_bucket}" ]]; then
     echo "Refusing cleanup: default Cloud Build bucket belongs to another project." >&2
     exit 3
   fi

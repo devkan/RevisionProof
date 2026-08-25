@@ -190,9 +190,12 @@ if ! gcloud storage buckets describe "gs://${GCS_BUCKET}" --project="${PROJECT_I
     --soft-delete-duration=0
 fi
 bucket_json="$(gcloud storage buckets describe "gs://${GCS_BUCKET}" --format=json)"
-bucket_project_number="$(jq -r '.projectNumber // .project_number // empty' <<<"${bucket_json}")"
-if [[ "${bucket_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]]; then
-  echo "Refusing bucket drift: gs://${GCS_BUCKET} belongs to project ${bucket_project_number:-unknown}." >&2
+bucket_owner_match="$(gcloud storage buckets list \
+  --project="${PROJECT_ID}" \
+  --filter="name=${GCS_BUCKET}" \
+  --format='value(name)')"
+if [[ "${bucket_owner_match}" != "${GCS_BUCKET}" ]]; then
+  echo "Refusing bucket drift: gs://${GCS_BUCKET} is not owned by ${PROJECT_ID}." >&2
   exit 3
 fi
 bucket_location="$(jq -r '.location // empty | ascii_downcase' <<<"${bucket_json}")"

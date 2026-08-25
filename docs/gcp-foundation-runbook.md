@@ -8,6 +8,7 @@ The foundation build sets `REVISIONPROOF_INSTALL_LIVE=false`, so Google ADK and 
 
 - The project ID must start with `revisionproof-` and carry `managed-by=revisionproof-gcp`.
 - The media bucket must be exactly `${PROJECT_ID}-media`.
+- Bucket ownership is verified by listing the exact bucket within the guarded project; current `gcloud storage buckets describe --format=json` output does not expose an owner-project field.
 - All commands pass `--project` explicitly; no global gcloud project is changed.
 - Cloud Run uses service-level `--max=1`. Foundation deploys use service-level `--min=1` only after the credit-bearing billing account is verified.
 - A project-filtered KRW 30,000 monthly budget sends alerts at 50%, 90%, and 100%. It matches the billing account currency and is an alert, not a hard spending cap.
