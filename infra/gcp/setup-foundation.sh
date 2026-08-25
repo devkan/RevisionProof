@@ -11,7 +11,8 @@ fi
 source "${ENV_FILE}"
 
 required=(
-  PROJECT_ID PROJECT_NAME BILLING_ACCOUNT_ID REGION ARTIFACT_REPOSITORY
+  PROJECT_ID PROJECT_NAME EXPECTED_PROJECT_NUMBER ADOPT_EXISTING_PROJECT
+  BILLING_ACCOUNT_ID REGION ARTIFACT_REPOSITORY
   SERVICE_NAME RUNTIME_SERVICE_ACCOUNT BUILD_SERVICE_ACCOUNT GCS_BUCKET
   MIN_INSTANCES BUDGET_AMOUNT_USD BUDGET_DISPLAY_NAME
 )
@@ -38,21 +39,41 @@ if [[ ! "${BUDGET_AMOUNT_USD}" =~ ^[1-9][0-9]*$ ]]; then
   echo "BUDGET_AMOUNT_USD must be a positive whole-dollar alert amount." >&2
   exit 2
 fi
+if [[ ! "${EXPECTED_PROJECT_NUMBER}" =~ ^[0-9]+$ ]]; then
+  echo "EXPECTED_PROJECT_NUMBER must be the exact numeric project number recorded after creation." >&2
+  exit 2
+fi
+if [[ ! "${ADOPT_EXISTING_PROJECT}" =~ ^(YES|NO)$ ]]; then
+  echo "ADOPT_EXISTING_PROJECT must be YES or NO." >&2
+  exit 2
+fi
 
 command -v gcloud >/dev/null
 command -v jq >/dev/null
 
 managed_label="revisionproof-gcp"
 if gcloud projects describe "${PROJECT_ID}" >/dev/null 2>&1; then
-  existing_label="$(gcloud projects describe "${PROJECT_ID}" --format='value(labels.managed-by)')"
-  if [[ "${existing_label}" != "${managed_label}" ]]; then
-    echo "Refusing to modify existing project ${PROJECT_ID}: managed-by label is not ${managed_label}." >&2
+  existing_project_number="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+  if [[ "${existing_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]]; then
+    echo "Refusing to modify ${PROJECT_ID}: expected project number ${EXPECTED_PROJECT_NUMBER}, got ${existing_project_number}." >&2
     exit 3
   fi
+  existing_label="$(gcloud projects describe "${PROJECT_ID}" --format='value(labels.managed-by)')"
+  if [[ -n "${existing_label}" && "${existing_label}" != "${managed_label}" ]]; then
+    echo "Refusing to modify existing project ${PROJECT_ID}: managed-by label is ${existing_label}." >&2
+    exit 3
+  fi
+  if [[ -z "${existing_label}" ]]; then
+    if [[ "${ADOPT_EXISTING_PROJECT}" != "YES" ]]; then
+      echo "Refusing to adopt unlabeled project ${PROJECT_ID}; set ADOPT_EXISTING_PROJECT=YES after verifying its project number and billing link." >&2
+      exit 3
+    fi
+    gcloud alpha projects update "${PROJECT_ID}" \
+      --update-labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}"
+  fi
 else
-  gcloud projects create "${PROJECT_ID}" \
-    --name="${PROJECT_NAME}" \
-    --labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}"
+  echo "Project ${PROJECT_ID} does not exist. Create it first, record its project number, then rerun this script." >&2
+  exit 3
 fi
 
 expected_billing="billingAccounts/${BILLING_ACCOUNT_ID}"
@@ -96,7 +117,7 @@ if ! gcloud iam service-accounts describe "${build_sa}" --project="${PROJECT_ID}
     --project="${PROJECT_ID}"
 fi
 
-for role in roles/aiplatform.user roles/logging.logWriter roles/storage.objectAdmin; do
+for role in roles/aiplatform.user roles/logging.logWriter; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${runtime_sa}" \
     --role="${role}" \
@@ -135,6 +156,9 @@ gcloud storage buckets update "gs://${GCS_BUCKET}" \
   --lifecycle-file="infra/gcp/media-lifecycle.json" \
   --soft-delete-duration=0 \
   --update-labels="app=revisionproof,environment=hackathon,managed-by=${managed_label}"
+gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
+  --member="serviceAccount:${runtime_sa}" \
+  --role="roles/storage.objectAdmin" >/dev/null
 
 budget_name="$(gcloud billing budgets list \
   --billing-account="${BILLING_ACCOUNT_ID}" \

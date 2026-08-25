@@ -52,7 +52,7 @@ gcloud run services update "${SERVICE_NAME}" \
 
 ## Cleanup
 
-Cleanup is dry-run by default and refuses any project without the dedicated label:
+Cleanup is dry-run by default and refuses a project ID/number mismatch or any project without the dedicated label:
 
 ```bash
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env "${PROJECT_ID}"
@@ -63,5 +63,7 @@ After reviewing the inventory, the exact resource cleanup command is:
 ```bash
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env "${PROJECT_ID}" --execute
 ```
+
+Executed resource cleanup also removes the two service accounts and their custom IAM bindings. It intentionally leaves billing linked and APIs enabled so the dedicated project can be inspected or reused; exact project deletion remains a separate manual decision.
 
 This keeps the project and billing link for audit. Complete project deletion is a separate, explicit action and is never run by the script.

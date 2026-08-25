@@ -29,11 +29,25 @@ powershell -File infra/docker/cleanup-local.ps1 -Execute
 
 ## Google Cloud
 
-Status: **no project or resource created yet**. The internal browser reached `support@kanapp.net` but requires user reauthentication before billing credits can be verified.
+Status: **isolated project created and billing linked; foundation resources pending Cloud Shell CLI authentication**.
 
-Proposed isolated defaults, still pending confirmation:
+Verified in the Google Cloud Console while signed in as `secureis@gmail.com`:
 
-- Project ID: `revisionproof-agentic-2026-kan` (must be checked for global availability)
+- Project name: `RevisionProof Agentic 2026`
+- Project ID: `revisionproof-agentic-2026-kan`
+- Project number: `348672234012`
+- Billing account: `0134C0-F341A5-D149BA` (the account-management project grid lists RevisionProof as linked)
+- Active hackathon credit: `Marketing - All things agentic hackathon - wturney - 3 - 549836236`
+- Credit ID: `UDTR8Y1KX4PPM9UC`
+- Credit balance observed on 2026-08-25: `KRW 216,937.92` of `KRW 217,762.00`, expires 2026-10-24
+- ScopeShift and every other existing project were left unchanged.
+- No API, service account, bucket, repository, budget, build, image, or Cloud Run service has been created yet.
+- Blocker: the console session is authenticated, but Cloud Shell reports no valid CLI credentials for `secureis@gmail.com`; the user must complete `gcloud auth login` directly without sharing the OAuth verification code.
+
+Locked isolated defaults:
+
+- Project ID: `revisionproof-agentic-2026-kan`
+- Project number guard: `348672234012`
 - Region: `us-central1`
 - Cloud Run service: `revisionproof-staging`
 - Artifact Registry repository: `revisionproof`
@@ -44,4 +58,4 @@ Proposed isolated defaults, still pending confirmation:
 - Project-scoped budget: USD 25 alerts at 50%, 90%, and 100%; this is not a hard cap
 - ClickHouse resources and secrets: not part of this foundation phase
 
-After creation, record the exact project number, billing account ID, budget resource name, image digest, Cloud Build ID, Cloud Run revision and URL here. Use `infra/gcp/inventory.sh` as the source of truth.
+The local `infra/gcp/foundation.env` contains the exact IDs and is intentionally gitignored. `setup-foundation.sh` refuses an ID/number mismatch and requires an explicit one-time `ADOPT_EXISTING_PROJECT=YES` before adding the management label. After foundation creation, record the budget resource name, image digest, Cloud Build ID, Cloud Run revision and URL here. Use `infra/gcp/inventory.sh` as the source of truth.

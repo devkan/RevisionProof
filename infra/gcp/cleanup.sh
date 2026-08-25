@@ -16,6 +16,11 @@ if [[ "${CONFIRM_PROJECT}" != "${PROJECT_ID}" ]]; then
   echo "Pass the exact project id as argument 2: ${PROJECT_ID}" >&2
   exit 2
 fi
+actual_project_number="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
+if [[ "${actual_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]]; then
+  echo "Refusing cleanup: expected project number ${EXPECTED_PROJECT_NUMBER}, got ${actual_project_number}." >&2
+  exit 3
+fi
 managed_label="$(gcloud projects describe "${PROJECT_ID}" --format='value(labels.managed-by)')"
 if [[ "${managed_label}" != "revisionproof-gcp" ]]; then
   echo "Refusing cleanup: ${PROJECT_ID} is not labeled managed-by=revisionproof-gcp." >&2
@@ -38,6 +43,8 @@ if [[ "${MODE}" != "--execute" ]]; then
 fi
 
 echo "Destructive cleanup requested for the exact labeled RevisionProof project."
+runtime_sa="${RUNTIME_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com"
+build_sa="${BUILD_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com"
 while IFS= read -r budget_name; do
   [[ -n "${budget_name}" ]] && gcloud billing budgets delete "${budget_name}" --quiet
 done < <(gcloud billing budgets list \
@@ -50,13 +57,30 @@ gcloud artifacts repositories delete "${ARTIFACT_REPOSITORY}" \
   --location="${REGION}" --project="${PROJECT_ID}" --quiet || true
 gcloud storage rm --recursive "gs://${GCS_BUCKET}/**" || true
 gcloud storage buckets delete "gs://${GCS_BUCKET}" --quiet || true
+for role in roles/aiplatform.user roles/logging.logWriter; do
+  gcloud projects remove-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${runtime_sa}" \
+    --role="${role}" \
+    --condition=None --quiet >/dev/null || true
+done
+for role in roles/artifactregistry.writer roles/logging.logWriter roles/run.admin roles/storage.objectViewer; do
+  gcloud projects remove-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${build_sa}" \
+    --role="${role}" \
+    --condition=None --quiet >/dev/null || true
+done
+gcloud iam service-accounts remove-iam-policy-binding "${runtime_sa}" \
+  --member="serviceAccount:${build_sa}" \
+  --role="roles/iam.serviceAccountUser" \
+  --project="${PROJECT_ID}" --quiet >/dev/null || true
 gcloud iam service-accounts delete \
-  "${RUNTIME_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
+  "${runtime_sa}" \
   --project="${PROJECT_ID}" --quiet || true
 gcloud iam service-accounts delete \
-  "${BUILD_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
+  "${build_sa}" \
   --project="${PROJECT_ID}" --quiet || true
 
-echo "Resource and project-scoped budget cleanup completed. Billing remains linked and the project remains active."
+echo "Resource, custom IAM bindings, and project-scoped budget cleanup completed."
+echo "Billing remains linked, enabled APIs remain enabled, and the project remains active."
 echo "For complete isolation cleanup, separately review and run:"
 echo "  gcloud projects delete ${PROJECT_ID}"
