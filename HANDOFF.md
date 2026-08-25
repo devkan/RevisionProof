@@ -10,18 +10,18 @@ Verified baseline: 36 backend tests, Ruff, ESLint, Vite build, the 12-video zero
 
 ## Remaining work
 
-Complete `gcloud auth login secureis@gmail.com` inside Cloud Shell, then run the dedicated GCP foundation scripts to create the private GCS bucket, Artifact Registry, service accounts, budget, Cloud Build, and visibly labeled FIXTURE staging service. The isolated project `revisionproof-agentic-2026-kan` (number `348672234012`) is already created and linked to billing account `0134C0-F341A5-D149BA`. ClickHouse Cloud database/roles/secrets and the guarded LIVE deployment remain the following phase. Full restart hydration of an in-progress run remains unimplemented.
+Complete `gcloud auth login secureis@gmail.com` inside Cloud Shell, then run the idempotent foundation inventory and submit Cloud Build for the visibly labeled FIXTURE staging service. The isolated project `revisionproof-agentic-2026-kan` (number `348672234012`) is linked to billing account `0134C0-F341A5-D149BA`; APIs, least-privilege IAM, Artifact Registry, private GCS, and the KRW 30,000 project budget are already console-created and verified. ClickHouse Cloud database/roles/secrets and the guarded LIVE deployment remain the following phase. Full restart hydration of an in-progress run remains unimplemented.
 
 ## Watchouts
 
-Never present fixture traces as live. A configured `LIVE` badge is not success evidence; the run must show actual Gemini and `mcp-clickhouse.run_query` events and persisted rows. `max-instances=1` prevents in-memory state from splitting across instances but does not survive a restart. Docker Desktop now runs and both the full and foundation images passed non-root local health checks; see `docs/infrastructure-inventory-2026-08-25.md`. The new GCP project and billing link exist, but no billable foundation resource has been created because Cloud Shell still requires user-completed CLI OAuth. Codex-assisted source may also affect hackathon eligibility; the user plans a separate Gemini review/rework before submission.
+Never present fixture traces as live. A configured `LIVE` badge is not success evidence; the run must show actual Gemini and `mcp-clickhouse.run_query` events and persisted rows. `max-instances=1` prevents in-memory state from splitting across instances but does not survive a restart. Docker Desktop now runs and both the full and foundation images passed non-root local health checks; see `docs/infrastructure-inventory-2026-08-25.md`. GCP control-plane resources exist, but no image/build/Cloud Run revision exists until Cloud Shell CLI OAuth is completed directly by the user. The KRW 30,000 budget is alert-only, not a spending cap. Codex-assisted source may also affect hackathon eligibility; the user plans a separate Gemini review/rework before submission.
 
 ## Git state
 
 - Branch: `review/qa-hardening`
 - Implementation commits: `d7dd18e`, `a9ce687`, `3c422bc`; see `git log` for the final docs checkpoint
 - Remote: `https://github.com/devkan/RevisionProof.git`
-- Push/PR/deploy: not performed
+- Push: `review/qa-hardening` is connected to `origin`; GCP foundation checkpoints through `fdfd266` were pushed. PR and Cloud Run deploy are not yet performed.
 
 ## Start here
 

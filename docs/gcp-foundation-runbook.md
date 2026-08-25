@@ -10,7 +10,7 @@ The foundation build sets `REVISIONPROOF_INSTALL_LIVE=false`, so Google ADK and 
 - The media bucket must be exactly `${PROJECT_ID}-media`.
 - All commands pass `--project` explicitly; no global gcloud project is changed.
 - Cloud Run uses `max-instances=1`. Foundation deploys use `min-instances=1` only after the credit-bearing billing account is verified.
-- A project-filtered USD 25 budget sends alerts at 50%, 90%, and 100%. It is an alert, not a hard spending cap.
+- A project-filtered KRW 30,000 monthly budget sends alerts at 50%, 90%, and 100%. It matches the billing account currency and is an alert, not a hard spending cap.
 - No ClickHouse secret or host is created in this phase.
 
 ## Provision
@@ -19,7 +19,7 @@ Run these from Google Cloud Shell after checking the active account and credit-b
 
 ```bash
 cp infra/gcp/foundation.env.example infra/gcp/foundation.env
-# Edit the new project ID, verified credit-bearing billing account ID, and budget amount.
+# Edit the new project ID, verified credit-bearing billing account ID, budget amount, and billing currency.
 bash infra/gcp/setup-foundation.sh infra/gcp/foundation.env
 bash infra/gcp/inventory.sh infra/gcp/foundation.env
 ```

@@ -29,7 +29,7 @@ powershell -File infra/docker/cleanup-local.ps1 -Execute
 
 ## Google Cloud
 
-Status: **isolated project created and billing linked; foundation resources pending Cloud Shell CLI authentication**.
+Status: **isolated project, billing, APIs, IAM, Artifact Registry, GCS, and budget verified; Cloud Build/Run deployment pending Cloud Shell CLI authentication**.
 
 Verified in the Google Cloud Console while signed in as `secureis@gmail.com`:
 
@@ -42,7 +42,14 @@ Verified in the Google Cloud Console while signed in as `secureis@gmail.com`:
 - Credit balance observed on 2026-08-25: `KRW 216,937.92` of `KRW 217,762.00`, expires 2026-10-24
 - ScopeShift and every other existing project were left unchanged.
 - Project labels saved and console-verified: `app=revisionproof`, `environment=hackathon`, `managed-by=revisionproof-gcp`.
-- No API, service account, bucket, repository, budget, build, image, or Cloud Run service has been created yet.
+- Enabled and console-verified APIs: Agent Platform (`aiplatform.googleapis.com`), Artifact Registry, Cloud Build, Cloud Run, Secret Manager, Billing Budgets, Cloud Billing, IAM, IAM Credentials, Logging, Monitoring, Service Usage, and Cloud Storage.
+- Artifact Registry Docker repository: `projects/revisionproof-agentic-2026-kan/locations/us-central1/repositories/revisionproof`; Standard mode, labels `app=revisionproof`, `environment=hackathon`, `managed-by=revisionproof-gcp`. It is currently empty.
+- GCS bucket: `gs://revisionproof-agentic-2026-kan-media`; `us-central1`, Standard, uniform bucket-level access, public-access prevention, soft delete disabled, object versioning disabled, no retention policy, and delete lifecycle for objects aged one day or more. Labels match the project.
+- Runtime service account: `revisionproof-runtime@revisionproof-agentic-2026-kan.iam.gserviceaccount.com`, unique ID `102251949493063370006`, no keys. Project roles: `roles/aiplatform.user`, `roles/logging.logWriter`. Bucket-only role: `roles/storage.objectAdmin` on the media bucket.
+- Build service account: `revisionproof-build@revisionproof-agentic-2026-kan.iam.gserviceaccount.com`, unique ID `100413539935602962847`, no keys. Project roles: `roles/artifactregistry.writer`, `roles/logging.logWriter`, `roles/run.admin`, `roles/storage.objectViewer`.
+- Runtime service-account policy grants only the build service account `roles/iam.serviceAccountUser`; the console tree was expanded to verify the exact principal.
+- Billing budget: `billingAccounts/0134C0-F341A5-D149BA/costViews/6e7d6d40-1b10-455a-98d3-13f100e3b233`, display name `RevisionProof revisionproof-agentic-2026-kan`; monthly KRW 30,000 alert scoped only to the RevisionProof project at 50%, 90%, and 100% actual spend. It is not a hard cap.
+- No Cloud Build, container image, Cloud Run service/revision, or ClickHouse resource has been created yet.
 - Blocker: the console session is authenticated, but Cloud Shell reports no valid CLI credentials for `secureis@gmail.com`; the user must complete `gcloud auth login` directly without sharing the OAuth verification code.
 
 Locked isolated defaults:
@@ -56,7 +63,7 @@ Locked isolated defaults:
 - Runtime service account: `revisionproof-runtime`
 - Build service account: `revisionproof-build`
 - Cloud Run scale: min 1, max 1 after the credit-bearing billing account is confirmed
-- Project-scoped budget: USD 25 alerts at 50%, 90%, and 100%; this is not a hard cap
+- Project-scoped budget: KRW 30,000 alerts at 50%, 90%, and 100%; this is not a hard cap
 - ClickHouse resources and secrets: not part of this foundation phase
 
-The local `infra/gcp/foundation.env` contains the exact IDs and is intentionally gitignored. `setup-foundation.sh` refuses an ID/number mismatch; the project is already labeled, so its one-time `ADOPT_EXISTING_PROJECT` switch is locked back to `NO`. After foundation creation, record the budget resource name, image digest, Cloud Build ID, Cloud Run revision and URL here. Use `infra/gcp/inventory.sh` as the source of truth.
+The local `infra/gcp/foundation.env` contains the exact IDs and is intentionally gitignored. `setup-foundation.sh` refuses an ID/number mismatch; the project is already labeled, so its one-time `ADOPT_EXISTING_PROJECT` switch is locked back to `NO`. The setup script is now idempotent against the console-created foundation and uses the billing account's explicit KRW currency. After deployment, record the image digest, Cloud Build ID, Cloud Run revision and URL here. Use `infra/gcp/inventory.sh` as the CLI source of truth once Cloud Shell authentication is restored.

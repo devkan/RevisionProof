@@ -14,7 +14,7 @@ required=(
   PROJECT_ID PROJECT_NAME EXPECTED_PROJECT_NUMBER ADOPT_EXISTING_PROJECT
   BILLING_ACCOUNT_ID REGION ARTIFACT_REPOSITORY
   SERVICE_NAME RUNTIME_SERVICE_ACCOUNT BUILD_SERVICE_ACCOUNT GCS_BUCKET
-  MIN_INSTANCES BUDGET_AMOUNT_USD BUDGET_DISPLAY_NAME
+  MIN_INSTANCES BUDGET_AMOUNT_UNITS BUDGET_CURRENCY_CODE BUDGET_DISPLAY_NAME
 )
 for name in "${required[@]}"; do
   if [[ -z "${!name:-}" || "${!name}" == REPLACE_* ]]; then
@@ -35,8 +35,12 @@ if [[ ! "${MIN_INSTANCES}" =~ ^[01]$ ]]; then
   echo "MIN_INSTANCES must be 0 or 1 because the service is capped at one instance." >&2
   exit 2
 fi
-if [[ ! "${BUDGET_AMOUNT_USD}" =~ ^[1-9][0-9]*$ ]]; then
-  echo "BUDGET_AMOUNT_USD must be a positive whole-dollar alert amount." >&2
+if [[ ! "${BUDGET_AMOUNT_UNITS}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "BUDGET_AMOUNT_UNITS must be a positive whole-unit alert amount." >&2
+  exit 2
+fi
+if [[ ! "${BUDGET_CURRENCY_CODE}" =~ ^[A-Z]{3}$ ]]; then
+  echo "BUDGET_CURRENCY_CODE must be the billing account's three-letter currency code." >&2
   exit 2
 fi
 if [[ ! "${EXPECTED_PROJECT_NUMBER}" =~ ^[0-9]+$ ]]; then
@@ -169,7 +173,7 @@ if [[ -z "${budget_name}" ]]; then
   budget_name="$(gcloud billing budgets create \
     --billing-account="${BILLING_ACCOUNT_ID}" \
     --display-name="${BUDGET_DISPLAY_NAME}" \
-    --budget-amount="${BUDGET_AMOUNT_USD}USD" \
+    --budget-amount="${BUDGET_AMOUNT_UNITS}${BUDGET_CURRENCY_CODE}" \
     --filter-projects="projects/${project_number}" \
     --threshold-rule=percent=0.50 \
     --threshold-rule=percent=0.90 \
@@ -186,5 +190,5 @@ echo "runtime_service_account=${runtime_sa}"
 echo "build_service_account=${build_sa}"
 echo "artifact_repository=${ARTIFACT_REPOSITORY}"
 echo "gcs_bucket=${GCS_BUCKET}"
-echo "budget=${budget_name} (${BUDGET_AMOUNT_USD} USD alerts; not a hard cap)"
+echo "budget=${budget_name} (${BUDGET_AMOUNT_UNITS} ${BUDGET_CURRENCY_CODE} alerts; not a hard cap)"
 echo "Next: run infra/gcp/inventory.sh, then submit cloudbuild.foundation.yaml."
