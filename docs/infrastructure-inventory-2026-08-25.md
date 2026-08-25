@@ -41,6 +41,7 @@ Verified in the Google Cloud Console while signed in as `secureis@gmail.com`:
 - Credit ID: `UDTR8Y1KX4PPM9UC`
 - Credit balance observed on 2026-08-25: `KRW 216,937.92` of `KRW 217,762.00`, expires 2026-10-24
 - ScopeShift and every other existing project were left unchanged.
+- Project labels saved and console-verified: `app=revisionproof`, `environment=hackathon`, `managed-by=revisionproof-gcp`.
 - No API, service account, bucket, repository, budget, build, image, or Cloud Run service has been created yet.
 - Blocker: the console session is authenticated, but Cloud Shell reports no valid CLI credentials for `secureis@gmail.com`; the user must complete `gcloud auth login` directly without sharing the OAuth verification code.
 
@@ -58,4 +59,4 @@ Locked isolated defaults:
 - Project-scoped budget: USD 25 alerts at 50%, 90%, and 100%; this is not a hard cap
 - ClickHouse resources and secrets: not part of this foundation phase
 
-The local `infra/gcp/foundation.env` contains the exact IDs and is intentionally gitignored. `setup-foundation.sh` refuses an ID/number mismatch and requires an explicit one-time `ADOPT_EXISTING_PROJECT=YES` before adding the management label. After foundation creation, record the budget resource name, image digest, Cloud Build ID, Cloud Run revision and URL here. Use `infra/gcp/inventory.sh` as the source of truth.
+The local `infra/gcp/foundation.env` contains the exact IDs and is intentionally gitignored. `setup-foundation.sh` refuses an ID/number mismatch; the project is already labeled, so its one-time `ADOPT_EXISTING_PROJECT` switch is locked back to `NO`. After foundation creation, record the budget resource name, image digest, Cloud Build ID, Cloud Run revision and URL here. Use `infra/gcp/inventory.sh` as the source of truth.
