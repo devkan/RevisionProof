@@ -11,5 +11,5 @@
 - A proof allows publishing only when every deterministic check is `PASS`. Empty checks, unavailable checks, exceptions, or integration failures are blocked.
 - Revision specs are frozen after approval. A new approval requires a new run and hash.
 - Revision spec validation recomputes the canonical hash and binds the approved time range, locked ranges, ROI, and threshold keys.
-- `FIXTURE`, `OFFLINE_REHEARSAL`, `LIVE`, and `UNAVAILABLE` are user-visible execution modes; the latter two non-live modes reject state-changing requests.
+- `FIXTURE`, `OFFLINE_REHEARSAL`, `LIVE`, and `UNAVAILABLE` are user-visible execution modes; `OFFLINE_REHEARSAL` and `UNAVAILABLE` reject state-changing requests. Fixture-only demo routes reject LIVE requests.
 - The container runs as an unprivileged UID. Cloud Run is capped at one instance because the hackathon snapshot repository is process-local.

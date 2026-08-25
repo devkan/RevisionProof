@@ -1,5 +1,7 @@
 # Infrastructure inventory — 2026-08-25
 
+Historical foundation snapshot. For the deployed Cloud Build, Artifact Registry image, Cloud Run revision, and final cleanup dry-run, see [the 2026-08-26 deployment delta](infrastructure-inventory-2026-08-26.md).
+
 This file records only resources created for RevisionProof. Update it after every Docker or GCP mutation so later cleanup never relies on broad discovery.
 
 ## Local Docker

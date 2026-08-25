@@ -19,6 +19,12 @@ The foundation build sets `REVISIONPROOF_INSTALL_LIVE=false`, so Google ADK and 
 Run these from Google Cloud Shell after checking the active account and credit-bearing billing account:
 
 ```bash
+export CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com
+export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
+gcloud auth list --filter=status:ACTIVE --format='value(account)'
+gcloud projects describe revisionproof-agentic-2026-kan \
+  --project=revisionproof-agentic-2026-kan \
+  --format='value(projectId,projectNumber)'
 cp infra/gcp/foundation.env.example infra/gcp/foundation.env
 # Edit the new project ID, verified credit-bearing billing account ID, budget amount, and billing currency.
 bash infra/gcp/setup-foundation.sh infra/gcp/foundation.env
@@ -38,6 +44,8 @@ gcloud builds submit \
 ```
 
 The staging URL must return HTTP 200 from `/health` and `/ready`, then report `FIXTURE` and `live_ready=false` at `/api/runtime`. Do not use `z`-suffixed operational paths on Cloud Run because the platform reserves some of them. This is billed GCP infrastructure evidence, not final Gemini/ClickHouse runtime evidence.
+
+The verified 2026-08-26 foundation deployment is Cloud Build `354696e9-0fdc-451c-9e69-cf55184ea63f`, Cloud Run revision `revisionproof-staging-00003-q56`, and URL `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Later builds must create a new source archive from the intended tracked commit and record its SHA-256 before submission.
 
 The explicit source staging directory keeps future source archives in the labeled media bucket under its one-day lifecycle. The first pre-hardening build may still appear in the automatically created `${PROJECT_ID}_cloudbuild` bucket; inventory and cleanup cover that exact project-owned bucket.
 
@@ -67,12 +75,16 @@ gcloud run services update "${SERVICE_NAME}" \
 Cleanup is dry-run by default and refuses a project ID/number mismatch or any project without the dedicated label:
 
 ```bash
+export CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com
+export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env "${PROJECT_ID}"
 ```
 
 After reviewing the inventory, the exact resource cleanup command is:
 
 ```bash
+export CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com
+export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env "${PROJECT_ID}" --execute
 ```
 

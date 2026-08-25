@@ -26,6 +26,10 @@ backend/.venv/Scripts/uvicorn.exe revisionproof.main:app --app-dir backend/src -
 
 Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits a fake MCP or Gemini success. `OFFLINE_REHEARSAL` is read-only. `LIVE` mode fails readiness until Google Cloud, GCS, and ClickHouse settings are present.
 
+## Deployed foundation demo
+
+The billed GCP foundation deployment is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. It is intentionally labeled `FIXTURE` and proves the isolated Cloud Build, Artifact Registry, GCS, IAM, and Cloud Run path. It is not Gemini or ClickHouse LIVE evidence.
+
 ## Quality gates
 
 ```powershell
@@ -33,9 +37,10 @@ backend/.venv/Scripts/pytest.exe backend
 backend/.venv/Scripts/ruff.exe check backend scripts
 backend/.venv/Scripts/ruff.exe format --check backend scripts
 npm run lint --prefix frontend
+npm run test --prefix frontend
 npm run build --prefix frontend
 backend/.venv/Scripts/python.exe scripts/rehearse_demo.py --runs 3
 docker build --tag revisionproof:local .
 ```
 
-See [docs/architecture.md](docs/architecture.md), [docs/demo-runbook.md](docs/demo-runbook.md), and the [latest QA report](docs/qa-report-2026-08-25-v2-hardening.md).
+See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [latest QA report](docs/qa-report-2026-08-26-cloud-deploy.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).

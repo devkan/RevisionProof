@@ -1,5 +1,7 @@
 # QA evidence — v2 hardening, 2026-08-25
 
+Historical pre-deployment snapshot. For the deployed candidate-A flow and current test counts, see [the 2026-08-26 Cloud deployment report](qa-report-2026-08-26-cloud-deploy.md).
+
 ## Result
 
 Status: **PASS for the fixture hackathon path after one verified mobile fix.** gstack health score moved from **99/100 to 100/100** after the default three-note input was made fully visible at 375 px.

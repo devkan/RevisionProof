@@ -18,12 +18,14 @@ backend/.venv/Scripts/uvicorn.exe revisionproof.main:app --app-dir backend/src -
 
 Open `http://127.0.0.1:8000`.
 
+The deployed foundation demo is `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Before a recorded run, confirm `/ready` reports `FIXTURE`, `live_credentials_configured=false`, and `integration_execution_verified=false`.
+
 ## 90-second judge path
 
 1. Point out the `FIXTURE MODE` badge and the runtime truth panel.
 2. Submit the prefilled three-note brief. Show `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`; only the first may execute.
 3. Show the three time-coded evidence matches and their explicit fixture or MCP source.
-4. Render A/B and approve B (1.12x).
+4. Render A/B and approve A (1.05x). Candidate B (1.12x) is also supported, but the latest deployed QA evidence uses A.
 5. Point to the frozen SHA-256 spec hash.
 6. Select **Verify demo v2**. The approved patch and audio pass, the hidden CTA regression fails, before/after frames appear, and both the release gate and delivery button are blocked.
 7. Select **Verify repaired v3**. All checks pass and the release gate reads `PUBLISH READY`.
