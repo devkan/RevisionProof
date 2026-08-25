@@ -16,6 +16,11 @@ function mutationHeaders(key: string, json = false): HeadersInit {
   }
 }
 
+async function blobSha256(blob: Blob): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer())
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('')
+}
+
 export const api = {
   runtime: () => request<RuntimeStatus>('/api/runtime'),
   assets: () => request<DemoAsset[]>('/api/demo-assets'),
@@ -41,13 +46,17 @@ export const api = {
       method: 'POST',
       headers: mutationHeaders(`${runId}:delivery-approval`),
     }),
-  uploadVersion: (runId: string, versionLabel: string, file: Blob) => {
+  uploadVersion: async (runId: string, versionLabel: string, file: Blob) => {
+    const contentSha256 = await blobSha256(file)
     const form = new FormData()
     form.append('version_label', versionLabel)
     form.append('file', file, `${versionLabel}.mp4`)
     return request<RunSnapshot>(`/api/runs/${runId}/versions`, {
       method: 'POST',
-      headers: mutationHeaders(`${runId}:version:${versionLabel}:${file.size}`),
+      headers: {
+        ...mutationHeaders(`${runId}:version:${versionLabel}:${contentSha256}`),
+        'X-Content-SHA256': contentSha256,
+      },
       body: form,
     })
   },

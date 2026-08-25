@@ -20,6 +20,7 @@ gstack browse tested the FastAPI-served React SPA at `http://127.0.0.1:8000`:
 8. Raw run JSON reported `READY`, three notes, 12 events, and `delivery_approved: true`.
 9. The uploaded `/versions/v3.mp4` public-media path returned 404 as designed.
 10. `OFFLINE_REHEARSAL` displayed a read-only banner, disabled the start button, and rejected a direct mutation with HTTP 409.
+11. A final gstack regression sent the browser-computed content SHA-256 with the v2 upload; `POST /versions` completed with HTTP 200 and no console errors.
 
 Console errors caused by the app: **0**. Broken application requests: **0**. The deliberate private-media probe returned its expected 404 and was excluded from error scoring.
 
@@ -45,7 +46,7 @@ These are local observations, not Cloud Run cold-start measurements.
 
 ## Automated evidence
 
-- 35 backend tests pass.
+- 36 backend tests pass, including rejection of missing or mismatched upload content hashes.
 - Ruff check and format check pass.
 - ESLint and the Vite production build pass.
 - The 30-note safety corpus is exactly 12 auto-previewable, 9 clarification, and 9 manual-creative cases.

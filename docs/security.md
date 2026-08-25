@@ -1,6 +1,7 @@
 # Security and failure policy
 
 - Uploads accept MP4 only, at most 24 MiB and 60 seconds, with H.264 video, AAC audio, and 1280x720 dimensions.
+- Idempotent version uploads require a 64-character SHA-256 header, verify it against the received stream, and reject missing or mismatched digests before processing.
 - Media commands are argument arrays, never shell-composed strings. A non-blocking pipeline lock permits one render/verification workflow at a time, and timed-out commands remove partial outputs.
 - Public media routes allow only bundled demos, A/B previews, and CTA proof PNGs. Uploaded candidate versions and arbitrary runtime paths return 404.
 - Run and version identifiers are validated before SQL is built. Embeddings must have exactly 768 numeric values and query limits are bounded.

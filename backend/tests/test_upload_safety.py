@@ -58,6 +58,35 @@ async def test_invalid_media_is_removed_after_blocked_retry(
     assert not broken.exists()
 
 
+@pytest.mark.asyncio
+async def test_upload_idempotency_requires_content_hash(
+    service: RevisionProofService, runtime_dir: Path
+) -> None:
+    snapshot = await service.create_run(
+        CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback="Make the reveal more intentional")
+    )
+    snapshot = service.generate_previews(snapshot.run_id)
+    snapshot = service.approve(snapshot.run_id, ApprovalRequest(candidate_id="B"))
+    v2 = runtime_dir / "demo" / "revisionproof_v2_blocked.mp4"
+    with v2.open("rb") as stream, pytest.raises(ValueError, match="X-Content-SHA256"):
+        service.upload_and_verify(
+            run_id=snapshot.run_id,
+            version_label="v2",
+            stream=stream,
+            size=v2.stat().st_size,
+            idempotency_key=f"{snapshot.run_id}:version:v2",
+        )
+    with v2.open("rb") as stream, pytest.raises(ValueError, match="does not match"):
+        service.upload_and_verify(
+            run_id=snapshot.run_id,
+            version_label="v2",
+            stream=stream,
+            size=v2.stat().st_size,
+            idempotency_key=f"{snapshot.run_id}:version:v2",
+            content_sha256="0" * 64,
+        )
+
+
 def test_public_media_allowlist_never_exposes_uploaded_versions() -> None:
     with pytest.raises(Exception, match="404"):
         resolve_public_media("runs/01J00000000000000000000000/versions/client-export.mp4")

@@ -509,10 +509,24 @@ class RevisionProofService:
         stream: BinaryIO,
         size: int,
         idempotency_key: str | None = None,
+        content_sha256: str | None = None,
     ) -> RunSnapshot:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
-        fingerprint = self._fingerprint(f"{version_label}:{size}")
+        if key is not None and not (
+            content_sha256 and re.fullmatch(r"[a-fA-F0-9]{64}", content_sha256)
+        ):
+            raise ValueError("X-Content-SHA256 is required with an upload Idempotency-Key")
+        if key is not None:
+            assert content_sha256 is not None
+            position = stream.tell()
+            digest = hashlib.sha256()
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+            stream.seek(position)
+            if digest.hexdigest() != content_sha256.lower():
+                raise ValueError("X-Content-SHA256 does not match the uploaded file")
+        fingerprint = self._fingerprint(f"{version_label}:{size}:{(content_sha256 or '').lower()}")
         replay = self.repository.recall_idempotent(f"{run_id}:version", key, fingerprint)
         if replay is not None:
             return replay

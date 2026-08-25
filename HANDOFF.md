@@ -4,9 +4,9 @@ Updated: 2026-08-25
 
 ## Current status
 
-The v2 hackathon flow is hardened on local branch `review/qa-hardening`. Three feedback safety classes are enforced, unsupported notes cannot render, approval freezes the exact ROI/ranges/thresholds in a hash-validated `RevisionSpec`, v2 blocks real delivery approval with CTA before/after evidence, and v3 enables a separate human Delivery approval. Mutations use bounded idempotency keys, offline rehearsal is read-only, SSE events carry resumable IDs, candidate uploads are not publicly served, and the container is configured for a non-root user.
+The v2 hackathon flow is hardened on local branch `review/qa-hardening`. Three feedback safety classes are enforced, unsupported notes cannot render, approval freezes the exact ROI/ranges/thresholds in a hash-validated `RevisionSpec`, v2 blocks real delivery approval with CTA before/after evidence, and v3 enables a separate human Delivery approval. Mutations use bounded idempotency keys, version-upload keys are bound to the actual file SHA-256, offline rehearsal is read-only, SSE events carry resumable IDs, candidate uploads are not publicly served, and the container is configured for a non-root user.
 
-Verified baseline: 35 backend tests, Ruff, ESLint, Vite build, the 12-video zero-false-PASS corpus, and three consecutive 12-event real-media rehearsals all pass. gstack browser QA completed the full desktop path, the 375px classification and v2 blocked paths, and offline read-only mode with zero application console errors. One mobile input-height issue was fixed and reverified. See `docs/qa-report-2026-08-25-v2-hardening.md`.
+Verified baseline: 36 backend tests, Ruff, ESLint, Vite build, the 12-video zero-false-PASS corpus, and three consecutive 12-event real-media rehearsals all pass. gstack browser QA completed the full desktop path, the 375px classification and v2 blocked paths, offline read-only mode, and the SHA-256-bound version upload with zero application console errors. One mobile input-height issue was fixed and reverified. See `docs/qa-report-2026-08-25-v2-hardening.md`.
 
 ## Remaining work
 

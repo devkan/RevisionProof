@@ -175,6 +175,7 @@ def upload_version(
     file: Annotated[UploadFile, File()],
     service: ServiceDep,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    content_sha256: Annotated[str | None, Header(alias="X-Content-SHA256")] = None,
 ) -> RunSnapshot:
     if file.content_type not in {"video/mp4", "application/mp4", "application/octet-stream"}:
         raise HTTPException(status_code=415, detail="only MP4 uploads are accepted")
@@ -190,6 +191,7 @@ def upload_version(
             stream=file.file,
             size=size,
             idempotency_key=idempotency_key,
+            content_sha256=content_sha256,
         )
     except Exception as exc:
         raise as_http_error(exc) from exc
