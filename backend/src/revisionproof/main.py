@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import re
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
 
 from revisionproof import __version__
 from revisionproof.api import router
@@ -33,7 +33,26 @@ app.include_router(router)
 
 settings = get_settings()
 settings.runtime_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/media", StaticFiles(directory=settings.runtime_dir), name="media")
+
+PUBLIC_MEDIA_PATTERNS = (
+    re.compile(r"demo/revisionproof_(?:v1|v2_blocked|v3_ready)\.mp4"),
+    re.compile(r"runs/[0-9A-HJKMNP-TV-Z]{26}/previews/[AB]\.mp4"),
+    re.compile(r"runs/[0-9A-HJKMNP-TV-Z]{26}/evidence/[A-Za-z0-9._-]{1,96}\.png"),
+)
+
+
+def resolve_public_media(media_path: str) -> Path:
+    if not any(pattern.fullmatch(media_path) for pattern in PUBLIC_MEDIA_PATTERNS):
+        raise HTTPException(status_code=404, detail="media not found")
+    requested = (settings.runtime_dir / Path(media_path)).resolve()
+    if settings.runtime_dir not in requested.parents or not requested.is_file():
+        raise HTTPException(status_code=404, detail="media not found")
+    return requested
+
+
+@app.get("/media/{media_path:path}", include_in_schema=False)
+def public_media(media_path: str):
+    return FileResponse(resolve_public_media(media_path))
 
 
 @app.get("/healthz")

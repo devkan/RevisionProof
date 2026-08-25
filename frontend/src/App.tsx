@@ -18,9 +18,24 @@ import {
   XCircle,
 } from 'lucide-react'
 import { api } from './api'
-import type { DemoAsset, PatchCandidate, RunSnapshot, Verdict } from './types'
+import type {
+  DemoAsset,
+  PatchCandidate,
+  RunSnapshot,
+  RuntimeStatus,
+  SafetyClassification,
+  Verdict,
+} from './types'
 
-const DEFAULT_FEEDBACK = 'Can we make the product reveal feel more intentional?'
+const DEFAULT_FEEDBACK = `1. When the presenter says "RevisionProof," push in slightly.
+2. Make the middle feel more dynamic.
+3. Add B-roll that feels more premium and on-brand.`
+
+const CLASSIFICATION_LABEL: Record<SafetyClassification, string> = {
+  AUTO_PREVIEWABLE: 'AUTO PREVIEW',
+  NEEDS_CLARIFICATION: 'CLARIFY',
+  MANUAL_CREATIVE: 'MANUAL',
+}
 
 function formatTime(seconds: number) {
   const minute = Math.floor(seconds / 60)
@@ -72,6 +87,7 @@ function CandidateCard({
 
 export default function App() {
   const [assets, setAssets] = useState<DemoAsset[]>([])
+  const [runtime, setRuntime] = useState<RuntimeStatus | null>(null)
   const [run, setRun] = useState<RunSnapshot | null>(null)
   const [feedback, setFeedback] = useState(DEFAULT_FEEDBACK)
   const [busy, setBusy] = useState(false)
@@ -80,7 +96,12 @@ export default function App() {
   const runId = run?.run_id
 
   useEffect(() => {
-    api.assets().then(setAssets).catch((reason: Error) => setError(reason.message))
+    Promise.all([api.assets(), api.runtime()])
+      .then(([nextAssets, nextRuntime]) => {
+        setAssets(nextAssets)
+        setRuntime(nextRuntime)
+      })
+      .catch((reason: Error) => setError(reason.message))
   }, [])
 
   useEffect(() => {
@@ -99,7 +120,8 @@ export default function App() {
   const activeAsset = run?.asset ?? assets[0]
   const progress = useMemo(() => {
     if (!run) return 0
-    if (run.state === 'READY') return 100
+    if (run.delivery_approved) return 100
+    if (run.state === 'READY') return 94
     if (run.state === 'BLOCKED') return 84
     if (run.state === 'HUMAN_APPROVED') return 68
     if (run.state === 'PREVIEWS_READY') return 50
@@ -120,7 +142,7 @@ export default function App() {
   }
 
   function start() {
-    if (!activeAsset) return
+    if (!activeAsset || !runtime?.mutable) return
     void action(() => api.createRun(activeAsset.asset_id, feedback))
   }
 
@@ -137,8 +159,8 @@ export default function App() {
           <span>Revision<span>Proof</span></span>
         </a>
         <div className="header-meta">
-          <span className={`mode-badge mode-${(run?.mode ?? 'FIXTURE').toLowerCase()}`}>
-            <CircleDot size={12} /> {run?.mode ?? 'FIXTURE'} MODE
+          <span className={`mode-badge mode-${(run?.mode ?? runtime?.mode ?? 'UNAVAILABLE').toLowerCase()}`}>
+            <CircleDot size={12} /> {run?.mode ?? runtime?.mode ?? 'CHECKING'} MODE
           </span>
           <span className="run-id">{run ? `RUN ${run.run_id.slice(-8)}` : 'NEW PROOF'}</span>
         </div>
@@ -153,6 +175,12 @@ export default function App() {
         </section>
 
         {error && <div className="error-banner"><ShieldAlert size={17} /><span>{error}</span></div>}
+        {runtime && runtime.mode !== 'LIVE' && (
+          <div className="runtime-banner">
+            <CircleDot size={16} />
+            <span><strong>{runtime.mode}</strong> — {runtime.message}</span>
+          </div>
+        )}
 
         <section className="workspace-grid">
           <div className="primary-column">
@@ -171,18 +199,33 @@ export default function App() {
               <label htmlFor="feedback">Client feedback</label>
               <textarea id="feedback" value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={Boolean(run)} />
               {!run && (
-                <button className="primary-button" onClick={start} disabled={busy || !activeAsset || feedback.length < 8}>
+                <button className="primary-button" onClick={start} disabled={busy || !activeAsset || !runtime?.mutable || feedback.length < 8}>
                   <Sparkles size={16} /> {busy ? 'Interpreting…' : 'Interpret & locate evidence'}
                 </button>
               )}
-              {run?.feedback && (
-                <div className="interpretation">
-                  <span className="micro-label">INTERPRETED INTENT</span>
-                  <p>{run.feedback.intent}</p>
-                  <div className="chip-row"><span>PUNCH_IN</span><span>“{run.feedback.target_phrase}”</span></div>
-                  <small>Source: {run.feedback.interpreter_source}</small>
+              {run?.notes.length ? (
+                <div className="note-results">
+                  {run.notes.map((note) => (
+                    <article className={`note-card note-${note.classification.toLowerCase()}`} key={note.note_id}>
+                      <div className="note-heading">
+                        <span>{note.note_id.replace('_', ' ')}</span>
+                        <strong>{CLASSIFICATION_LABEL[note.classification]}</strong>
+                      </div>
+                      <p>{note.raw_text}</p>
+                      <small>{note.intent}</small>
+                      {note.clarification_question && <em>{note.clarification_question}</em>}
+                      <div className="confidence">{Math.round(note.confidence * 100)}% confidence</div>
+                    </article>
+                  ))}
+                  {run.feedback && (
+                    <div className="active-operation">
+                      <span className="micro-label">SAFE OPERATION</span>
+                      <div className="chip-row"><span>PUNCH_IN</span><span>“{run.feedback.target_phrase}”</span></div>
+                      <small>Source: {run.feedback.interpreter_source}</small>
+                    </div>
+                  )}
                 </div>
-              )}
+              ) : null}
             </section>
 
             {run?.evidence.length ? (
@@ -241,7 +284,7 @@ export default function App() {
                   <button className="danger-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v2'))} disabled={busy || run.state === 'READY'}>
                     <ShieldAlert size={16} /> Verify demo v2
                   </button>
-                  <button className="primary-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v3'))} disabled={busy || run.state === 'HUMAN_APPROVED'}>
+                  <button className="primary-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v3'))} disabled={busy || run.state === 'HUMAN_APPROVED' || run.state === 'READY'}>
                     <FileCheck2 size={16} /> Verify repaired v3
                   </button>
                   <button className="quiet-button" onClick={() => fileInput.current?.click()} disabled={busy || run.state === 'READY'}>
@@ -249,6 +292,7 @@ export default function App() {
                   </button>
                   <input ref={fileInput} hidden type="file" accept="video/mp4" onChange={(event) => uploadManual(event.target.files?.[0])} />
                 </div>
+                <p className="privacy-note">Use only licensed, non-sensitive demo media. Uploaded candidate files are never exposed through the public media route.</p>
               </section>
             )}
 
@@ -262,10 +306,31 @@ export default function App() {
                   {run.proof.checks.map((check) => (
                     <article key={check.check_id}>
                       <div><strong>{check.label}</strong><span>{formatTime(check.evidence_time_range.start_seconds)}–{formatTime(check.evidence_time_range.end_seconds)}</span></div>
-                      {check.failure_code && <code>{check.failure_code}</code>}
+                      <div className="check-metrics">
+                        <span>measured {JSON.stringify(check.measured)}</span>
+                        <span>threshold {JSON.stringify(check.threshold)}</span>
+                        {check.failure_code && <code>{check.failure_code}</code>}
+                        {check.evidence_urls.length === 2 && (
+                          <div className="evidence-frames">
+                            <figure><img src={check.evidence_urls[0]} alt="Approved baseline CTA evidence" /><figcaption>BASELINE</figcaption></figure>
+                            <figure><img src={check.evidence_urls[1]} alt={`${run.proof?.version_label} CTA evidence`} /><figcaption>{run.proof?.version_label.toUpperCase()}</figcaption></figure>
+                          </div>
+                        )}
+                      </div>
                       <VerdictPill verdict={check.verdict} />
                     </article>
                   ))}
+                </div>
+                <div className="delivery-action">
+                  <button
+                    className="delivery-button"
+                    onClick={() => void action(() => api.approveForDelivery(run.run_id))}
+                    disabled={busy || !run.proof.publish_allowed || run.delivery_approved || !runtime?.mutable}
+                  >
+                    {run.delivery_approved ? <CheckCircle2 size={17} /> : <LockKeyhole size={17} />}
+                    {run.delivery_approved ? 'Approved for Delivery' : 'Approve for Delivery'}
+                  </button>
+                  {!run.proof.publish_allowed && <span>Disabled until every frozen invariant passes.</span>}
                 </div>
               </section>
             )}
@@ -273,7 +338,7 @@ export default function App() {
 
           <aside className="trace-column">
             <section className="panel sticky-panel">
-              <div className="trace-heading"><span>PROOF TRACE</span><span className="live-dot" /></div>
+              <div className="trace-heading"><span>PROOF TRACE</span><span className={`live-dot live-dot-${(run?.mode ?? runtime?.mode ?? 'UNAVAILABLE').toLowerCase()}`} /></div>
               <div className="trace-list">
                 {(run?.events ?? []).map((event) => (
                   <div className="trace-event" key={event.sequence}>
@@ -286,7 +351,7 @@ export default function App() {
               <div className="integration-box">
                 <span className="micro-label">RUNTIME TRUTH</span>
                 <dl>
-                  <div><dt>Mode</dt><dd>{run?.mode ?? 'FIXTURE'}</dd></div>
+                  <div><dt>Mode</dt><dd>{run?.mode ?? runtime?.mode ?? 'Checking'}</dd></div>
                   <div><dt>Interpreter</dt><dd>{run?.feedback?.interpreter_source ?? 'Not run'}</dd></div>
                   <div><dt>Evidence</dt><dd>{run?.evidence[0]?.source ?? 'Not queried'}</dd></div>
                   <div><dt>Verdict owner</dt><dd>OpenCV + FFmpeg</dd></div>

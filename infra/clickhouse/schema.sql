@@ -58,8 +58,8 @@ CREATE TABLE IF NOT EXISTS revisionproof.revision_specs
     canonical_json String,
     approved_at DateTime64(3, 'UTC')
 )
-ENGINE = ReplacingMergeTree(approved_at)
-ORDER BY run_id;
+ENGINE = MergeTree
+ORDER BY (run_id, spec_hash, approved_at);
 
 CREATE TABLE IF NOT EXISTS revisionproof.version_features
 (
@@ -71,8 +71,8 @@ CREATE TABLE IF NOT EXISTS revisionproof.version_features
     time_end Float32,
     extracted_at DateTime64(3, 'UTC')
 )
-ENGINE = ReplacingMergeTree(extracted_at)
-ORDER BY (run_id, version_label, feature_name, time_start);
+ENGINE = MergeTree
+ORDER BY (run_id, version_label, feature_name, time_start, extracted_at);
 
 CREATE TABLE IF NOT EXISTS revisionproof.version_checks
 (
@@ -85,8 +85,8 @@ CREATE TABLE IF NOT EXISTS revisionproof.version_checks
     threshold_json String,
     checked_at DateTime64(3, 'UTC')
 )
-ENGINE = ReplacingMergeTree(checked_at)
-ORDER BY (run_id, version_label, check_id);
+ENGINE = MergeTree
+ORDER BY (run_id, version_label, check_id, checked_at);
 
 CREATE TABLE IF NOT EXISTS revisionproof.run_events
 (

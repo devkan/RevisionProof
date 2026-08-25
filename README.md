@@ -4,12 +4,12 @@ RevisionProof is a deterministic approval firewall for video revisions. It conve
 
 The hackathon path is deliberately narrow:
 
-1. Index a 720p demo video and interpret one feedback note.
-2. Anchor the note to actual scene evidence.
-3. Generate two constrained punch-in previews (1.05x and 1.12x).
+1. Index a 720p demo video and classify three notes as auto-previewable, clarification, or manual creative work.
+2. Anchor only the safe punch-in note to actual scene evidence; unsupported notes never execute.
+3. Generate two constrained 4–8 second punch-in previews (1.05x and 1.12x).
 4. Human approval freezes an immutable, SHA-256-addressed spec.
 5. Upload v2: the requested patch passes, but a missing CTA blocks publishing.
-6. Upload v3: all deterministic checks pass and publishing becomes ready.
+6. Upload v3: all deterministic checks pass and the human `Approve for Delivery` gate becomes available.
 
 ## Local quick start
 
@@ -24,7 +24,7 @@ npm run build --prefix frontend
 backend/.venv/Scripts/uvicorn.exe revisionproof.main:app --app-dir backend/src --reload --port 8000
 ```
 
-Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits a fake MCP or Gemini success. `LIVE` mode fails readiness until Google Cloud, GCS, and ClickHouse settings are present.
+Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits a fake MCP or Gemini success. `OFFLINE_REHEARSAL` is read-only. `LIVE` mode fails readiness until Google Cloud, GCS, and ClickHouse settings are present.
 
 ## Quality gates
 

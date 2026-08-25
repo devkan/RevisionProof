@@ -12,6 +12,15 @@ export type RunState =
   | 'FAILED'
 
 export type Verdict = 'PASS' | 'FAIL' | 'ERROR' | 'NOT_CHECKED'
+export type SafetyClassification = 'AUTO_PREVIEWABLE' | 'NEEDS_CLARIFICATION' | 'MANUAL_CREATIVE'
+
+export interface RuntimeStatus {
+  mode: ExecutionMode
+  mutable: boolean
+  live_ready: boolean
+  missing_settings: string[]
+  message: string
+}
 
 export interface TimeRange {
   start_seconds: number
@@ -37,6 +46,17 @@ export interface ParsedFeedback {
   interpreter_source: 'fixture.interpreter' | 'google.vertex.gemini'
 }
 
+export interface RevisionNote {
+  note_id: string
+  raw_text: string
+  intent: string
+  classification: SafetyClassification
+  confidence: number
+  target_phrase?: string
+  rationale: string
+  clarification_question?: string
+}
+
 export interface EvidenceAnchor {
   segment_id: string
   time_range: TimeRange
@@ -60,6 +80,19 @@ export interface RevisionSpec {
   asset_id: string
   approved_candidate: PatchCandidate
   evidence: EvidenceAnchor[]
+  locked_elements: Array<{
+    element_id: string
+    kind: 'CTA_OVERLAY' | 'AUDIO'
+    time_range: TimeRange
+    description: string
+  }>
+  verification_manifest: Array<{
+    check_id: 'approved_patch' | 'locked_cta' | 'locked_audio'
+    required: true
+    time_range: TimeRange
+    roi?: [number, number, number, number]
+    threshold: Record<string, number>
+  }>
   approved_at: string
   spec_hash: string
 }
@@ -72,6 +105,7 @@ export interface VerificationCheck {
   measured: Record<string, string | number>
   threshold: Record<string, string | number>
   evidence_time_range: TimeRange
+  evidence_urls: string[]
 }
 
 export interface VerificationProof {
@@ -95,11 +129,14 @@ export interface RunSnapshot {
   asset: DemoAsset
   mode: ExecutionMode
   state: RunState
+  notes: RevisionNote[]
   feedback?: ParsedFeedback
   evidence: EvidenceAnchor[]
   candidates: PatchCandidate[]
   spec?: RevisionSpec
   proof?: VerificationProof
+  delivery_approved: boolean
+  retryable: boolean
   events: RunEvent[]
   error?: string
 }

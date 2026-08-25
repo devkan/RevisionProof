@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     max_upload_mib: int = Field(default=24, ge=1, le=100)
     max_duration_seconds: int = Field(default=60, ge=1, le=600)
     ffmpeg_timeout_seconds: int = Field(default=90, ge=5, le=600)
+    mcp_timeout_seconds: int = Field(default=30, ge=5, le=120)
 
     gemini_model: str = "gemini-flash-latest"
     embedding_model: str = "text-embedding-005"

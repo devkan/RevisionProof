@@ -21,13 +21,14 @@ Open `http://127.0.0.1:8000`.
 ## 90-second judge path
 
 1. Point out the `FIXTURE MODE` badge and the runtime truth panel.
-2. Submit: `Can we make the product reveal feel more intentional?`
-3. Show the three time-coded evidence matches and their source.
+2. Submit the prefilled three-note brief. Show `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`; only the first may execute.
+3. Show the three time-coded evidence matches and their explicit fixture or MCP source.
 4. Render A/B and approve B (1.12x).
 5. Point to the frozen SHA-256 spec hash.
-6. Select **Verify demo v2**. The approved patch and audio pass, the hidden CTA regression fails, and the release gate reads `PUBLISH BLOCKED`.
+6. Select **Verify demo v2**. The approved patch and audio pass, the hidden CTA regression fails, before/after frames appear, and both the release gate and delivery button are blocked.
 7. Select **Verify repaired v3**. All checks pass and the release gate reads `PUBLISH READY`.
-8. Open raw run JSON from the proof trace if a judge asks for machine-readable evidence.
+8. Select **Approve for Delivery** and show the human approval event in the proof trace.
+9. Open raw run JSON from the proof trace if a judge asks for machine-readable evidence.
 
 ## Three-run rehearsal
 
@@ -39,4 +40,4 @@ Only treat the demo as ready when all three runs report `PASS`. Run this again a
 
 ## Live-mode rule
 
-Do not switch the badge to `LIVE` for a recording unless `/readyz` is healthy and the run trace itself reports `google.vertex.gemini` plus `mcp-clickhouse.run_query`. Fixture evidence is valid for offline rehearsal only.
+Do not switch the badge to `LIVE` for a recording unless `/readyz` is healthy and the run trace itself reports `google.vertex.gemini` plus `mcp-clickhouse.run_query`. Fixture evidence is deterministic development evidence, not a live integration claim. Recorded offline rehearsal mode is read-only.

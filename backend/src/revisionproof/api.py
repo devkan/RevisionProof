@@ -11,6 +11,7 @@ from revisionproof.assets import list_demo_assets
 from revisionproof.contracts import (
     ApprovalRequest,
     CreateRunRequest,
+    ExecutionMode,
     RevisionSpec,
     RunSnapshot,
     VerificationProof,
@@ -38,6 +39,26 @@ def as_http_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=500, detail="internal processing error")
 
 
+@router.get("/runtime")
+def runtime_status(service: ServiceDep):
+    mode = service.settings.mode
+    return {
+        "mode": mode,
+        "mutable": mode in {ExecutionMode.LIVE, ExecutionMode.FIXTURE},
+        "live_ready": mode is ExecutionMode.LIVE and not service.settings.live_missing_settings,
+        "missing_settings": service.settings.live_missing_settings,
+        "message": (
+            "Current Gemini and MCP integrations"
+            if mode is ExecutionMode.LIVE and not service.settings.live_missing_settings
+            else "Deterministic development fixtures; not live evidence"
+            if mode is ExecutionMode.FIXTURE
+            else "Recorded rehearsal is read-only"
+            if mode is ExecutionMode.OFFLINE_REHEARSAL
+            else "Required integrations are unavailable"
+        ),
+    }
+
+
 @router.get("/demo-assets")
 def demo_assets(service: ServiceDep):
     return list_demo_assets(service.settings.runtime_dir, service.executor)
@@ -60,20 +81,29 @@ def get_run(run_id: str, service: ServiceDep) -> RunSnapshot:
 
 
 @router.get("/runs/{run_id}/events")
-def get_run_events(run_id: str, service: ServiceDep):
+def get_run_events(run_id: str, request: Request, service: ServiceDep):
     try:
         service.repository.get(run_id)
     except Exception as exc:
         raise as_http_error(exc) from exc
 
     async def stream() -> AsyncIterator[str]:
-        cursor = 0
+        last_event_id = request.headers.get("last-event-id", "0")
+        try:
+            cursor = max(0, int(last_event_id))
+        except ValueError:
+            cursor = 0
         idle_ticks = 0
+        yield "retry: 1000\n\n"
         while idle_ticks < 60:
             snapshot = service.repository.get(run_id)
             if cursor < len(snapshot.events):
                 for event in snapshot.events[cursor:]:
-                    yield "event: run_state\ndata: " + event.model_dump_json() + "\n\n"
+                    yield (
+                        f"id: {event.sequence}\n"
+                        "event: run_state\n"
+                        "data: " + event.model_dump_json() + "\n\n"
+                    )
                 cursor = len(snapshot.events)
                 idle_ticks = 0
             else:
@@ -81,7 +111,11 @@ def get_run_events(run_id: str, service: ServiceDep):
                 idle_ticks += 1
             await asyncio.sleep(1)
 
-    return StreamingResponse(stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/runs/{run_id}/previews", response_model=RunSnapshot)
@@ -151,3 +185,11 @@ def get_proof(run_id: str, service: ServiceDep):
     if snapshot.proof is None:
         raise HTTPException(status_code=404, detail="verification proof not available")
     return snapshot.proof
+
+
+@router.post("/runs/{run_id}/delivery-approval", response_model=RunSnapshot)
+def approve_for_delivery(run_id: str, service: ServiceDep) -> RunSnapshot:
+    try:
+        return service.approve_for_delivery(run_id)
+    except Exception as exc:
+        raise as_http_error(exc) from exc

@@ -23,5 +23,8 @@ COPY --from=web-builder /workspace/backend/src ./backend/src
 RUN uv sync --project backend --frozen --extra live --no-dev --no-editable
 COPY scripts ./scripts
 RUN backend/.venv/bin/python scripts/generate_demo_assets.py --demo-only
+RUN useradd --create-home --uid 10001 revisionproof \
+    && chown -R revisionproof:revisionproof /app
+USER revisionproof
 EXPOSE 8080
 CMD ["sh", "-c", "exec backend/.venv/bin/uvicorn revisionproof.main:app --host 0.0.0.0 --port ${PORT}"]

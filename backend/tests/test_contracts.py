@@ -7,8 +7,11 @@ from revisionproof.contracts import (
     EvidenceAnchor,
     LockedElement,
     PatchCandidate,
+    RevisionNote,
     RevisionSpec,
+    SafetyClassification,
     TimeRange,
+    VerificationManifest,
 )
 
 
@@ -34,7 +37,38 @@ def make_spec() -> RevisionSpec:
                 kind="CTA_OVERLAY",
                 time_range=TimeRange(start_seconds=24, end_seconds=29),
                 description="CTA stays visible",
-            )
+            ),
+            LockedElement(
+                element_id="audio",
+                kind="AUDIO",
+                time_range=TimeRange(start_seconds=0, end_seconds=30),
+                description="Audio stays in bounds",
+            ),
+        ],
+        verification_manifest=[
+            VerificationManifest(
+                check_id="approved_patch",
+                time_range=time_range,
+                threshold={
+                    "minimum_similarity": 0.95,
+                    "minimum_winner_margin": 0.0005,
+                    "minimum_passing_ratio": 0.8,
+                },
+            ),
+            VerificationManifest(
+                check_id="locked_cta",
+                time_range=TimeRange(start_seconds=24, end_seconds=29),
+                roi=(840, 570, 340, 90),
+                threshold={
+                    "minimum_frame_similarity": 0.94,
+                    "minimum_passing_ratio": 0.6,
+                },
+            ),
+            VerificationManifest(
+                check_id="locked_audio",
+                time_range=TimeRange(start_seconds=0, end_seconds=30),
+                threshold={"maximum_rms_delta_db": 3, "maximum_peak_dbfs": -1},
+            ),
         ],
         approved_at=datetime(2026, 8, 25, 12, 0, tzinfo=UTC),
     )
@@ -58,4 +92,30 @@ def test_candidate_scope_rejects_unsupported_scale() -> None:
     with pytest.raises(ValidationError):
         PatchCandidate(
             candidate_id="A", scale=1.2, time_range=TimeRange(start_seconds=8, end_seconds=14)
+        )
+
+
+def test_candidate_scope_rejects_preview_outside_four_to_eight_seconds() -> None:
+    with pytest.raises(ValidationError, match="between 4 and 8 seconds"):
+        PatchCandidate(
+            candidate_id="A", scale=1.05, time_range=TimeRange(start_seconds=8, end_seconds=17)
+        )
+
+
+def test_spec_rejects_a_tampered_canonical_hash() -> None:
+    payload = make_spec().model_dump(mode="json")
+    payload["approved_candidate"]["scale"] = 1.05
+    with pytest.raises(ValidationError, match="hash does not match"):
+        RevisionSpec.model_validate(payload)
+
+
+def test_auto_previewable_note_requires_confident_target() -> None:
+    with pytest.raises(ValidationError, match="confidence >= 0.82"):
+        RevisionNote(
+            note_id="note_01",
+            raw_text="Make it better",
+            intent="Emphasize something",
+            classification=SafetyClassification.AUTO_PREVIEWABLE,
+            confidence=0.6,
+            rationale="The target is not certain",
         )

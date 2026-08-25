@@ -4,6 +4,9 @@ import asyncio
 import json
 import re
 import shutil
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import BinaryIO
 
@@ -13,11 +16,15 @@ from revisionproof.contracts import (
     CreateRunRequest,
     ExecutionMode,
     LockedElement,
+    ParsedFeedback,
     PatchCandidate,
+    RevisionNote,
     RevisionSpec,
     RunSnapshot,
     RunState,
+    SafetyClassification,
     TimeRange,
+    VerificationManifest,
 )
 from revisionproof.evidence.fixture import FixtureEvidenceLocator, FixtureInterpreter
 from revisionproof.ids import new_ulid
@@ -27,7 +34,20 @@ from revisionproof.media.probe import probe_media, validate_hackathon_media
 from revisionproof.repository import InMemoryRunRepository
 from revisionproof.settings import Settings
 from revisionproof.state_machine import assert_transition
-from revisionproof.verification.service import DeterministicVerifier
+from revisionproof.verification.metrics import write_frame_png
+from revisionproof.verification.service import (
+    AUDIO_PEAK_LIMIT_DBFS,
+    AUDIO_RMS_TOLERANCE_DB,
+    CTA_REQUIRED_RATIO,
+    CTA_ROI,
+    CTA_SIMILARITY_THRESHOLD,
+    PATCH_REQUIRED_RATIO,
+    PATCH_SIMILARITY_THRESHOLD,
+    PATCH_WINNER_MARGIN,
+    DeterministicVerifier,
+    apply_mcp_feature_diff,
+    mark_proof_not_checked,
+)
 
 
 class RevisionProofService:
@@ -38,13 +58,51 @@ class RevisionProofService:
         self.verifier = DeterministicVerifier(self.executor)
         self.fixture_interpreter = FixtureInterpreter()
         self.fixture_locator = FixtureEvidenceLocator()
+        self._media_slot = threading.Lock()
 
     def _transition(self, snapshot: RunSnapshot, target: RunState, message: str) -> None:
         assert_transition(snapshot.state, target)
         snapshot.state = target
+        snapshot.retryable = target is RunState.FAILED
         self.repository.append_event(snapshot.run_id, target, message)
 
+    @contextmanager
+    def _exclusive_media_pipeline(self) -> Iterator[None]:
+        if not self._media_slot.acquire(blocking=False):
+            raise ValueError("media pipeline is busy; retry this request")
+        try:
+            yield
+        finally:
+            self._media_slot.release()
+
+    def _assert_mutable_mode(self) -> None:
+        if self.settings.mode is ExecutionMode.OFFLINE_REHEARSAL:
+            raise ValueError("OFFLINE_REHEARSAL is a read-only recorded replay")
+        if self.settings.mode is ExecutionMode.UNAVAILABLE:
+            raise ValueError("runtime integrations are unavailable")
+
+    @staticmethod
+    def _feedback_from_notes(snapshot: RunSnapshot, source: str) -> ParsedFeedback | None:
+        note = next(
+            (
+                item
+                for item in snapshot.notes
+                if item.classification is SafetyClassification.AUTO_PREVIEWABLE
+            ),
+            None,
+        )
+        if note is None or note.target_phrase is None:
+            return None
+        return ParsedFeedback(
+            raw_text=note.raw_text,
+            intent=note.intent,
+            target_phrase=note.target_phrase,
+            rationale=note.rationale,
+            interpreter_source=source,
+        )
+
     async def create_run(self, request: CreateRunRequest) -> RunSnapshot:
+        self._assert_mutable_mode()
         asset, source_path = await asyncio.to_thread(
             require_demo_asset,
             request.asset_id,
@@ -60,11 +118,16 @@ class RevisionProofService:
         )
         self.repository.create(snapshot, source_path)
 
-        if self.settings.mode in {ExecutionMode.FIXTURE, ExecutionMode.OFFLINE_REHEARSAL}:
-            snapshot.feedback = self.fixture_interpreter.interpret(request.feedback)
+        if self.settings.mode is ExecutionMode.FIXTURE:
+            snapshot.notes = self.fixture_interpreter.interpret_many(request.feedback)
+            snapshot.feedback = self._feedback_from_notes(snapshot, "fixture.interpreter")
             self._transition(
-                snapshot, RunState.NOTES_PARSED, "Feedback interpreted by fixture adapter"
+                snapshot,
+                RunState.NOTES_PARSED,
+                "Feedback classified by fixture adapter; unsupported notes held back",
             )
+            if snapshot.feedback is None:
+                return snapshot
             snapshot.evidence = self.fixture_locator.locate(snapshot.feedback)[:3]
             self._transition(
                 snapshot,
@@ -85,9 +148,7 @@ class RevisionProofService:
                 snapshot.error = "Live interpretation or evidence lookup failed"
                 self._transition(snapshot, RunState.FAILED, snapshot.error)
             return snapshot
-        snapshot.error = "Execution mode is unavailable"
-        self._transition(snapshot, RunState.FAILED, snapshot.error)
-        return snapshot
+        raise ValueError("execution mode cannot create runs")
 
     async def _run_live_interpretation(self, snapshot: RunSnapshot, raw_feedback: str) -> None:
         from revisionproof.evidence.live import (
@@ -97,12 +158,43 @@ class RevisionProofService:
         )
 
         interpreter = VertexGeminiInterpreter(self.settings)
-        snapshot.feedback = await interpreter.interpret(raw_feedback)
-        self._transition(snapshot, RunState.NOTES_PARSED, "Feedback interpreted by Vertex Gemini")
+        snapshot.notes = await interpreter.interpret_many(raw_feedback)
+        snapshot.feedback = self._feedback_from_notes(snapshot, "google.vertex.gemini")
+        self._transition(
+            snapshot,
+            RunState.NOTES_PARSED,
+            "Feedback classified by Vertex Gemini; unsupported notes held back",
+        )
+        if snapshot.feedback is None:
+            return
         locator = LiveEvidenceLocator(
             self.settings, McpClickHouseReader(self.settings), interpreter
         )
-        snapshot.evidence = await locator.locate(snapshot.asset.asset_id, snapshot.feedback)
+        anchors = await locator.locate(snapshot.asset.asset_id, snapshot.feedback)
+        if anchors[0].score < 0.82:
+            auto_index = next(
+                index
+                for index, note in enumerate(snapshot.notes)
+                if note.classification is SafetyClassification.AUTO_PREVIEWABLE
+            )
+            auto_note = snapshot.notes[auto_index]
+            snapshot.notes[auto_index] = RevisionNote(
+                note_id=auto_note.note_id,
+                raw_text=auto_note.raw_text,
+                intent=auto_note.intent,
+                classification=SafetyClassification.NEEDS_CLARIFICATION,
+                confidence=max(0.55, min(0.81, anchors[0].score)),
+                rationale="Scene evidence confidence is too low for automatic preview generation.",
+                clarification_question=("Which exact scene should receive the center punch-in?"),
+            )
+            snapshot.feedback = None
+            self.repository.append_event(
+                snapshot.run_id,
+                RunState.NOTES_PARSED,
+                "Evidence score below 0.82; automatic preview held for clarification",
+            )
+            return
+        snapshot.evidence = anchors
         self._transition(
             snapshot,
             RunState.EVIDENCE_ANCHORED,
@@ -110,7 +202,8 @@ class RevisionProofService:
         )
 
     def generate_previews(self, run_id: str) -> RunSnapshot:
-        with self.repository.locked(run_id):
+        self._assert_mutable_mode()
+        with self._exclusive_media_pipeline(), self.repository.locked(run_id):
             return self._generate_previews_locked(run_id)
 
     def _generate_previews_locked(self, run_id: str) -> RunSnapshot:
@@ -146,6 +239,7 @@ class RevisionProofService:
         return snapshot
 
     def approve(self, run_id: str, request: ApprovalRequest) -> RunSnapshot:
+        self._assert_mutable_mode()
         with self.repository.locked(run_id):
             return self._approve_locked(run_id, request)
 
@@ -178,6 +272,34 @@ class RevisionProofService:
                     description=(
                         "Master audio RMS may vary by at most 3 dB and peak stays below -1 dBFS."
                     ),
+                ),
+            ],
+            verification_manifest=[
+                VerificationManifest(
+                    check_id="approved_patch",
+                    time_range=candidate.time_range,
+                    threshold={
+                        "minimum_similarity": PATCH_SIMILARITY_THRESHOLD,
+                        "minimum_winner_margin": PATCH_WINNER_MARGIN,
+                        "minimum_passing_ratio": PATCH_REQUIRED_RATIO,
+                    },
+                ),
+                VerificationManifest(
+                    check_id="locked_cta",
+                    time_range=TimeRange(start_seconds=24, end_seconds=29),
+                    roi=CTA_ROI,
+                    threshold={
+                        "minimum_frame_similarity": CTA_SIMILARITY_THRESHOLD,
+                        "minimum_passing_ratio": CTA_REQUIRED_RATIO,
+                    },
+                ),
+                VerificationManifest(
+                    check_id="locked_audio",
+                    time_range=TimeRange(start_seconds=0, end_seconds=30),
+                    threshold={
+                        "maximum_rms_delta_db": AUDIO_RMS_TOLERANCE_DB,
+                        "maximum_peak_dbfs": AUDIO_PEAK_LIMIT_DBFS,
+                    },
                 ),
             ],
             approved_at=datetime.now(UTC),
@@ -214,32 +336,27 @@ class RevisionProofService:
         )
 
         proof = snapshot.proof
+        if snapshot.spec is None:
+            raise RuntimeError("immutable spec is missing")
         checked_at = proof.generated_at
+        checks = {item.check_id: item for item in proof.checks}
         feature_values = {
-            "patch_similarity": float(
-                next(item for item in proof.checks if item.check_id == "approved_patch").measured[
-                    "normalized_similarity"
-                ]
+            "patch_similarity": float(checks["approved_patch"].measured["normalized_similarity"]),
+            "patch_passing_ratio": float(checks["approved_patch"].measured["ratio"]),
+            "patch_winner_margin": float(
+                checks["approved_patch"].measured["minimum_winner_margin_observed"]
             ),
-            "cta_passing_ratio": float(
-                next(item for item in proof.checks if item.check_id == "locked_cta").measured[
-                    "ratio"
-                ]
-            ),
-            "audio_rms_dbfs": float(
-                next(item for item in proof.checks if item.check_id == "locked_audio").measured[
-                    "candidate_rms_dbfs"
-                ]
-            ),
+            "cta_passing_ratio": float(checks["locked_cta"].measured["ratio"]),
+            "audio_rms_dbfs": float(checks["locked_audio"].measured["candidate_rms_dbfs"]),
+            "audio_peak_dbfs": float(checks["locked_audio"].measured["candidate_peak_dbfs"]),
         }
         baseline_values = {
-            "patch_similarity": 1.0,
+            "patch_similarity": 0.0,
+            "patch_passing_ratio": 0.0,
+            "patch_winner_margin": 0.0,
             "cta_passing_ratio": 1.0,
-            "audio_rms_dbfs": float(
-                next(item for item in proof.checks if item.check_id == "locked_audio").measured[
-                    "source_rms_dbfs"
-                ]
-            ),
+            "audio_rms_dbfs": float(checks["locked_audio"].measured["source_rms_dbfs"]),
+            "audio_peak_dbfs": float(checks["locked_audio"].measured["source_peak_dbfs"]),
         }
         rows = [
             [snapshot.run_id, "v1", name, value, 0.0, 30.0, checked_at]
@@ -250,6 +367,28 @@ class RevisionProofService:
         ]
         writer = ClickHouseWriter(self.settings)
         writer.insert_features(rows)
+        GcsObjectStore(self.settings).upload(
+            destination, f"runs/{snapshot.run_id}/versions/{version_label}.mp4"
+        )
+        reader = McpClickHouseReader(self.settings)
+        query = build_version_diff_query(snapshot.run_id, version_label, "v1")
+        try:
+            diff_rows = asyncio.run(reader.run_query(query))
+            if not diff_rows:
+                raise RuntimeError("mcp-clickhouse version feature diff returned no rows")
+            apply_mcp_feature_diff(proof, snapshot.spec, diff_rows)
+            self.repository.append_event(
+                snapshot.run_id,
+                RunState.VERIFYING,
+                "Release verdict recomputed from mcp-clickhouse feature diff",
+            )
+        except Exception:
+            mark_proof_not_checked(proof, "MCP_FEATURE_DIFF_UNAVAILABLE")
+            self.repository.append_event(
+                snapshot.run_id,
+                RunState.VERIFYING,
+                "MCP feature diff unavailable; release failed closed",
+            )
         writer.insert_checks(
             [
                 [
@@ -260,24 +399,29 @@ class RevisionProofService:
                     check.failure_code,
                     json.dumps(check.measured, sort_keys=True),
                     json.dumps(check.threshold, sort_keys=True),
-                    checked_at,
+                    proof.generated_at,
                 ]
                 for check in proof.checks
             ]
         )
-        GcsObjectStore(self.settings).upload(
-            destination, f"runs/{snapshot.run_id}/versions/{version_label}.mp4"
-        )
-        reader = McpClickHouseReader(self.settings)
-        query = build_version_diff_query(snapshot.run_id, version_label, "v1")
-        rows = asyncio.run(reader.run_query(query))
-        if not rows:
-            raise RuntimeError("mcp-clickhouse version feature diff returned no rows")
-        self.repository.append_event(
-            snapshot.run_id,
-            RunState.VERIFYING,
-            "Version feature diff read through mcp-clickhouse.run_query",
-        )
+
+    def _attach_cta_evidence(self, snapshot: RunSnapshot, destination, version_label: str) -> None:
+        if snapshot.proof is None or snapshot.spec is None:
+            raise RuntimeError("verification proof or immutable spec is missing")
+        manifest = snapshot.spec.manifest_for("locked_cta")
+        second = (manifest.time_range.start_seconds + manifest.time_range.end_seconds) / 2
+        evidence_dir = self.settings.runtime_dir / "runs" / snapshot.run_id / "evidence"
+        baseline_name = "baseline-cta.png"
+        current_name = f"{version_label}-cta.png"
+        baseline_path = evidence_dir / baseline_name
+        if not baseline_path.exists():
+            write_frame_png(self.repository.source_path(snapshot.run_id), second, baseline_path)
+        write_frame_png(destination, second, evidence_dir / current_name)
+        check = next(item for item in snapshot.proof.checks if item.check_id == "locked_cta")
+        check.evidence_urls = [
+            f"/media/runs/{snapshot.run_id}/evidence/{baseline_name}",
+            f"/media/runs/{snapshot.run_id}/evidence/{current_name}",
+        ]
 
     def upload_and_verify(
         self,
@@ -287,7 +431,8 @@ class RevisionProofService:
         stream: BinaryIO,
         size: int,
     ) -> RunSnapshot:
-        with self.repository.locked(run_id):
+        self._assert_mutable_mode()
+        with self._exclusive_media_pipeline(), self.repository.locked(run_id):
             return self._upload_and_verify_locked(
                 run_id=run_id,
                 version_label=version_label,
@@ -338,8 +483,11 @@ class RevisionProofService:
                 spec=snapshot.spec,
                 version_label=version_label,
             )
+            self._attach_cta_evidence(snapshot, destination, version_label)
             if self.settings.mode is ExecutionMode.LIVE:
                 self._persist_live_verification(snapshot, destination, version_label)
+            snapshot.error = None
+            snapshot.delivery_approved = False
             target = RunState.READY if snapshot.proof.publish_allowed else RunState.BLOCKED
             self._transition(
                 snapshot,
@@ -348,11 +496,28 @@ class RevisionProofService:
                 if target is RunState.READY
                 else "At least one invariant failed; publish blocked",
             )
-        except Exception as exc:
-            snapshot.error = str(exc)
+        except Exception:
+            snapshot.error = "Media validation or verification failed"
             if snapshot.state in {RunState.VERSION_UPLOADED, RunState.VERIFYING}:
                 self._transition(snapshot, RunState.FAILED, "Verification failed closed")
             if destination.exists():
                 destination.unlink()
             raise
         return snapshot
+
+    def approve_for_delivery(self, run_id: str) -> RunSnapshot:
+        self._assert_mutable_mode()
+        with self.repository.locked(run_id):
+            snapshot = self.repository.get(run_id)
+            if (
+                snapshot.state is not RunState.READY
+                or snapshot.proof is None
+                or not snapshot.proof.publish_allowed
+            ):
+                raise ValueError("delivery approval requires a READY proof with all checks passed")
+            if not snapshot.delivery_approved:
+                snapshot.delivery_approved = True
+                self.repository.append_event(
+                    run_id, RunState.READY, "Human approved the verified version for delivery"
+                )
+            return snapshot

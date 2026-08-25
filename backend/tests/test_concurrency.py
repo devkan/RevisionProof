@@ -39,3 +39,18 @@ async def test_concurrent_approval_cannot_replace_frozen_spec(
     assert frozen.spec is not None
     approved_id = frozen.spec.approved_candidate.candidate_id
     assert all(result.spec.approved_candidate.candidate_id == approved_id for result in results)
+
+
+@pytest.mark.asyncio
+async def test_second_media_pipeline_request_fails_fast(
+    service: RevisionProofService,
+) -> None:
+    snapshot = await service.create_run(
+        CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback="Make the reveal more intentional")
+    )
+    assert service._media_slot.acquire(blocking=False)  # noqa: SLF001
+    try:
+        with pytest.raises(ValueError, match="media pipeline is busy"):
+            service.generate_previews(snapshot.run_id)
+    finally:
+        service._media_slot.release()  # noqa: SLF001

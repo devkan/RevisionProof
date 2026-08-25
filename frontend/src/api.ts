@@ -1,4 +1,4 @@
-import type { DemoAsset, RunSnapshot } from './types'
+import type { DemoAsset, RunSnapshot, RuntimeStatus } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -10,6 +10,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  runtime: () => request<RuntimeStatus>('/api/runtime'),
   assets: () => request<DemoAsset[]>('/api/demo-assets'),
   createRun: (assetId: string, feedback: string) =>
     request<RunSnapshot>('/api/runs', {
@@ -25,6 +26,8 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ candidate_id: candidateId }),
     }),
+  approveForDelivery: (runId: string) =>
+    request<RunSnapshot>(`/api/runs/${runId}/delivery-approval`, { method: 'POST' }),
   uploadVersion: (runId: string, versionLabel: string, file: Blob) => {
     const form = new FormData()
     form.append('version_label', versionLabel)

@@ -11,7 +11,13 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from revisionproof.contracts import EvidenceAnchor, ParsedFeedback, TimeRange
+from revisionproof.contracts import (
+    EvidenceAnchor,
+    ParsedFeedback,
+    RevisionNote,
+    SafetyClassification,
+    TimeRange,
+)
 from revisionproof.ids import new_ulid
 from revisionproof.settings import Settings
 
@@ -107,12 +113,13 @@ class McpClickHouseReader:
                 "CLICKHOUSE_ALLOW_WRITE_ACCESS": "false",
             },
         )
-        async with (
-            stdio_client(server) as (reader, writer),
-            ClientSession(reader, writer) as session,
-        ):
-            await session.initialize()
-            result = await session.call_tool("run_query", {"query": query})
+        async with asyncio.timeout(self.settings.mcp_timeout_seconds):
+            async with (
+                stdio_client(server) as (reader, writer),
+                ClientSession(reader, writer) as session,
+            ):
+                await session.initialize()
+                result = await session.call_tool("run_query", {"query": query})
         if result.isError:
             raise RuntimeError("mcp-clickhouse run_query returned an error")
         if result.structuredContent:
@@ -125,7 +132,7 @@ class McpClickHouseReader:
 class VertexGeminiInterpreter:
     settings: Settings
 
-    async def interpret(self, raw_text: str) -> ParsedFeedback:
+    async def interpret_many(self, raw_text: str) -> list[RevisionNote]:
         try:
             from google.adk.agents import LlmAgent
             from google.adk.runners import InMemoryRunner
@@ -133,18 +140,28 @@ class VertexGeminiInterpreter:
         except ImportError as exc:
             raise RuntimeError("install the backend 'live' extra to use Google ADK") from exc
 
-        class InterpretationOutput(BaseModel):
+        class NoteOutput(BaseModel):
+            raw_text: str = Field(min_length=1, max_length=2000)
             intent: str = Field(min_length=1, max_length=500)
-            target_phrase: str = Field(min_length=1, max_length=200)
+            classification: SafetyClassification
+            confidence: float = Field(ge=0, le=1)
+            target_phrase: str | None = Field(default=None, max_length=200)
             rationale: str = Field(min_length=1, max_length=1000)
+            clarification_question: str | None = Field(default=None, max_length=500)
+
+        class InterpretationOutput(BaseModel):
+            notes: list[NoteOutput] = Field(min_length=1, max_length=20)
 
         agent = LlmAgent(
             name="revision_note_interpreter",
             model=self.settings.gemini_model,
             instruction=(
-                "Interpret one video revision note. The only permitted change is a center "
-                "PUNCH_IN. Identify the intent and the scene phrase, and explain the rationale. "
-                "Do not decide whether a video revision passes verification."
+                "Split the input into video revision notes and classify each one. "
+                "AUTO_PREVIEWABLE is only a short 4-8 second center PUNCH_IN with a precise "
+                "target phrase and confidence >= 0.82. NEEDS_CLARIFICATION is potentially "
+                "supported but lacks a precise target or has confidence 0.55-0.82; ask one "
+                "clarifying question. MANUAL_CREATIVE covers B-roll, restructuring, speed ramps, "
+                "or other unsupported creation. Never approve or verify a revision."
             ),
             output_schema=InterpretationOutput,
         )
@@ -169,12 +186,32 @@ class VertexGeminiInterpreter:
             await runner.close()
         if not final_text:
             raise RuntimeError("Google ADK returned no interpretation")
-        data = json.loads(final_text)
+        data = InterpretationOutput.model_validate_json(final_text)
+        return [
+            RevisionNote(
+                note_id=f"note_{index:02d}",
+                **note.model_dump(),
+            )
+            for index, note in enumerate(data.notes, start=1)
+        ]
+
+    async def interpret(self, raw_text: str) -> ParsedFeedback:
+        notes = await self.interpret_many(raw_text)
+        note = next(
+            (
+                item
+                for item in notes
+                if item.classification is SafetyClassification.AUTO_PREVIEWABLE
+            ),
+            None,
+        )
+        if note is None or note.target_phrase is None:
+            raise ValueError("feedback has no AUTO_PREVIEWABLE note")
         return ParsedFeedback(
-            raw_text=raw_text,
-            intent=data["intent"],
-            target_phrase=data["target_phrase"],
-            rationale=data["rationale"],
+            raw_text=note.raw_text,
+            intent=note.intent,
+            target_phrase=note.target_phrase,
+            rationale=note.rationale,
             interpreter_source="google.vertex.gemini",
         )
 
@@ -289,7 +326,7 @@ class LiveEvidenceLocator:
     async def locate(self, asset_id: str, feedback: ParsedFeedback) -> list[EvidenceAnchor]:
         embedding = await asyncio.to_thread(self.interpreter.embed, feedback.target_phrase)
         rows = await self.reader.run_query(build_segment_search_query(asset_id, embedding, 5))
-        return [
+        anchors = [
             EvidenceAnchor(
                 segment_id=str(row["segment_id"]),
                 time_range=TimeRange(
@@ -303,3 +340,6 @@ class LiveEvidenceLocator:
             )
             for row in rows[:3]
         ]
+        if not anchors:
+            raise RuntimeError("mcp-clickhouse evidence search returned no rows")
+        return anchors

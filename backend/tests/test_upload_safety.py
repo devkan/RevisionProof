@@ -5,6 +5,7 @@ import pytest
 
 from revisionproof.assets import DEMO_ASSET_ID
 from revisionproof.contracts import ApprovalRequest, CreateRunRequest
+from revisionproof.main import resolve_public_media
 from revisionproof.media.executor import MediaCommandError
 from revisionproof.service import RevisionProofService
 
@@ -55,3 +56,10 @@ async def test_invalid_media_is_removed_after_blocked_retry(
         )
     broken = runtime_dir / "runs" / snapshot.run_id / "versions" / "broken.mp4"
     assert not broken.exists()
+
+
+def test_public_media_allowlist_never_exposes_uploaded_versions() -> None:
+    with pytest.raises(Exception, match="404"):
+        resolve_public_media("runs/01J00000000000000000000000/versions/client-export.mp4")
+    with pytest.raises(Exception, match="404"):
+        resolve_public_media("../.env")
