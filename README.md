@@ -38,4 +38,4 @@ backend/.venv/Scripts/python.exe scripts/rehearse_demo.py --runs 3
 docker build --tag revisionproof:local .
 ```
 
-See [docs/architecture.md](docs/architecture.md), [docs/demo-runbook.md](docs/demo-runbook.md), and the [latest QA report](docs/qa-report-2026-08-25.md).
+See [docs/architecture.md](docs/architecture.md), [docs/demo-runbook.md](docs/demo-runbook.md), and the [latest QA report](docs/qa-report-2026-08-25-v2-hardening.md).

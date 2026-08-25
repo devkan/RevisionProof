@@ -12,6 +12,6 @@ Updated: 2026-08-25
 | ClickHouse direct writer | append audit facts/spec/checks | adapter INSERT + writer-only role PASS | NOT RUN |
 | official `mcp-clickhouse` reader | evidence search and version feature diff | real `run_query` + view-only role PASS | NOT RUN |
 | Google Cloud Storage | version upload object boundary | contract implemented | NOT RUN |
-| Cloud Run | single-container contract and health routes | Docker build + probes/static serving PASS | NOT DEPLOYED |
+| Cloud Run | single-container contract and health routes | prior image baseline PASS; hardening rebuild blocked because Docker daemon was stopped | NOT DEPLOYED |
 
 `NOT RUN` and `NOT DEPLOYED` are deliberate: this repository contains no hackathon cloud credentials. Do not convert those cells to PASS until the trace and persisted records are observed in the target project. Local ClickHouse verification used 25.6.13 with separate reader/writer users and TLS disabled only for localhost.

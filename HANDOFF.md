@@ -4,18 +4,25 @@ Updated: 2026-08-25
 
 ## Current status
 
-The v2 hackathon vertical slice is implemented from a clean repository: fixture feedback interpretation, evidence anchoring, real FFmpeg A/B previews, immutable human-approved spec, actual OpenCV/FFmpeg regression verification, a v2 blocked result, and a v3 ready result. React/Vite is served by FastAPI from one container.
+The v2 hackathon flow is hardened on local branch `review/qa-hardening`. Three feedback safety classes are enforced, unsupported notes cannot render, approval freezes the exact ROI/ranges/thresholds in a hash-validated `RevisionSpec`, v2 blocks real delivery approval with CTA before/after evidence, and v3 enables a separate human Delivery approval. Mutations use bounded idempotency keys, offline rehearsal is read-only, SSE events carry resumable IDs, candidate uploads are not publicly served, and the container is configured for a non-root user.
 
-Verified baseline: 28 backend tests pass, the 12-video regression corpus produces 3 expected passes and 9 expected failures with zero false PASS results, three consecutive rehearsals finish READY, the Docker image serves healthy probes and the SPA, and ClickHouse 25.6 enforces separate view-only reader and insert-only writer roles. gstack browser QA completed the desktop path and the 375px mobile layout with zero console errors or undersized interactive controls.
+Verified baseline: 35 backend tests, Ruff, ESLint, Vite build, the 12-video zero-false-PASS corpus, and three consecutive 12-event real-media rehearsals all pass. gstack browser QA completed the full desktop path, the 375px classification and v2 blocked paths, and offline read-only mode with zero application console errors. One mobile input-height issue was fixed and reverified. See `docs/qa-report-2026-08-25-v2-hardening.md`.
 
 ## Remaining work
 
-Configure the target GCP project, ClickHouse Cloud instance, GCS bucket, service accounts, and Secret Manager values; then run the live integration spike and update `docs/integration-status.md` with observed evidence. Deployment has not been authorized or performed.
+Provision or attach the target GCP project, Vertex/ADK credentials, private GCS bucket with 24-hour lifecycle, ClickHouse Cloud database and roles, and Secret Manager values. Then run the live integration spike, rebuild the Docker image with Docker Desktop running, rehearse LIVE three times, and deploy only after explicit authorization. Full restart hydration of an in-progress run remains unimplemented.
 
 ## Watchouts
 
-Never present fixture traces as live. The deterministic verifier, not Gemini, owns release verdicts. Re-run three rehearsals after media, threshold, or state-machine changes. The all-integrations image is 1,444,809,562 bytes because Google ADK/MCP/OpenCV and Debian FFmpeg are shipped together; keep it for the hackathon, but measure Cloud Run cold starts before production.
+Never present fixture traces as live. A configured `LIVE` badge is not success evidence; the run must show actual Gemini and `mcp-clickhouse.run_query` events and persisted rows. `max-instances=1` prevents in-memory state from splitting across instances but does not survive a restart. Docker rebuild for this hardening branch was blocked because the daemon was stopped. Codex-assisted source may also affect hackathon eligibility; the user plans a separate Gemini review/rework before submission.
+
+## Git state
+
+- Branch: `review/qa-hardening`
+- Implementation commits: `d7dd18e`, `a9ce687`, `3c422bc`; see `git log` for the final docs checkpoint
+- Remote: `https://github.com/devkan/RevisionProof.git`
+- Push/PR/deploy: not performed
 
 ## Start here
 
-Read `docs/README.md`, then run the quality gates in `README.md` and the judge path in `docs/demo-runbook.md`.
+Read `docs/README.md`, then run the quality gates in `README.md` and the judge path in `docs/demo-runbook.md`. The next engineering gate is credential-backed LIVE verification, not more fixture polish.
