@@ -12,6 +12,11 @@ fi
 # shellcheck source=/dev/null
 source "${ENV_FILE}"
 
+if [[ "${RUNTIME_SERVICE_ACCOUNT}" != "revisionproof-runtime" ]] \
+  || [[ "${BUILD_SERVICE_ACCOUNT}" != "revisionproof-build" ]]; then
+  echo "Refusing cleanup: unexpected RevisionProof service-account name." >&2
+  exit 2
+fi
 if [[ "${PROJECT_ID}" != revisionproof-* ]]; then
   echo "Refusing cleanup: PROJECT_ID must start with revisionproof-." >&2
   exit 2

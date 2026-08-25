@@ -42,7 +42,7 @@ steps:
       - --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=3,timeoutSeconds=3,periodSeconds=10
       - --liveness-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=5,failureThreshold=3,timeoutSeconds=3,periodSeconds=30
       - --readiness-probe=httpGet.path=/ready,httpGet.port=8080,failureThreshold=3,successThreshold=1,timeoutSeconds=3,periodSeconds=10
-      - --set-env-vars=REVISIONPROOF_MODE=FIXTURE,REVISIONPROOF_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},REVISIONPROOF_GOOGLE_CLOUD_LOCATION=${_REGION},REVISIONPROOF_GCS_BUCKET=${_GCS_BUCKET}
+      - --set-env-vars=REVISIONPROOF_MODE=FIXTURE,REVISIONPROOF_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},REVISIONPROOF_GOOGLE_CLOUD_LOCATION=${_REGION},REVISIONPROOF_GCS_BUCKET=${_GCS_BUCKET},REVISIONPROOF_MAX_NEW_RUNS_PER_MINUTE=12,REVISIONPROOF_MAX_VERIFICATION_ATTEMPTS_PER_RUN=6
 
 images:
   - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}

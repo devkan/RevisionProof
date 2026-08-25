@@ -65,10 +65,8 @@ export const api = {
       body: form,
     })
   },
-  demoVersion: async (runId: string, version: 'v2' | 'v3') => {
-    const filename = version === 'v2' ? 'revisionproof_v2_blocked.mp4' : 'revisionproof_v3_ready.mp4'
-    const response = await fetch(`/media/demo/${filename}`)
-    if (!response.ok) throw new Error(`Demo ${version} fixture is unavailable`)
-    return api.uploadVersion(runId, version, await response.blob())
-  },
+  demoVersion: (runId: string, version: 'v2' | 'v3') =>
+    request<RunSnapshot>(`/api/runs/${runId}/demo-versions/${version}`, {
+      method: 'POST',
+    }),
 }

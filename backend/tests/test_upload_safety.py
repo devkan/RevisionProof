@@ -42,20 +42,56 @@ async def test_invalid_media_is_removed_after_blocked_retry(
     with v2.open("rb") as stream:
         snapshot = service.upload_and_verify(
             run_id=snapshot.run_id,
-            version_label="v2",
+            version_label="same",
             stream=stream,
             size=v2.stat().st_size,
         )
+    saved = runtime_dir / "runs" / snapshot.run_id / "versions" / "same.mp4"
+    saved_bytes = saved.read_bytes()
 
     with pytest.raises(MediaCommandError):
         service.upload_and_verify(
             run_id=snapshot.run_id,
-            version_label="broken",
+            version_label="same",
             stream=io.BytesIO(b"not an mp4"),
             size=10,
         )
-    broken = runtime_dir / "runs" / snapshot.run_id / "versions" / "broken.mp4"
-    assert not broken.exists()
+    assert saved.read_bytes() == saved_bytes
+    assert service.repository.version_path(snapshot.run_id) == saved
+    assert not list(saved.parent.glob(".upload-*.mp4"))
+
+
+@pytest.mark.asyncio
+async def test_partial_stream_failure_never_leaves_a_version_file(
+    service: RevisionProofService, runtime_dir: Path
+) -> None:
+    snapshot = await service.create_run(
+        CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback="Make the reveal more intentional")
+    )
+    snapshot = service.generate_previews(snapshot.run_id)
+    snapshot = service.approve(snapshot.run_id, ApprovalRequest(candidate_id="A"))
+
+    class BrokenStream(io.BytesIO):
+        def __init__(self) -> None:
+            super().__init__(b"partial bytes")
+            self._failed = False
+
+        def read(self, size: int = -1) -> bytes:
+            if self._failed:
+                raise OSError("simulated stream failure")
+            self._failed = True
+            return super().read(size)
+
+    with pytest.raises(OSError, match="simulated stream failure"):
+        service.upload_and_verify(
+            run_id=snapshot.run_id,
+            version_label="partial",
+            stream=BrokenStream(),
+            size=13,
+        )
+
+    versions = runtime_dir / "runs" / snapshot.run_id / "versions"
+    assert not list(versions.iterdir())
 
 
 @pytest.mark.asyncio

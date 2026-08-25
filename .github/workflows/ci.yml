@@ -40,6 +40,8 @@ jobs:
         run: backend/.venv/bin/pytest backend --cov=revisionproof --cov-report=term-missing
       - name: Rehearse the release gate three times
         run: backend/.venv/bin/python scripts/rehearse_demo.py --runs 3
+      - name: Frontend tests
+        run: npm test --prefix frontend
       - name: Frontend lint
         run: npm run lint --prefix frontend
       - name: Frontend build

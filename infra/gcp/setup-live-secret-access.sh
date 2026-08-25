@@ -9,6 +9,10 @@ fi
 # shellcheck source=/dev/null
 source "${ENV_FILE}"
 
+if [[ "${RUNTIME_SERVICE_ACCOUNT}" != "revisionproof-runtime" ]]; then
+  echo "Refusing secret IAM: unexpected runtime service-account name." >&2
+  exit 2
+fi
 writer_secret="${CLICKHOUSE_WRITER_SECRET:-revisionproof-clickhouse-writer-password}"
 mcp_secret="${CLICKHOUSE_MCP_SECRET:-revisionproof-clickhouse-mcp-password}"
 runtime_sa="${RUNTIME_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com"

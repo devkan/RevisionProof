@@ -288,14 +288,22 @@ export default function App() {
                   <span className="panel-status panel-status-good"><LockKeyhole size={12} /> SPEC FROZEN</span>
                 </div>
                 <div className="hash-block"><Fingerprint size={17} /><div><span>SHA-256 REVISION SPEC</span><code>{run.spec.spec_hash}</code></div></div>
-                <p className="section-copy">Try the intentional failure first. v2 keeps the punch-in but removes the locked CTA. v3 repairs it.</p>
+                <p className="section-copy">
+                  {run.mode === 'FIXTURE'
+                    ? 'Try the intentional failure first. v2 keeps the punch-in but removes the locked CTA. v3 repairs it.'
+                    : 'Upload the actual revised MP4 to verify it against the frozen revision spec.'}
+                </p>
                 <div className="version-actions">
-                  <button className="danger-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v2'))} disabled={busy || run.state === 'READY'}>
-                    <ShieldAlert size={16} /> Verify demo v2
-                  </button>
-                  <button className="primary-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v3'))} disabled={busy || run.state === 'HUMAN_APPROVED' || run.state === 'READY'}>
-                    <FileCheck2 size={16} /> Verify repaired v3
-                  </button>
+                  {run.mode === 'FIXTURE' && (
+                    <>
+                      <button className="danger-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v2'))} disabled={busy || run.state === 'READY'}>
+                        <ShieldAlert size={16} /> Verify demo v2
+                      </button>
+                      <button className="primary-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v3'))} disabled={busy || run.state === 'HUMAN_APPROVED' || run.state === 'READY'}>
+                        <FileCheck2 size={16} /> Verify repaired v3
+                      </button>
+                    </>
+                  )}
                   <button className="quiet-button" onClick={() => fileInput.current?.click()} disabled={busy || run.state === 'READY'}>
                     <Upload size={15} /> Upload MP4
                   </button>

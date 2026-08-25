@@ -1,12 +1,16 @@
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
+from revisionproof.api import router
 from revisionproof.assets import DEMO_ASSET_ID
 from revisionproof.contracts import (
     ApprovalRequest,
     CreateRunRequest,
     ExecutionMode,
+    RunSnapshot,
     RunState,
     SafetyClassification,
     Verdict,
@@ -112,6 +116,67 @@ async def test_real_media_v2_blocks_then_v3_passes(
     )
     snapshot = service.approve_for_delivery(snapshot.run_id)
     assert snapshot.delivery_approved is True
+
+
+@pytest.mark.parametrize("candidate_id", ["A", "B"])
+def test_demo_versions_follow_the_frozen_candidate(
+    service: RevisionProofService, candidate_id: str
+) -> None:
+    app = FastAPI()
+    app.state.service = service
+    app.include_router(router)
+    client = TestClient(app)
+    created = client.post(
+        "/api/runs",
+        json={"asset_id": DEMO_ASSET_ID, "feedback": THREE_NOTES},
+    )
+    assert created.status_code == 201
+    run_id = created.json()["run_id"]
+    assert client.post(f"/api/runs/{run_id}/previews").status_code == 200
+    approved = client.post(
+        f"/api/runs/{run_id}/approvals",
+        json={"candidate_id": candidate_id},
+    )
+    assert approved.status_code == 200
+
+    v2 = client.post(f"/api/runs/{run_id}/demo-versions/v2")
+    assert v2.status_code == 200
+    snapshot = RunSnapshot.model_validate(v2.json())
+    assert snapshot.proof is not None
+    checks = {check.check_id: check for check in snapshot.proof.checks}
+    assert checks["approved_patch"].verdict is Verdict.PASS
+    assert checks["locked_cta"].verdict is Verdict.FAIL
+    assert snapshot.state is RunState.BLOCKED
+
+    v3 = client.post(f"/api/runs/{run_id}/demo-versions/v3")
+    assert v3.status_code == 200
+    snapshot = RunSnapshot.model_validate(v3.json())
+    assert snapshot.state is RunState.READY
+    assert snapshot.proof is not None and snapshot.proof.publish_allowed is True
+    assert all(check.verdict is Verdict.PASS for check in snapshot.proof.checks)
+
+
+@pytest.mark.asyncio
+async def test_live_mode_rejects_demo_versions(
+    service: RevisionProofService,
+) -> None:
+    snapshot = await service.create_run(
+        CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback=THREE_NOTES)
+    )
+    snapshot = service.generate_previews(snapshot.run_id)
+    snapshot = service.approve(snapshot.run_id, ApprovalRequest(candidate_id="A"))
+    service.settings.mode = ExecutionMode.LIVE
+
+    app = FastAPI()
+    app.state.service = service
+    app.include_router(router)
+    response = TestClient(app).post(f"/api/runs/{snapshot.run_id}/demo-versions/v3")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "demo versions are only available in FIXTURE mode"
+    unchanged = service.repository.get(snapshot.run_id)
+    assert unchanged.state is RunState.HUMAN_APPROVED
+    assert unchanged.proof is None
 
 
 @pytest.mark.asyncio

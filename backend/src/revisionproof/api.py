@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
-from typing import Annotated
+from collections.abc import AsyncIterator, Callable
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
@@ -16,6 +16,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
+from starlette.types import Receive, Scope, Send
 
 from revisionproof.assets import list_demo_assets
 from revisionproof.contracts import (
@@ -26,10 +27,27 @@ from revisionproof.contracts import (
     RunSnapshot,
     VerificationProof,
 )
-from revisionproof.repository import RunNotFoundError
-from revisionproof.service import RevisionProofService
+from revisionproof.repository import RunCapacityBusyError, RunNotFoundError
+from revisionproof.service import RateLimitError, RevisionProofService
 
 router = APIRouter(prefix="/api")
+
+
+class ActiveLeaseStreamingResponse(StreamingResponse):
+    def __init__(
+        self,
+        *args: Any,
+        release: Callable[[], None],
+        **kwargs: Any,
+    ) -> None:
+        self._release = release
+        super().__init__(*args, **kwargs)
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            self._release()
 
 
 def get_service(request: Request) -> RevisionProofService:
@@ -44,6 +62,18 @@ def as_http_error(exc: Exception) -> HTTPException:
         return HTTPException(status_code=404, detail="run not found")
     if isinstance(exc, FileNotFoundError):
         return HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, RateLimitError):
+        return HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        )
+    if isinstance(exc, RunCapacityBusyError):
+        return HTTPException(
+            status_code=429,
+            detail=str(exc),
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        )
     if isinstance(exc, ValueError):
         return HTTPException(status_code=409, detail=str(exc))
     return HTTPException(status_code=500, detail="internal processing error")
@@ -109,7 +139,7 @@ async def retry_run(
 @router.get("/runs/{run_id}/events")
 def get_run_events(run_id: str, request: Request, service: ServiceDep):
     try:
-        service.repository.get(run_id)
+        service.repository.acquire_active(run_id)
     except Exception as exc:
         raise as_http_error(exc) from exc
 
@@ -137,8 +167,9 @@ def get_run_events(run_id: str, request: Request, service: ServiceDep):
                 idle_ticks += 1
             await asyncio.sleep(1)
 
-    return StreamingResponse(
+    return ActiveLeaseStreamingResponse(
         stream(),
+        release=lambda: service.repository.release_active(run_id),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -209,6 +240,21 @@ def upload_version(
         raise as_http_error(exc) from exc
     finally:
         file.file.close()
+
+
+@router.post("/runs/{run_id}/demo-versions/{version_label}", response_model=RunSnapshot)
+def verify_demo_version(
+    run_id: str,
+    version_label: str,
+    service: ServiceDep,
+) -> RunSnapshot:
+    try:
+        return service.verify_demo_version(
+            run_id=run_id,
+            version_label=version_label,
+        )
+    except Exception as exc:
+        raise as_http_error(exc) from exc
 
 
 @router.get("/runs/{run_id}/proof", response_model=VerificationProof)

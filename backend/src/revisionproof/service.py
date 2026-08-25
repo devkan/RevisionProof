@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import re
 import shutil
 import threading
@@ -10,6 +11,7 @@ from collections import deque
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
+from queue import Empty, SimpleQueue
 from time import monotonic
 from typing import BinaryIO
 
@@ -53,6 +55,14 @@ from revisionproof.verification.service import (
     mark_proof_not_checked,
 )
 
+logger = logging.getLogger(__name__)
+
+
+class RateLimitError(ValueError):
+    def __init__(self, message: str, retry_after_seconds: int) -> None:
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
+
 
 class RevisionProofService:
     def __init__(self, settings: Settings, repository: InMemoryRunRepository) -> None:
@@ -68,6 +78,31 @@ class RevisionProofService:
         self._create_idempotency_locks_guard = threading.Lock()
         self._create_timestamps: deque[float] = deque()
         self._create_rate_lock = threading.Lock()
+        self._evicted_run_ids: SimpleQueue[str] = SimpleQueue()
+        self.repository.set_eviction_callback(self._evicted_run_ids.put)
+
+    def _cleanup_evicted_run(self, run_id: str) -> None:
+        if not re.fullmatch(r"[0-9A-HJKMNP-TV-Z]{26}", run_id):
+            raise RuntimeError("refusing to clean an invalid run id")
+        runs_root = (self.settings.runtime_dir / "runs").resolve()
+        run_root = (runs_root / run_id).resolve()
+        if run_root.parent != runs_root:
+            raise RuntimeError("refusing to clean a run path outside the runtime root")
+        if run_root.exists():
+            shutil.rmtree(run_root)
+
+    async def _cleanup_pending_evictions(self) -> None:
+        while True:
+            try:
+                run_id = self._evicted_run_ids.get_nowait()
+            except Empty:
+                return
+            try:
+                await asyncio.to_thread(self._cleanup_evicted_run, run_id)
+            except OSError:
+                self._evicted_run_ids.put(run_id)
+                logger.exception("Evicted run workspace cleanup will be retried: %s", run_id)
+                return
 
     def _transition(self, snapshot: RunSnapshot, target: RunState, message: str) -> None:
         assert_transition(snapshot.state, target)
@@ -123,7 +158,10 @@ class RevisionProofService:
             while self._create_timestamps and self._create_timestamps[0] <= now - 60:
                 self._create_timestamps.popleft()
             if len(self._create_timestamps) >= self.settings.max_new_runs_per_minute:
-                raise ValueError("new run rate limit reached; retry in one minute")
+                raise RateLimitError(
+                    "new run rate limit reached; retry in one minute",
+                    retry_after_seconds=60,
+                )
             self._create_timestamps.append(now)
 
     @staticmethod
@@ -181,43 +219,50 @@ class RevisionProofService:
             state=RunState.INDEXED,
             source_feedback=request.feedback,
         )
-        self.repository.create(snapshot, source_path)
-
-        if self.settings.mode is ExecutionMode.FIXTURE:
-            snapshot.notes = self.fixture_interpreter.interpret_many(request.feedback)
-            snapshot.feedback = self._feedback_from_notes(snapshot, "fixture.interpreter")
-            self._transition(
-                snapshot,
-                RunState.NOTES_PARSED,
-                "Feedback classified by fixture adapter; unsupported notes held back",
-            )
-            if snapshot.feedback is None:
-                self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
-                return snapshot
-            snapshot.evidence = self.fixture_locator.locate(snapshot.feedback)[:3]
-            self._transition(
-                snapshot,
-                RunState.EVIDENCE_ANCHORED,
-                "Evidence anchored by fixture segment index",
-            )
-            self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
-            return snapshot
-        if self.settings.mode is ExecutionMode.LIVE:
-            if self.settings.live_missing_settings:
-                snapshot.error = "Missing live settings: " + ", ".join(
-                    self.settings.live_missing_settings
+        self.repository.create(snapshot, source_path, active=True)
+        try:
+            await self._cleanup_pending_evictions()
+            if self.settings.mode is ExecutionMode.FIXTURE:
+                snapshot.notes = self.fixture_interpreter.interpret_many(request.feedback)
+                snapshot.feedback = self._feedback_from_notes(snapshot, "fixture.interpreter")
+                self._transition(
+                    snapshot,
+                    RunState.NOTES_PARSED,
+                    "Feedback classified by fixture adapter; unsupported notes held back",
                 )
-                self._transition(snapshot, RunState.FAILED, snapshot.error)
+                if snapshot.feedback is None:
+                    self.repository.remember_idempotent(
+                        "create_run", key, fingerprint, snapshot.run_id
+                    )
+                    return snapshot
+                snapshot.evidence = self.fixture_locator.locate(snapshot.feedback)[:3]
+                self._transition(
+                    snapshot,
+                    RunState.EVIDENCE_ANCHORED,
+                    "Evidence anchored by fixture segment index",
+                )
                 self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
                 return snapshot
-            try:
-                await self._run_live_interpretation(snapshot, request.feedback)
-            except Exception:
-                snapshot.error = "Live interpretation or evidence lookup failed"
-                self._transition(snapshot, RunState.FAILED, snapshot.error)
-            self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
-            return snapshot
-        raise ValueError("execution mode cannot create runs")
+            if self.settings.mode is ExecutionMode.LIVE:
+                if self.settings.live_missing_settings:
+                    snapshot.error = "Missing live settings: " + ", ".join(
+                        self.settings.live_missing_settings
+                    )
+                    self._transition(snapshot, RunState.FAILED, snapshot.error)
+                    self.repository.remember_idempotent(
+                        "create_run", key, fingerprint, snapshot.run_id
+                    )
+                    return snapshot
+                try:
+                    await self._run_live_interpretation(snapshot, request.feedback)
+                except Exception:
+                    snapshot.error = "Live interpretation or evidence lookup failed"
+                    self._transition(snapshot, RunState.FAILED, snapshot.error)
+                self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
+                return snapshot
+            raise ValueError("execution mode cannot create runs")
+        finally:
+            self.repository.release_active(snapshot.run_id)
 
     async def retry_live_interpretation(
         self, run_id: str, idempotency_key: str | None = None
@@ -232,28 +277,32 @@ class RevisionProofService:
             replay = self.repository.recall_idempotent(lock_key, key, fingerprint)
             if replay is not None:
                 return replay
-            snapshot = self.repository.get(run_id)
-            if snapshot.state is not RunState.FAILED or not snapshot.retryable:
-                raise ValueError("interpretation retry requires a retryable FAILED run")
-            if not snapshot.source_feedback:
-                raise ValueError("original feedback is unavailable for retry")
-            if self.settings.live_missing_settings:
-                raise ValueError(
-                    "live settings are incomplete: "
-                    + ", ".join(self.settings.live_missing_settings)
-                )
-            snapshot.notes = []
-            snapshot.feedback = None
-            snapshot.evidence = []
-            snapshot.error = None
-            self._transition(snapshot, RunState.INDEXED, "Retrying preserved source feedback")
+            self.repository.acquire_active(run_id)
             try:
-                await self._run_live_interpretation(snapshot, snapshot.source_feedback)
-            except Exception:
-                snapshot.error = "Live interpretation or evidence lookup failed"
-                self._transition(snapshot, RunState.FAILED, snapshot.error)
-            self.repository.remember_idempotent(lock_key, key, fingerprint, run_id)
-            return snapshot
+                snapshot = self.repository.get(run_id)
+                if snapshot.state is not RunState.FAILED or not snapshot.retryable:
+                    raise ValueError("interpretation retry requires a retryable FAILED run")
+                if not snapshot.source_feedback:
+                    raise ValueError("original feedback is unavailable for retry")
+                if self.settings.live_missing_settings:
+                    raise ValueError(
+                        "live settings are incomplete: "
+                        + ", ".join(self.settings.live_missing_settings)
+                    )
+                snapshot.notes = []
+                snapshot.feedback = None
+                snapshot.evidence = []
+                snapshot.error = None
+                self._transition(snapshot, RunState.INDEXED, "Retrying preserved source feedback")
+                try:
+                    await self._run_live_interpretation(snapshot, snapshot.source_feedback)
+                except Exception:
+                    snapshot.error = "Live interpretation or evidence lookup failed"
+                    self._transition(snapshot, RunState.FAILED, snapshot.error)
+                self.repository.remember_idempotent(lock_key, key, fingerprint, run_id)
+                return snapshot
+            finally:
+                self.repository.release_active(run_id)
 
     async def _run_live_interpretation(self, snapshot: RunSnapshot, raw_feedback: str) -> None:
         from revisionproof.evidence.live import (
@@ -316,9 +365,7 @@ class RevisionProofService:
                 return replay
             with self._exclusive_media_pipeline():
                 snapshot = self._generate_previews_locked(run_id)
-                self.repository.remember_idempotent(
-                    f"{run_id}:previews", key, fingerprint, run_id
-                )
+                self.repository.remember_idempotent(f"{run_id}:previews", key, fingerprint, run_id)
                 return snapshot
 
     def _generate_previews_locked(self, run_id: str) -> RunSnapshot:
@@ -623,10 +670,47 @@ class RevisionProofService:
                     stream=stream,
                     size=size,
                 )
-                self.repository.remember_idempotent(
-                    f"{run_id}:version", key, fingerprint, run_id
-                )
+                self.repository.remember_idempotent(f"{run_id}:version", key, fingerprint, run_id)
                 return snapshot
+
+    def verify_demo_version(
+        self,
+        *,
+        run_id: str,
+        version_label: str,
+    ) -> RunSnapshot:
+        if self.settings.mode is not ExecutionMode.FIXTURE:
+            raise ValueError("demo versions are only available in FIXTURE mode")
+        snapshot = self.repository.get(run_id)
+        if snapshot.spec is None:
+            raise ValueError("immutable spec is missing")
+        fixture_names = {
+            ("A", "v2"): "revisionproof_v2_blocked_A.mp4",
+            ("A", "v3"): "revisionproof_v3_ready_A.mp4",
+            ("B", "v2"): "revisionproof_v2_blocked.mp4",
+            ("B", "v3"): "revisionproof_v3_ready.mp4",
+        }
+        fixture_name = fixture_names.get(
+            (snapshot.spec.approved_candidate.candidate_id, version_label)
+        )
+        if fixture_name is None:
+            raise ValueError("demo version requires candidate A or B and version v2 or v3")
+        fixture_path = self.settings.runtime_dir / "demo" / fixture_name
+        if not fixture_path.exists():
+            raise FileNotFoundError(
+                "candidate-specific demo fixture is missing; run scripts/generate_demo_assets.py"
+            )
+        with fixture_path.open("rb") as stream:
+            content_sha256 = hashlib.file_digest(stream, "sha256").hexdigest()
+            stream.seek(0)
+            return self.upload_and_verify(
+                run_id=run_id,
+                version_label=version_label,
+                stream=stream,
+                size=fixture_path.stat().st_size,
+                idempotency_key=f"{run_id}:demo-version:{version_label}",
+                content_sha256=content_sha256,
+            )
 
     def _upload_and_verify_locked(
         self,
@@ -643,6 +727,9 @@ class RevisionProofService:
             )
         if snapshot.spec is None:
             raise ValueError("immutable spec is missing")
+        attempts = sum(event.state is RunState.VERSION_UPLOADED for event in snapshot.events)
+        if attempts >= self.settings.max_verification_attempts_per_run:
+            raise ValueError("verification attempt limit reached for this run; create a new run")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", version_label):
             raise ValueError(
                 "version_label must use 1-64 letters, numbers, dots, dashes, or underscores"
@@ -655,25 +742,34 @@ class RevisionProofService:
         destination = (
             self.settings.runtime_dir / "runs" / run_id / "versions" / f"{version_label}.mp4"
         )
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        with destination.open("wb") as output:
-            shutil.copyfileobj(stream, output)
+        staging_destination = destination.parent / f".upload-{new_ulid()}.mp4"
         try:
-            info = probe_media(destination, self.executor)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with staging_destination.open("wb") as output:
+                shutil.copyfileobj(stream, output)
+            info = probe_media(staging_destination, self.executor)
             validate_hackathon_media(info, max_duration_seconds=self.settings.max_duration_seconds)
-            self.repository.set_version_path(run_id, destination)
             self._transition(snapshot, RunState.VERSION_UPLOADED, f"{version_label} uploaded")
             self._transition(snapshot, RunState.VERIFYING, "Deterministic verification started")
             snapshot.proof = None
             snapshot.proof = self.verifier.verify(
                 source=self.repository.source_path(run_id),
-                candidate=destination,
+                candidate=staging_destination,
                 spec=snapshot.spec,
                 version_label=version_label,
             )
-            self._attach_cta_evidence(snapshot, destination, version_label)
+            self._attach_cta_evidence(snapshot, staging_destination, version_label)
             if self.settings.mode is ExecutionMode.LIVE:
-                self._persist_live_verification(snapshot, destination, version_label)
+                self._persist_live_verification(snapshot, staging_destination, version_label)
+            staging_destination.replace(destination)
+            self.repository.set_version_path(run_id, destination)
+            try:
+                self._prune_verification_artifacts(snapshot, destination)
+            except OSError:
+                logger.exception(
+                    "Verification artifact pruning will retry on a future upload: %s",
+                    run_id,
+                )
             snapshot.error = None
             snapshot.delivery_approved = False
             target = RunState.READY if snapshot.proof.publish_allowed else RunState.BLOCKED
@@ -688,10 +784,34 @@ class RevisionProofService:
             snapshot.error = "Media validation or verification failed"
             if snapshot.state in {RunState.VERSION_UPLOADED, RunState.VERIFYING}:
                 self._transition(snapshot, RunState.FAILED, "Verification failed closed")
-            if destination.exists():
-                destination.unlink()
+            if staging_destination.exists():
+                staging_destination.unlink()
             raise
         return snapshot
+
+    def _prune_verification_artifacts(self, snapshot: RunSnapshot, current_version) -> None:
+        run_root = (self.settings.runtime_dir / "runs" / snapshot.run_id).resolve()
+        versions_root = (run_root / "versions").resolve()
+        current_version = current_version.resolve()
+        if versions_root.parent != run_root or current_version.parent != versions_root:
+            raise RuntimeError("refusing to prune version files outside the run workspace")
+        for path in versions_root.iterdir():
+            if path != current_version and (path.is_file() or path.is_symlink()):
+                path.unlink()
+
+        evidence_root = (run_root / "evidence").resolve()
+        if not evidence_root.exists():
+            return
+        if evidence_root.parent != run_root or snapshot.proof is None:
+            raise RuntimeError("refusing to prune evidence outside the run workspace")
+        keep_evidence = {
+            path.rsplit("/", 1)[-1]
+            for check in snapshot.proof.checks
+            for path in check.evidence_urls
+        }
+        for path in evidence_root.iterdir():
+            if path.name not in keep_evidence and (path.is_file() or path.is_symlink()):
+                path.unlink()
 
     def approve_for_delivery(self, run_id: str, idempotency_key: str | None = None) -> RunSnapshot:
         self._assert_mutable_mode()

@@ -98,6 +98,8 @@ def main() -> None:
     DEMO_DIR.mkdir(parents=True, exist_ok=True)
     generate("revisionproof_v1.mp4", punch_scale=None, cta_mode="full")
     demo_cases = [
+        ("revisionproof_v2_blocked_A.mp4", 1.05, "none", 0.08),
+        ("revisionproof_v3_ready_A.mp4", 1.05, "full", 0.08),
         ("revisionproof_v2_blocked.mp4", 1.12, "none", 0.08),
         ("revisionproof_v3_ready.mp4", 1.12, "full", 0.08),
     ]

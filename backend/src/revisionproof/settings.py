@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     mcp_timeout_seconds: int = Field(default=30, ge=5, le=120)
     max_in_memory_runs: int = Field(default=64, ge=1, le=256)
     max_new_runs_per_minute: int = Field(default=12, ge=1, le=60)
+    max_verification_attempts_per_run: int = Field(default=6, ge=1, le=20)
 
     gemini_model: str = "gemini-flash-latest"
     embedding_model: str = "text-embedding-005"

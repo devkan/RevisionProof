@@ -35,9 +35,7 @@ def _split_source_notes(raw_text: str) -> list[str]:
     if markers:
         return [
             raw_text[
-                marker.end() : markers[index + 1].start()
-                if index + 1 < len(markers)
-                else None
+                marker.end() : markers[index + 1].start() if index + 1 < len(markers) else None
             ]
             for index, marker in enumerate(markers)
         ]

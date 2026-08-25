@@ -31,6 +31,11 @@ if [[ "${GCS_BUCKET}" != "${PROJECT_ID}-media" ]]; then
   echo "GCS_BUCKET must be ${PROJECT_ID}-media so cleanup cannot target an unrelated bucket." >&2
   exit 2
 fi
+if [[ "${RUNTIME_SERVICE_ACCOUNT}" != "revisionproof-runtime" ]] \
+  || [[ "${BUILD_SERVICE_ACCOUNT}" != "revisionproof-build" ]]; then
+  echo "Service-account names must be revisionproof-runtime and revisionproof-build." >&2
+  exit 2
+fi
 if [[ ! "${MIN_INSTANCES}" =~ ^[01]$ ]]; then
   echo "MIN_INSTANCES must be 0 or 1 because the service is capped at one instance." >&2
   exit 2
