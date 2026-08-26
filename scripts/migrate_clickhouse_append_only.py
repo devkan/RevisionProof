@@ -10,6 +10,7 @@ from typing import Any
 from revisionproof.bootstrap import (
     APPEND_ONLY_TABLE_LAYOUTS,
     _apply_sql_files,
+    normalize_clickhouse_engine,
     verify_append_only_layouts,
 )
 
@@ -79,7 +80,7 @@ def table_layout(admin: Any, table: str) -> tuple[str, str] | None:
     ).result_rows
     if not rows:
         return None
-    return str(rows[0][0]), str(rows[0][1])
+    return normalize_clickhouse_engine(str(rows[0][0])), str(rows[0][1])
 
 
 def table_count(admin: Any, table: str) -> int:

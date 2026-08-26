@@ -177,6 +177,32 @@ def test_append_only_layout_check_rejects_legacy_engine() -> None:
         verify_append_only_layouts(admin)
 
 
+def test_append_only_layout_check_accepts_clickhouse_cloud_shared_engine() -> None:
+    admin = FakeAdmin(
+        [
+            [
+                (
+                    "revision_specs",
+                    "SharedMergeTree",
+                    "run_id, spec_hash, approved_at",
+                ),
+                (
+                    "version_features",
+                    "SharedMergeTree",
+                    "run_id, version_label, feature_name, time_start, extracted_at",
+                ),
+                (
+                    "version_checks",
+                    "SharedMergeTree",
+                    "run_id, version_label, check_id, checked_at",
+                ),
+            ]
+        ]
+    )
+
+    verify_append_only_layouts(admin)
+
+
 def test_bootstrap_orchestrates_every_live_gate_and_closes_admin(
     runtime_dir: Path, monkeypatch
 ) -> None:

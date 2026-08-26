@@ -71,6 +71,16 @@ APPEND_ONLY_TABLE_LAYOUTS = {
     ),
 }
 
+CLICKHOUSE_CLOUD_ENGINE_ALIASES = {
+    "SharedMergeTree": "MergeTree",
+    "SharedReplacingMergeTree": "ReplacingMergeTree",
+}
+
+
+def normalize_clickhouse_engine(engine: str) -> str:
+    """Return the logical MergeTree engine name reported outside ClickHouse Cloud."""
+    return CLICKHOUSE_CLOUD_ENGINE_ALIASES.get(engine, engine)
+
 
 def split_sql_statements(sql: str) -> list[str]:
     return [statement.strip() for statement in sql.split(";") if statement.strip()]
@@ -182,10 +192,14 @@ def verify_append_only_layouts(admin: Any) -> None:
         "WHERE database = 'revisionproof' AND name IN "
         "('revision_specs', 'version_features', 'version_checks')"
     ).result_rows
-    actual = {str(name): (str(engine), str(sorting_key)) for name, engine, sorting_key in rows}
+    actual = {
+        str(name): (normalize_clickhouse_engine(str(engine)), str(sorting_key))
+        for name, engine, sorting_key in rows
+    }
     if actual != APPEND_ONLY_TABLE_LAYOUTS:
         raise RuntimeError(
-            "ClickHouse append-only schema drift detected; run the guarded migration first"
+            "ClickHouse append-only schema drift detected; run the guarded migration first; "
+            f"actual={actual!r}"
         )
 
 
