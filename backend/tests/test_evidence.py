@@ -84,6 +84,8 @@ def test_live_interpretation_requires_complete_note_coverage_and_per_note_target
         rationale="B-roll creation requires a human editor.",
     )
     validate_interpretation_grounding(feedback, [safe, manual])
+    inline_feedback = feedback.replace("\n", " ")
+    validate_interpretation_grounding(inline_feedback, [safe, manual])
 
     with pytest.raises(RuntimeError, match="exactly cover"):
         validate_interpretation_grounding(feedback, [safe])

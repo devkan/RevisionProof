@@ -42,6 +42,11 @@ def _normalize_note(text: str) -> str:
 
 def _split_source_notes(raw_text: str) -> list[str]:
     markers = list(re.finditer(r"(?m)^\s*(?:\d+[.)]|[-*])\s+", raw_text))
+    if len(markers) <= 1:
+        inline_markers = list(re.finditer(r"(?<!\S)(\d+)[.)]\s+", raw_text))
+        marker_numbers = [int(marker.group(1)) for marker in inline_markers]
+        if marker_numbers == list(range(1, len(marker_numbers) + 1)) and len(inline_markers) > 1:
+            markers = inline_markers
     if markers:
         return [
             raw_text[

@@ -260,6 +260,7 @@ class RevisionProofService:
                 try:
                     await self._run_live_interpretation(snapshot, request.feedback)
                 except Exception:
+                    logger.exception("LIVE interpretation failed for run %s", snapshot.run_id)
                     snapshot.error = "Live interpretation or evidence lookup failed"
                     self._transition(snapshot, RunState.FAILED, snapshot.error)
                 self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
@@ -301,6 +302,9 @@ class RevisionProofService:
                 try:
                     await self._run_live_interpretation(snapshot, snapshot.source_feedback)
                 except Exception:
+                    logger.exception(
+                        "LIVE interpretation retry failed for run %s", snapshot.run_id
+                    )
                     snapshot.error = "Live interpretation or evidence lookup failed"
                     self._transition(snapshot, RunState.FAILED, snapshot.error)
                 self.repository.remember_idempotent(lock_key, key, fingerprint, run_id)
