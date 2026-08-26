@@ -345,7 +345,7 @@ def _seed_clickhouse(
     ).result_rows
     existing: dict[str, tuple[Any, ...]] = {}
     for row in existing_rows:
-        segment_id = str(row[0]).rstrip("\x00")
+        segment_id = normalize_clickhouse_fixed_string(row[0])
         if segment_id in existing:
             raise RuntimeError(f"duplicate seeded segment {segment_id}")
         existing[segment_id] = row

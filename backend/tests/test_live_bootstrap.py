@@ -154,6 +154,29 @@ def test_seed_refuses_existing_segment_drift() -> None:
         _seed_clickhouse(admin, live_settings(), object(), gcs_uri)
 
 
+def test_seed_reuses_exact_segments_returned_as_fixed_string_bytes() -> None:
+    gcs_uri = "gs://revisionproof-agentic-2026-kan-media/assets/proof.mp4"
+    rows = [
+        (
+            segment.segment_id.encode(),
+            segment.start_seconds,
+            segment.end_seconds,
+            segment.transcript,
+            segment.visual_summary,
+            768,
+        )
+        for segment in SEED_SEGMENTS
+    ]
+    admin = FakeAdmin(
+        [
+            [("RevisionProof — Product Reveal", gcs_uri, 30.0)],
+            rows,
+        ]
+    )
+
+    assert _seed_clickhouse(admin, live_settings(), object(), gcs_uri) == 0
+
+
 def test_append_only_layout_check_rejects_legacy_engine() -> None:
     admin = FakeAdmin(
         [
