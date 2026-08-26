@@ -62,7 +62,9 @@ steps:
       - --service-account=revisionproof-runtime@${PROJECT_ID}.iam.gserviceaccount.com
       - --memory=4Gi
       - --cpu=2
-      - --concurrency=1
+      # Keep one process-local state owner, but leave room for the long-lived
+      # SSE trace, health probes, and one foreground mutation at the same time.
+      - --concurrency=4
       - --max=1
       - --min=1
       - --timeout=300

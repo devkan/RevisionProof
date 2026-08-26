@@ -40,3 +40,14 @@ def test_live_mutation_scripts_require_exact_project_confirmation(
 
     assert '"${CONFIRM_PROJECT}" != "${PROJECT_ID}"' in source
     assert '"${actual_project_number}" != "${EXPECTED_PROJECT_NUMBER}"' in source
+
+
+@pytest.mark.parametrize("config_name", ["cloudbuild.yaml", "cloudbuild.foundation.yaml"])
+def test_cloud_run_keeps_one_state_owner_without_starving_sse(
+    config_name: str,
+) -> None:
+    source = (PROJECT_ROOT / config_name).read_text(encoding="utf-8")
+
+    assert "--max=1" in source
+    assert "--concurrency=4" in source
+    assert "--concurrency=1" not in source

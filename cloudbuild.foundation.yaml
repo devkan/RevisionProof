@@ -35,7 +35,9 @@ steps:
       - --labels=app=revisionproof,environment=hackathon,managed-by=revisionproof-gcp,phase=foundation
       - --memory=4Gi
       - --cpu=2
-      - --concurrency=1
+      # Keep one process-local state owner, but leave room for the long-lived
+      # SSE trace, health probes, and one foreground mutation at the same time.
+      - --concurrency=4
       - --max=1
       - --min=${_MIN_INSTANCES}
       - --timeout=300
