@@ -274,27 +274,30 @@ def _upload_source_asset(settings: Settings, source: Path) -> tuple[str, bool]:
     gcs_uri = f"gs://{settings.gcs_bucket}/{object_name}"
     digest = _sha256(source)
     client = storage.Client(project=settings.google_cloud_project)
-    blob = client.bucket(str(settings.gcs_bucket)).blob(object_name)
-    if blob.exists(client=client):
-        blob.reload(client=client)
-        metadata = blob.metadata or {}
-        if metadata.get("sha256") != digest or blob.size != source.stat().st_size:
-            raise RuntimeError(f"refusing to overwrite drifted source object {gcs_uri}")
-        return gcs_uri, False
-    blob.metadata = {
-        "app": "revisionproof",
-        "asset_id": DEMO_ASSET_ID,
-        "sha256": digest,
-    }
     try:
-        blob.upload_from_filename(
-            str(source),
-            content_type="video/mp4",
-            if_generation_match=0,
-        )
-    except PreconditionFailed as exc:
-        raise RuntimeError(f"source object appeared concurrently at {gcs_uri}") from exc
-    return gcs_uri, True
+        blob = client.bucket(str(settings.gcs_bucket)).blob(object_name)
+        if blob.exists(client=client):
+            blob.reload(client=client)
+            metadata = blob.metadata or {}
+            if metadata.get("sha256") != digest or blob.size != source.stat().st_size:
+                raise RuntimeError(f"refusing to overwrite drifted source object {gcs_uri}")
+            return gcs_uri, False
+        blob.metadata = {
+            "app": "revisionproof",
+            "asset_id": DEMO_ASSET_ID,
+            "sha256": digest,
+        }
+        try:
+            blob.upload_from_filename(
+                str(source),
+                content_type="video/mp4",
+                if_generation_match=0,
+            )
+        except PreconditionFailed as exc:
+            raise RuntimeError(f"source object appeared concurrently at {gcs_uri}") from exc
+        return gcs_uri, True
+    finally:
+        client.close()
 
 
 def _seed_clickhouse(

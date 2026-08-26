@@ -294,3 +294,38 @@ def test_bootstrap_orchestrates_every_live_gate_and_closes_admin(
     assert result["status"] == "PASS"
     assert calls == ["schema", "metadata", "layout", "users", "seed", "mcp"]
     assert admin.closed is True
+
+
+def test_source_asset_upload_closes_storage_client(runtime_dir: Path, monkeypatch) -> None:
+    source = runtime_dir / "demo" / "revisionproof_v1.mp4"
+
+    class Blob:
+        metadata = None
+
+        def exists(self, *, client) -> bool:
+            assert client is storage_client
+            return False
+
+        def upload_from_filename(self, *_args, **_kwargs) -> None:
+            pass
+
+    class StorageClient:
+        closed = False
+
+        def bucket(self, name):
+            assert name == "revisionproof-agentic-2026-kan-media"
+            return SimpleNamespace(blob=lambda _name: Blob())
+
+        def close(self) -> None:
+            self.closed = True
+
+    storage_client = StorageClient()
+    monkeypatch.setattr("google.cloud.storage.Client", lambda **_kwargs: storage_client)
+
+    uri, created = bootstrap_module._upload_source_asset(  # noqa: SLF001
+        live_settings(runtime_dir=runtime_dir), source
+    )
+
+    assert uri.endswith("/assets/01J00000000000000000000000/revisionproof_v1.mp4")
+    assert created is True
+    assert storage_client.closed is True

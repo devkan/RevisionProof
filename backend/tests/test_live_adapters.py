@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -151,6 +152,65 @@ def test_vertex_adk_model_pins_vertex_project_without_global_env(monkeypatch) ->
         "project": "revisionproof-test",
         "location": "global",
     }
+
+
+@pytest.mark.asyncio
+async def test_vertex_interpretation_closes_runner_and_both_clients(monkeypatch) -> None:
+    closed = {"runner": False, "async_client": False, "sync_client": False}
+
+    class FakeAsyncClient:
+        async def aclose(self) -> None:
+            closed["async_client"] = True
+
+    class FakeGenaiClient:
+        def __init__(self, **_kwargs) -> None:
+            self.aio = FakeAsyncClient()
+
+        def close(self) -> None:
+            closed["sync_client"] = True
+
+    class FakeAgent:
+        def __init__(self, **kwargs) -> None:
+            self.model = kwargs["model"]
+
+    class FakeSessionService:
+        async def create_session(self, **_kwargs):
+            return SimpleNamespace(id="01J00000000000000000000099")
+
+    class FakeRunner:
+        def __init__(self, **_kwargs) -> None:
+            self.session_service = FakeSessionService()
+
+        async def run_async(self, **_kwargs):
+            payload = {
+                "notes": [
+                    {
+                        "raw_text": 'When the presenter says "RevisionProof," push in slightly.',
+                        "intent": "Apply a short center punch-in",
+                        "classification": "AUTO_PREVIEWABLE",
+                        "confidence": 0.94,
+                        "target_phrase": "RevisionProof",
+                        "rationale": "The phrase and supported edit are precise.",
+                    }
+                ]
+            }
+            yield SimpleNamespace(
+                content=SimpleNamespace(parts=[SimpleNamespace(text=json.dumps(payload))])
+            )
+
+        async def close(self) -> None:
+            closed["runner"] = True
+
+    monkeypatch.setattr("google.genai.Client", FakeGenaiClient)
+    monkeypatch.setattr("google.adk.agents.LlmAgent", FakeAgent)
+    monkeypatch.setattr("google.adk.runners.InMemoryRunner", FakeRunner)
+
+    notes = await VertexGeminiInterpreter(
+        Settings(google_cloud_project="revisionproof-test")
+    ).interpret_many('When the presenter says "RevisionProof," push in slightly.')
+
+    assert notes[0].target_phrase == "RevisionProof"
+    assert closed == {"runner": True, "async_client": True, "sync_client": True}
 
 
 @pytest.mark.asyncio

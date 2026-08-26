@@ -236,9 +236,10 @@ class VertexGeminiInterpreter:
         class InterpretationOutput(BaseModel):
             notes: list[NoteOutput] = Field(min_length=1, max_length=20)
 
+        model = self._adk_model()
         agent = LlmAgent(
             name="revision_note_interpreter",
-            model=self._adk_model(),
+            model=model,
             instruction=(
                 "Split the input into video revision notes and classify each one. "
                 "AUTO_PREVIEWABLE is only a short 4-8 second center PUNCH_IN with a precise "
@@ -272,7 +273,11 @@ class VertexGeminiInterpreter:
                         if texts:
                             final_text = "\n".join(texts)
         finally:
-            await runner.close()
+            try:
+                await runner.close()
+            finally:
+                await model.api_client.aio.aclose()
+                model.api_client.close()
         if not final_text:
             raise RuntimeError("Google ADK returned no interpretation")
         data = InterpretationOutput.model_validate_json(final_text)
