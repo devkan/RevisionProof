@@ -16,7 +16,7 @@ if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]] \
   exit 2
 fi
 export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
-active_gcloud_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' --limit=1)"
+active_gcloud_account="$(gcloud config get-value account 2>/dev/null)"
 if [[ "${active_gcloud_account}" != "${GCLOUD_ACCOUNT}" ]]; then
   echo "Refusing LIVE bootstrap: active gcloud account is ${active_gcloud_account:-none}." >&2
   exit 2
