@@ -49,13 +49,35 @@ The verified 2026-08-26 foundation deployment is Cloud Build `354696e9-0fdc-451c
 
 The explicit source staging directory keeps future source archives in the labeled media bucket under its one-day lifecycle. The first pre-hardening build may still appear in the automatically created `${PROJECT_ID}_cloudbuild` bucket; inventory and cleanup cover that exact project-owned bucket.
 
-Before a later LIVE deployment, create only the two named Secret Manager secrets with the same three RevisionProof labels, add their versions without committing values, and scope access per secret:
+Before a later LIVE deployment, set the exact ClickHouse Cloud host in the ignored `foundation.env`, then create only the two named Secret Manager secrets. The guarded script labels them, scopes access, prompts twice for each value without echoing it, and prints only numeric version IDs:
 
 ```bash
-bash infra/gcp/setup-live-secret-access.sh infra/gcp/foundation.env
+bash infra/gcp/create-live-secrets.sh \
+  infra/gcp/foundation.env revisionproof-agentic-2026-kan
 ```
 
-The script does not create or read secret values. It only grants the runtime service account `secretAccessor` on the two exact labeled secrets after checking project number and ownership labels.
+Bootstrap must pass before deployment. It creates the append-only schema and exact roles, records the project/host sentinel, uploads the source object once, seeds 768-dimensional Vertex embeddings, and verifies the expected anchor through the official MCP tool. A successful run writes only the verified host and numeric secret versions to ignored `infra/gcp/live.env`:
+
+```bash
+bash infra/gcp/bootstrap-live.sh \
+  infra/gcp/foundation.env revisionproof-agentic-2026-kan
+bash infra/gcp/deploy-live.sh \
+  infra/gcp/foundation.env infra/gcp/live.env revisionproof-agentic-2026-kan
+```
+
+ClickHouse migration and removal are separate guarded Python commands. Cloud operations require `--confirm-project` to match the database sentinel; cleanup is dry by default and additionally requires `--execute`:
+
+```bash
+backend/.venv/bin/python scripts/migrate_clickhouse_append_only.py \
+  --host "${CLICKHOUSE_HOST}" --confirm-host "${CLICKHOUSE_HOST}" \
+  --confirm-project revisionproof-agentic-2026-kan --confirm revisionproof
+backend/.venv/bin/python scripts/cleanup_clickhouse.py \
+  --host "${CLICKHOUSE_HOST}" --confirm-host "${CLICKHOUSE_HOST}" \
+  --confirm-project revisionproof-agentic-2026-kan \
+  --confirm-database revisionproof
+```
+
+Never add `--execute` to ClickHouse cleanup without first reviewing the target service and deployment sentinel.
 
 ## Inventory and modification
 
@@ -88,6 +110,6 @@ export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env "${PROJECT_ID}" --execute
 ```
 
-Executed resource cleanup also removes the two service accounts and their custom IAM bindings. It intentionally leaves billing linked and APIs enabled so the dedicated project can be inspected or reused; exact project deletion remains a separate manual decision.
+Executed resource cleanup also removes the two service accounts, the `revisionproofCloudRunDeployer` custom role, and their IAM bindings. It intentionally leaves billing linked and APIs enabled so the dedicated project can be inspected or reused; exact project deletion remains a separate manual decision.
 
 This keeps the project and billing link for audit. Complete project deletion is a separate, explicit action and is never run by the script.

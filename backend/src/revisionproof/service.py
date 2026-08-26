@@ -15,7 +15,7 @@ from queue import Empty, SimpleQueue
 from time import monotonic
 from typing import BinaryIO
 
-from revisionproof.assets import require_demo_asset
+from revisionproof.assets import DEMO_ASSET_ID, require_demo_asset
 from revisionproof.contracts import (
     ApprovalRequest,
     CreateRunRequest,
@@ -79,6 +79,7 @@ class RevisionProofService:
         self._create_timestamps: deque[float] = deque()
         self._create_rate_lock = threading.Lock()
         self._evicted_run_ids: SimpleQueue[str] = SimpleQueue()
+        self._baseline_proofs: dict[str, VerificationProof] = {}
         self.repository.set_eviction_callback(self._evicted_run_ids.put)
 
     def _cleanup_evicted_run(self, run_id: str) -> None:
@@ -98,6 +99,7 @@ class RevisionProofService:
             except Empty:
                 return
             try:
+                self._baseline_proofs.pop(run_id, None)
                 await asyncio.to_thread(self._cleanup_evicted_run, run_id)
             except OSError:
                 self._evicted_run_ids.put(run_id)
@@ -204,13 +206,15 @@ class RevisionProofService:
         replay = self.repository.recall_idempotent("create_run", key, fingerprint)
         if replay is not None:
             return replay
-        self._record_new_run()
+        if request.asset_id != DEMO_ASSET_ID:
+            raise ValueError("asset is not in the RevisionProof demo allowlist")
         asset, source_path = await asyncio.to_thread(
             require_demo_asset,
             request.asset_id,
             self.settings.runtime_dir,
             self.executor,
         )
+        self._record_new_run()
         run_id = new_ulid()
         snapshot = RunSnapshot(
             run_id=run_id,
@@ -526,12 +530,7 @@ class RevisionProofService:
         if snapshot.spec is None:
             raise RuntimeError("immutable spec is missing")
         checked_at = proof.generated_at
-        baseline_proof = self.verifier.verify(
-            source=self.repository.source_path(snapshot.run_id),
-            candidate=self.repository.source_path(snapshot.run_id),
-            spec=snapshot.spec,
-            version_label="v1",
-        )
+        baseline_proof = self._baseline_proof_for(snapshot)
 
         def feature_values(source_proof: VerificationProof) -> dict[str, float]:
             checks = {item.check_id: item for item in source_proof.checks}
@@ -614,6 +613,22 @@ class RevisionProofService:
                 for check in proof.checks
             ]
         )
+
+    def _baseline_proof_for(self, snapshot: RunSnapshot) -> VerificationProof:
+        if snapshot.spec is None:
+            raise RuntimeError("immutable spec is missing")
+        baseline_proof = self._baseline_proofs.get(snapshot.run_id)
+        if baseline_proof is None:
+            baseline_proof = self.verifier.verify(
+                source=self.repository.source_path(snapshot.run_id),
+                candidate=self.repository.source_path(snapshot.run_id),
+                spec=snapshot.spec,
+                version_label="v1",
+            )
+            self._baseline_proofs[snapshot.run_id] = baseline_proof
+        elif baseline_proof.spec_hash != snapshot.spec.spec_hash:
+            raise RuntimeError("cached baseline proof does not match the approved spec")
+        return baseline_proof
 
     def _attach_cta_evidence(self, snapshot: RunSnapshot, destination, version_label: str) -> None:
         if snapshot.proof is None or snapshot.spec is None:

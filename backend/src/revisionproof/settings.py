@@ -27,10 +27,10 @@ class Settings(BaseSettings):
     max_new_runs_per_minute: int = Field(default=12, ge=1, le=60)
     max_verification_attempts_per_run: int = Field(default=6, ge=1, le=20)
 
-    gemini_model: str = "gemini-flash-latest"
+    gemini_model: str = "gemini-3.5-flash-lite"
     embedding_model: str = "text-embedding-005"
     google_cloud_project: str | None = None
-    google_cloud_location: str = "us-central1"
+    google_cloud_location: str = "global"
     gcs_bucket: str | None = None
 
     clickhouse_host: str | None = None

@@ -101,3 +101,18 @@ The script leaves billing linked, enabled APIs enabled, and the project active. 
 ## Non-billable Cloud Shell working files
 
 The archive, build directory, inventory, and dry-run output above remain in the `secureis` Cloud Shell home directory for audit. The failed private Git clone may also have left `/home/secureis/revisionproof-6977747`; inspect it before any removal. These paths are not GCP project resources and are not removed by `infra/gcp/cleanup.sh`.
+
+## LIVE hardening IAM delta, 2026-08-26
+
+These changes were applied with `CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com`, `CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan`, and exact RevisionProof resource names:
+
+- Runtime bucket binding removed: `roles/storage.objectAdmin`.
+- Runtime bucket bindings present: `roles/storage.objectCreator` and `roles/storage.objectViewer` on `gs://revisionproof-agentic-2026-kan-media` only.
+- Build project binding removed: `roles/run.admin`.
+- Custom role created: `projects/revisionproof-agentic-2026-kan/roles/revisionproofCloudRunDeployer`, stage `GA`.
+- The custom role contains 16 permissions: project lookup; Cloud Run location, operation, configuration, revision, route, and service reads; service create/update; and service IAM policy get/set.
+- Build project binding present: the custom role above for `revisionproof-build@revisionproof-agentic-2026-kan.iam.gserviceaccount.com`.
+- Secret Manager query found no RevisionProof-labeled secrets. No secret or ClickHouse Cloud resource was created.
+- ScopeShift and every other project were left unchanged.
+
+The currently deployed Cloud Run revision remains `revisionproof-staging-00003-q56` in FIXTURE mode. The IAM delta does not claim that the uncommitted LIVE source or ClickHouse path is deployed.

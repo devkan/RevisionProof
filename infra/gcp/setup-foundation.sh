@@ -11,7 +11,7 @@ fi
 source "${ENV_FILE}"
 
 required=(
-  PROJECT_ID PROJECT_NAME EXPECTED_PROJECT_NUMBER ADOPT_EXISTING_PROJECT
+  PROJECT_ID PROJECT_NAME GCLOUD_ACCOUNT EXPECTED_PROJECT_NUMBER ADOPT_EXISTING_PROJECT
   BILLING_ACCOUNT_ID REGION ARTIFACT_REPOSITORY
   SERVICE_NAME RUNTIME_SERVICE_ACCOUNT BUILD_SERVICE_ACCOUNT GCS_BUCKET
   MIN_INSTANCES BUDGET_AMOUNT_UNITS BUDGET_CURRENCY_CODE BUDGET_DISPLAY_NAME
@@ -22,6 +22,13 @@ for name in "${required[@]}"; do
     exit 2
   fi
 done
+
+if [[ "${GCLOUD_ACCOUNT}" != "secureis@gmail.com" ]]; then
+  echo "GCLOUD_ACCOUNT must be the locked RevisionProof owner secureis@gmail.com." >&2
+  exit 2
+fi
+export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
+export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
 
 if [[ ! "${PROJECT_ID}" =~ ^revisionproof-[a-z0-9-]{6,16}$ ]]; then
   echo "PROJECT_ID must be a dedicated lowercase revisionproof-* id of at most 30 characters." >&2
@@ -123,6 +130,9 @@ gcloud services enable \
 project_number="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
 runtime_sa="${RUNTIME_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com"
 build_sa="${BUILD_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com"
+cloud_run_deployer_role_id="revisionproofCloudRunDeployer"
+cloud_run_deployer_role="projects/${PROJECT_ID}/roles/${cloud_run_deployer_role_id}"
+cloud_run_deployer_permissions="resourcemanager.projects.get,run.configurations.get,run.configurations.list,run.locations.get,run.locations.list,run.operations.get,run.revisions.get,run.revisions.list,run.routes.get,run.routes.list,run.services.create,run.services.get,run.services.getIamPolicy,run.services.list,run.services.setIamPolicy,run.services.update"
 
 if ! gcloud iam service-accounts describe "${runtime_sa}" --project="${PROJECT_ID}" >/dev/null 2>&1; then
   gcloud iam service-accounts create "${RUNTIME_SERVICE_ACCOUNT}" \
@@ -135,18 +145,43 @@ if ! gcloud iam service-accounts describe "${build_sa}" --project="${PROJECT_ID}
     --project="${PROJECT_ID}"
 fi
 
+if gcloud iam roles describe "${cloud_run_deployer_role_id}" \
+  --project="${PROJECT_ID}" >/dev/null 2>&1; then
+  gcloud iam roles update "${cloud_run_deployer_role_id}" \
+    --project="${PROJECT_ID}" \
+    --title="RevisionProof Cloud Run deployer" \
+    --description="Create or update only Cloud Run services and their public-access policy." \
+    --permissions="${cloud_run_deployer_permissions}" \
+    --stage=GA >/dev/null
+else
+  gcloud iam roles create "${cloud_run_deployer_role_id}" \
+    --project="${PROJECT_ID}" \
+    --title="RevisionProof Cloud Run deployer" \
+    --description="Create or update only Cloud Run services and their public-access policy." \
+    --permissions="${cloud_run_deployer_permissions}" \
+    --stage=GA >/dev/null
+fi
+
 for role in roles/aiplatform.user roles/logging.logWriter; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${runtime_sa}" \
     --role="${role}" \
     --condition=None >/dev/null
 done
-for role in roles/logging.logWriter roles/run.admin; do
+for role in roles/logging.logWriter "${cloud_run_deployer_role}"; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${build_sa}" \
     --role="${role}" \
     --condition=None >/dev/null
 done
+build_project_policy="$(gcloud projects get-iam-policy "${PROJECT_ID}" --format=json)"
+if jq -e --arg member "serviceAccount:${build_sa}" \
+  'any(.bindings[]?; .role == "roles/run.admin"
+    and any(.members[]?; . == $member))' <<<"${build_project_policy}" >/dev/null; then
+  gcloud projects remove-iam-policy-binding "${PROJECT_ID}" \
+    --member="serviceAccount:${build_sa}" \
+    --role="roles/run.admin" --condition=None --quiet >/dev/null
+fi
 gcloud iam service-accounts add-iam-policy-binding "${runtime_sa}" \
   --member="serviceAccount:${build_sa}" \
   --role="roles/iam.serviceAccountUser" \
@@ -229,7 +264,10 @@ if ! gcloud storage buckets describe "gs://${GCS_BUCKET}" --format=json \
 fi
 gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
   --member="serviceAccount:${runtime_sa}" \
-  --role="roles/storage.objectAdmin" >/dev/null
+  --role="roles/storage.objectCreator" >/dev/null
+gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
+  --member="serviceAccount:${runtime_sa}" \
+  --role="roles/storage.objectViewer" >/dev/null
 gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
   --member="serviceAccount:${build_sa}" \
   --role="roles/storage.objectViewer" >/dev/null
@@ -250,6 +288,15 @@ remove_project_binding_if_present \
   "serviceAccount:${build_sa}" "roles/artifactregistry.writer"
 remove_project_binding_if_present \
   "serviceAccount:${build_sa}" "roles/storage.objectViewer"
+
+bucket_policy="$(gcloud storage buckets get-iam-policy "gs://${GCS_BUCKET}" --format=json)"
+if jq -e --arg member "serviceAccount:${runtime_sa}" \
+  'any(.bindings[]?; .role == "roles/storage.objectAdmin"
+    and any(.members[]?; . == $member))' <<<"${bucket_policy}" >/dev/null; then
+  gcloud storage buckets remove-iam-policy-binding "gs://${GCS_BUCKET}" \
+    --member="serviceAccount:${runtime_sa}" \
+    --role="roles/storage.objectAdmin" >/dev/null
+fi
 
 budget_name="$(gcloud billing budgets list \
   --billing-account="${BILLING_ACCOUNT_ID}" \

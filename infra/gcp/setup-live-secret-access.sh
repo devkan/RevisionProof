@@ -9,6 +9,13 @@ fi
 # shellcheck source=/dev/null
 source "${ENV_FILE}"
 
+if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]]; then
+  echo "Refusing secret IAM: unexpected gcloud account." >&2
+  exit 2
+fi
+export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
+export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
+
 if [[ "${RUNTIME_SERVICE_ACCOUNT}" != "revisionproof-runtime" ]]; then
   echo "Refusing secret IAM: unexpected runtime service-account name." >&2
   exit 2
@@ -44,6 +51,20 @@ for secret_name in "${writer_secret}" "${mcp_secret}"; do
     --project="${PROJECT_ID}" \
     --member="serviceAccount:${runtime_sa}" \
     --role="roles/secretmanager.secretAccessor" >/dev/null
+  secret_policy="$(gcloud secrets get-iam-policy "${secret_name}" \
+    --project="${PROJECT_ID}" --format=json)"
+  if ! jq -e --arg expected "serviceAccount:${runtime_sa}" '
+    [
+      .bindings[]?
+      | select(.role == "roles/secretmanager.secretAccessor")
+      | .members[]?
+    ]
+    | unique
+    | . == [$expected]
+  ' <<<"${secret_policy}" >/dev/null; then
+    echo "Refusing secret IAM: ${secret_name} has an unexpected direct accessor." >&2
+    exit 4
+  fi
 done
 
 echo "LIVE secret access is scoped to the two exact RevisionProof secrets."

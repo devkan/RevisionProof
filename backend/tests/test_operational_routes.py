@@ -2,6 +2,16 @@ from fastapi.testclient import TestClient
 
 from revisionproof.contracts import ExecutionMode
 from revisionproof.main import app, settings
+from revisionproof.settings import Settings
+
+
+def test_vertex_defaults_match_credential_verified_global_models(monkeypatch) -> None:
+    monkeypatch.delenv("REVISIONPROOF_GEMINI_MODEL", raising=False)
+    monkeypatch.delenv("REVISIONPROOF_GOOGLE_CLOUD_LOCATION", raising=False)
+    defaults = Settings(_env_file=None)
+
+    assert defaults.gemini_model == "gemini-3.5-flash-lite"
+    assert defaults.google_cloud_location == "global"
 
 
 def test_operational_routes_use_cloud_run_safe_paths() -> None:

@@ -99,6 +99,71 @@ async def test_new_run_rate_limit_bounds_public_demo_work(runtime_dir: Path) -> 
 
 
 @pytest.mark.asyncio
+async def test_rejected_asset_does_not_consume_new_run_quota(runtime_dir: Path) -> None:
+    service = RevisionProofService(
+        Settings(
+            mode=ExecutionMode.FIXTURE,
+            runtime_dir=runtime_dir,
+            max_new_runs_per_minute=1,
+        ),
+        InMemoryRunRepository(max_runs=4),
+    )
+    with pytest.raises(ValueError, match="allowlist"):
+        await service.create_run(
+            CreateRunRequest(
+                asset_id="01J00000000000000000000999",
+                feedback="Make the reveal more intentional",
+            )
+        )
+
+    accepted = await service.create_run(
+        CreateRunRequest(
+            asset_id=DEMO_ASSET_ID,
+            feedback="Make the reveal more intentional",
+        )
+    )
+
+    assert accepted.run_id
+
+
+@pytest.mark.asyncio
+async def test_sse_iterator_stops_after_terminal_event(runtime_dir: Path) -> None:
+    service = RevisionProofService(
+        Settings(mode=ExecutionMode.FIXTURE, runtime_dir=runtime_dir),
+        InMemoryRunRepository(max_runs=2),
+    )
+    snapshot = await service.create_run(
+        CreateRunRequest(
+            asset_id=DEMO_ASSET_ID,
+            feedback="Make the reveal more intentional",
+        )
+    )
+    snapshot.state = RunState.FAILED
+    service.repository.append_event(snapshot.run_id, RunState.FAILED, "terminal")
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0", "spec_version": "2.4"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": f"/api/runs/{snapshot.run_id}/events",
+        "raw_path": b"",
+        "query_string": b"",
+        "headers": [],
+        "client": ("127.0.0.1", 1),
+        "server": ("testserver", 80),
+    }
+    response = get_run_events(snapshot.run_id, Request(scope), service)
+    try:
+        chunks = [chunk async for chunk in response.body_iterator]
+    finally:
+        service.repository.release_active(snapshot.run_id)
+
+    assert any('"state":"FAILED"' in chunk for chunk in chunks)
+    assert chunks[-1].startswith("id:")
+
+
+@pytest.mark.asyncio
 async def test_sse_start_failure_releases_the_active_run_lease(runtime_dir: Path) -> None:
     service = RevisionProofService(
         Settings(mode=ExecutionMode.FIXTURE, runtime_dir=runtime_dir),

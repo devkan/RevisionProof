@@ -6,7 +6,7 @@ RevisionProof is a revision approval firewall. It does not expose a timeline edi
 
 ## Runtime
 
-One Cloud Run container serves the built React application and FastAPI API. Cloud Run accepts up to eight concurrent HTTP requests so the SSE trace does not block action requests, while a non-blocking application lock permits only one FFmpeg/OpenCV pipeline at a time. The hackathon deployment is capped at one 4 GiB instance. The public FIXTURE demo also caps new runs per minute, bounds the in-memory repository and idempotency ledger, and removes per-key async locks once all waiters exit. Live candidate media is copied to private GCS; the public media allowlist exposes only demo assets, A/B previews, and proof PNGs.
+One Cloud Run container serves the built React application and FastAPI API. The guarded deployment configuration uses concurrency 1 and a maximum of one 4 GiB instance, matching the process-local run repository and single FFmpeg/OpenCV pipeline. The currently deployed historical FIXTURE revision still records concurrency 8 in its dated inventory; a new build is required to apply the source configuration. The public demo also caps new runs per minute, bounds the in-memory repository and idempotency ledger, and removes per-key async locks once all waiters exit. Live candidate media is created once in private GCS with SHA-256 metadata; an existing object is reused only when its hash and size match. The public media allowlist exposes only demo assets, A/B previews, and proof PNGs.
 
 ```text
 Client note
@@ -38,6 +38,7 @@ FFmpeg/OpenCV deterministic feature extraction
 - The fixture interpreter and segment index use explicit `fixture.*` source names.
 - Live ClickHouse reads use only the `search_segments` and `version_feature_diff` views through the official MCP tool.
 - ClickHouse writes use a separate insert-only credential.
+- ClickHouse provisioning records exactly one deployment sentinel containing the dedicated GCP project ID and ClickHouse Cloud host. Bootstrap, cloud migration, and cleanup refuse a mismatch.
 - Human approval is the only operation that creates a `RevisionSpec`; Pydantic freezes it and canonical content is SHA-256-addressed.
 - The spec hash covers the exact CTA ROI, evidence ranges, and numerical thresholds used by later checks; loading a tampered spec fails validation.
 - `OFFLINE_REHEARSAL` and `UNAVAILABLE` reject every state-changing request.
@@ -62,4 +63,4 @@ The OpenAPI contract is available at `/docs`. Core routes include `/api/runtime`
 
 ## Hackathon durability boundary
 
-ClickHouse audit tables are defined with append-only `MergeTree` engines; the current implementation writes frozen specs, version features, and checks. The API run snapshot and trace are still process memory, and full restart hydration of in-progress previews is not implemented. Cloud Run service-level `--max=1` prevents cross-revision state splits but does not make memory durable; a Cloud Run restart requires starting a new run. The preserved feedback retry works only while that process remains alive. This is a known live-spike gate, not a recovered-state claim.
+ClickHouse audit tables are defined with append-only `MergeTree` engines; the current implementation writes frozen specs, version features, and checks. Schema migration preserves the three former `ReplacingMergeTree` tables as backups and refuses unknown or partial layouts. The API run snapshot and trace are still process memory, and full restart hydration of in-progress previews is not implemented. Cloud Run service-level `--max=1` prevents cross-revision state splits but does not make memory durable; a Cloud Run restart requires starting a new run. The preserved feedback retry works only while that process remains alive. This is a known live-spike gate, not a recovered-state claim.

@@ -60,3 +60,7 @@ At 375x812, document `scrollWidth` equaled `clientWidth` at 375 px, no horizonta
 - Run snapshots and proof traces remain process-local. A Cloud Run restart requires a new run.
 - The public FIXTURE demo uses one instance-global anonymous run-creation bucket. Cost is bounded, but one caller can consume the shared allowance.
 - The build service account still has project-level `roles/run.admin` for bootstrap deployment. The dedicated project limits the blast radius; a narrower conditional or custom role is follow-up hardening.
+
+## Post-report hardening
+
+After this historical FIXTURE QA run, the runtime bucket role was reduced from `objectAdmin` to bucket-scoped `objectCreator` plus `objectViewer`. The build service account moved from `roles/run.admin` to the project-local `revisionproofCloudRunDeployer` custom role. These IAM changes are verified in GCP, but the application source changes and LIVE integrations have not been redeployed; see [LIVE hardening progress](live-hardening-progress-2026-08-26.md).

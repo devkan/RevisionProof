@@ -12,6 +12,13 @@ fi
 # shellcheck source=/dev/null
 source "${ENV_FILE}"
 
+if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]]; then
+  echo "Refusing cleanup: unexpected gcloud account." >&2
+  exit 2
+fi
+export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
+export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
+
 if [[ "${RUNTIME_SERVICE_ACCOUNT}" != "revisionproof-runtime" ]] \
   || [[ "${BUILD_SERVICE_ACCOUNT}" != "revisionproof-build" ]]; then
   echo "Refusing cleanup: unexpected RevisionProof service-account name." >&2
@@ -114,6 +121,8 @@ fi
 default_build_bucket="${PROJECT_ID}_cloudbuild"
 writer_secret="${CLICKHOUSE_WRITER_SECRET:-revisionproof-clickhouse-writer-password}"
 mcp_secret="${CLICKHOUSE_MCP_SECRET:-revisionproof-clickhouse-mcp-password}"
+cloud_run_deployer_role_id="revisionproofCloudRunDeployer"
+cloud_run_deployer_role="projects/${PROJECT_ID}/roles/${cloud_run_deployer_role_id}"
 build_bucket_exists=false
 if resource_exists gcloud storage buckets describe "gs://${default_build_bucket}" --format=json; then
   build_bucket_exists=true
@@ -151,6 +160,7 @@ Cleanup target (and no other project):
   legacy Cloud Build source bucket: gs://${default_build_bucket}
   future LIVE secrets if labeled: ${writer_secret}, ${mcp_secret}
   service accounts: ${RUNTIME_SERVICE_ACCOUNT}, ${BUILD_SERVICE_ACCOUNT}
+  custom IAM role: ${cloud_run_deployer_role}
   project-scoped billing budget: ${BUDGET_DISPLAY_NAME}
 EOF
 
@@ -227,13 +237,24 @@ for role in roles/aiplatform.user roles/logging.logWriter; do
       --condition=None --quiet >/dev/null
   fi
 done
-for role in roles/artifactregistry.writer roles/logging.logWriter roles/run.admin roles/storage.objectViewer; do
+for role in \
+  roles/artifactregistry.writer \
+  roles/logging.logWriter \
+  roles/run.admin \
+  roles/storage.objectViewer \
+  "${cloud_run_deployer_role}"; do
   if project_binding_exists "${build_member}" "${role}"; then
     gcloud projects remove-iam-policy-binding "${PROJECT_ID}" \
       --member="${build_member}" --role="${role}" \
       --condition=None --quiet >/dev/null
   fi
 done
+
+if resource_exists gcloud iam roles describe "${cloud_run_deployer_role_id}" \
+  --project="${PROJECT_ID}" --format=json; then
+  gcloud iam roles delete "${cloud_run_deployer_role_id}" \
+    --project="${PROJECT_ID}" --quiet
+fi
 
 runtime_sa_exists=false
 if resource_exists gcloud iam service-accounts describe "${runtime_sa}" \
@@ -278,6 +299,8 @@ if [[ -n "${remaining_budget}" ]] \
   || resource_exists gcloud iam service-accounts describe "${runtime_sa}" \
     --project="${PROJECT_ID}" --format=json \
   || resource_exists gcloud iam service-accounts describe "${build_sa}" \
+    --project="${PROJECT_ID}" --format=json \
+  || resource_exists gcloud iam roles describe "${cloud_run_deployer_role_id}" \
     --project="${PROJECT_ID}" --format=json; then
   echo "Cleanup verification failed: at least one exact RevisionProof resource remains." >&2
   exit 5

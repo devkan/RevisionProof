@@ -9,6 +9,13 @@ fi
 # shellcheck source=/dev/null
 source "${ENV_FILE}"
 
+if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]]; then
+  echo "Refusing inventory: unexpected gcloud account." >&2
+  exit 2
+fi
+export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
+export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
+
 actual_project_number="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
 if [[ "${actual_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]]; then
   echo "Refusing inventory: expected project ${EXPECTED_PROJECT_NUMBER}, got ${actual_project_number}." >&2
@@ -42,6 +49,10 @@ gcloud projects get-iam-policy "${PROJECT_ID}" \
   --flatten='bindings[].members' \
   --filter="bindings.members:(serviceAccount:${RUNTIME_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com OR serviceAccount:${BUILD_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com)" \
   --format='yaml(bindings.role,bindings.members,bindings.condition)'
+echo "=== RevisionProof custom Cloud Run deployer role ==="
+gcloud iam roles describe revisionproofCloudRunDeployer \
+  --project="${PROJECT_ID}" \
+  --format='yaml(name,title,description,includedPermissions,stage,deleted)'
 echo "=== runtime service-account policy ==="
 gcloud iam service-accounts get-iam-policy \
   "${RUNTIME_SERVICE_ACCOUNT}@${PROJECT_ID}.iam.gserviceaccount.com" \
@@ -103,3 +114,17 @@ echo "=== RevisionProof-managed secrets (may be absent before LIVE) ==="
 gcloud secrets list --project="${PROJECT_ID}" \
   --filter="labels.managed-by=revisionproof-gcp" \
   --format='yaml(name,createTime,labels,replication)'
+for secret_name in \
+  "${CLICKHOUSE_WRITER_SECRET:-revisionproof-clickhouse-writer-password}" \
+  "${CLICKHOUSE_MCP_SECRET:-revisionproof-clickhouse-mcp-password}"; do
+  if gcloud secrets describe "${secret_name}" \
+    --project="${PROJECT_ID}" --format='value(name)' >/dev/null 2>&1; then
+    echo "--- IAM ${secret_name} ---"
+    gcloud secrets get-iam-policy "${secret_name}" \
+      --project="${PROJECT_ID}" --format=yaml
+    echo "--- enabled versions ${secret_name} ---"
+    gcloud secrets versions list "${secret_name}" \
+      --project="${PROJECT_ID}" --filter='state=enabled' \
+      --format='yaml(name,state,createTime,destroyTime)'
+  fi
+done

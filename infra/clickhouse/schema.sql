@@ -1,5 +1,14 @@
 CREATE DATABASE IF NOT EXISTS revisionproof;
 
+CREATE TABLE IF NOT EXISTS revisionproof.deployment_metadata
+(
+    project_id String,
+    clickhouse_host String,
+    created_at DateTime64(3, 'UTC')
+)
+ENGINE = MergeTree
+ORDER BY (project_id, clickhouse_host, created_at);
+
 CREATE TABLE IF NOT EXISTS revisionproof.assets
 (
     asset_id FixedString(26),

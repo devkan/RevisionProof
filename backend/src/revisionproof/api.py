@@ -25,6 +25,7 @@ from revisionproof.contracts import (
     ExecutionMode,
     RevisionSpec,
     RunSnapshot,
+    RunState,
     VerificationProof,
 )
 from revisionproof.repository import RunCapacityBusyError, RunNotFoundError
@@ -144,6 +145,7 @@ def get_run_events(run_id: str, request: Request, service: ServiceDep):
         raise as_http_error(exc) from exc
 
     async def stream() -> AsyncIterator[str]:
+        terminal_states = {RunState.BLOCKED, RunState.READY, RunState.FAILED}
         last_event_id = request.headers.get("last-event-id", "0")
         try:
             cursor = max(0, int(last_event_id))
@@ -162,6 +164,8 @@ def get_run_events(run_id: str, request: Request, service: ServiceDep):
                     )
                 cursor = len(snapshot.events)
                 idle_ticks = 0
+                if snapshot.events and snapshot.events[-1].state in terminal_states:
+                    return
             else:
                 yield ": keep-alive\n\n"
                 idle_ticks += 1

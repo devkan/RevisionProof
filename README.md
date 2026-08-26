@@ -30,6 +30,8 @@ Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits 
 
 The billed GCP foundation deployment is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. It is intentionally labeled `FIXTURE` and proves the isolated Cloud Build, Artifact Registry, GCS, IAM, and Cloud Run path. It is not Gemini or ClickHouse LIVE evidence.
 
+The next LIVE deployment is guarded by `infra/gcp/create-live-secrets.sh`, `infra/gcp/bootstrap-live.sh`, and `infra/gcp/deploy-live.sh`. It cannot deploy until the exact ClickHouse Cloud host, two numeric Secret Manager versions, append-only schema, deployment sentinel, seeded GCS object, Vertex embedding, and official `mcp-clickhouse.run_query` smoke test all pass. The public foundation URL remains FIXTURE until that gate is complete.
+
 ## Quality gates
 
 ```powershell
@@ -41,6 +43,8 @@ npm run test --prefix frontend
 npm run build --prefix frontend
 backend/.venv/Scripts/python.exe scripts/rehearse_demo.py --runs 3
 docker build --tag revisionproof:local .
+backend/.venv/Scripts/python.exe scripts/verify_local_clickhouse.py
+backend/.venv/Scripts/python.exe scripts/verify_local_mcp.py
 ```
 
-See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [latest QA report](docs/qa-report-2026-08-26-cloud-deploy.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).
+See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [latest QA report](docs/qa-report-2026-08-26-cloud-deploy.md), [LIVE hardening progress](docs/live-hardening-progress-2026-08-26.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).

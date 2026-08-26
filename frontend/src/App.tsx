@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { api } from './api'
+import { isTerminalRunState } from './runStream'
 import type {
   DemoAsset,
   PatchCandidate,
@@ -113,7 +114,9 @@ export default function App() {
         if (!current || current.events.some((item) => item.sequence === payload.sequence)) return current
         return { ...current, state: payload.state, events: [...current.events, payload] }
       })
+      if (isTerminalRunState(payload.state)) stream.close()
     })
+    stream.onerror = () => stream.close()
     return () => stream.close()
   }, [runId])
 

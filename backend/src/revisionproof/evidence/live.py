@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -23,6 +24,14 @@ from revisionproof.ids import new_ulid
 from revisionproof.settings import Settings
 
 _ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _normalize_note(text: str) -> str:
@@ -262,8 +271,13 @@ class VertexGeminiInterpreter:
             project=self.settings.google_cloud_project,
             location=self.settings.google_cloud_location,
         )
-        response = client.models.embed_content(model=self.settings.embedding_model, contents=text)
-        values = list(response.embeddings[0].values)
+        try:
+            response = client.models.embed_content(
+                model=self.settings.embedding_model, contents=text
+            )
+            values = list(response.embeddings[0].values)
+        finally:
+            client.close()
         if len(values) != 768:
             raise RuntimeError(f"expected 768 embedding dimensions, got {len(values)}")
         return values
@@ -346,14 +360,36 @@ class GcsObjectStore:
 
     def upload(self, local_path, object_name: str) -> str:
         try:
+            from google.api_core.exceptions import PreconditionFailed
             from google.cloud import storage
         except ImportError as exc:
             raise RuntimeError("install the backend 'live' extra to use GCS") from exc
+        local_path = Path(local_path)
+        digest = _file_sha256(local_path)
+        gcs_uri = f"gs://{self.settings.gcs_bucket}/{object_name}"
         client = storage.Client(project=self.settings.google_cloud_project)
-        bucket = client.bucket(str(self.settings.gcs_bucket))
-        blob = bucket.blob(object_name)
-        blob.upload_from_filename(str(local_path), content_type="video/mp4")
-        return f"gs://{self.settings.gcs_bucket}/{object_name}"
+        try:
+            bucket = client.bucket(str(self.settings.gcs_bucket))
+            blob = bucket.blob(object_name)
+            if blob.exists(client=client):
+                blob.reload(client=client)
+                if (blob.metadata or {}).get(
+                    "sha256"
+                ) != digest or blob.size != local_path.stat().st_size:
+                    raise RuntimeError(f"refusing to overwrite drifted object {gcs_uri}")
+                return gcs_uri
+            blob.metadata = {"app": "revisionproof", "sha256": digest}
+            try:
+                blob.upload_from_filename(
+                    str(local_path),
+                    content_type="video/mp4",
+                    if_generation_match=0,
+                )
+            except PreconditionFailed as exc:
+                raise RuntimeError(f"object appeared concurrently at {gcs_uri}") from exc
+            return gcs_uri
+        finally:
+            client.close()
 
 
 @dataclass(slots=True)
