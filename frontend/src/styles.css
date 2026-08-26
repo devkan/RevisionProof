@@ -75,6 +75,8 @@ main { max-width: 1480px; margin: 0 auto; padding: 0 28px 96px; }
 label { display: block; color: #b8c0d5; font-size: 11px; font-weight: 700; margin: 0 0 8px; }
 textarea { width: 100%; min-height: 112px; resize: vertical; border: 1px solid var(--line-bright); border-radius: 7px; background: #080c18; color: var(--ink); padding: 15px; line-height: 1.55; outline: none; }
 textarea:focus { border-color: rgba(106, 228, 255, .7); box-shadow: 0 0 0 3px rgba(106, 228, 255, .07); }
+.input-help { margin: -4px 0 2px; font-size: 12px; line-height: 1.45; }
+.input-help-error { color: #ffc2cb; }
 .primary-button, .secondary-button, .danger-button, .quiet-button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 6px; font-size: 12px; font-weight: 730; padding: 11px 15px; transition: background-color .18s ease, border-color .18s ease, color .18s ease, transform .18s ease, opacity .18s ease; }
 .brand:focus-visible, .api-link:focus-visible, button:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 .primary-button { background: var(--cyan); border: 1px solid var(--cyan); color: #071019; margin-top: 14px; }

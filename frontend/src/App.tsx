@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { api } from './api'
+import { feedbackValidationMessage } from './feedbackValidation'
 import { isTerminalRunState } from './runStream'
 import type {
   DemoAsset,
@@ -95,6 +96,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const runId = run?.run_id
+  const feedbackError = run ? null : feedbackValidationMessage(feedback)
 
   useEffect(() => {
     Promise.all([api.assets(), api.runtime()])
@@ -209,9 +211,21 @@ export default function App() {
                 </div>
               )}
               <label htmlFor="feedback">Client feedback</label>
-              <textarea id="feedback" value={feedback} onChange={(event) => setFeedback(event.target.value)} disabled={Boolean(run)} />
+              <textarea
+                id="feedback"
+                value={feedback}
+                onChange={(event) => setFeedback(event.target.value)}
+                disabled={Boolean(run)}
+                aria-describedby={feedbackError ? 'feedback-help' : undefined}
+                aria-invalid={Boolean(feedbackError)}
+              />
+              {feedbackError && (
+                <p className="input-help input-help-error" id="feedback-help" role="status">
+                  {feedbackError}
+                </p>
+              )}
               {!run && (
-                <button className="primary-button" onClick={start} disabled={busy || !activeAsset || !runtime?.mutable || feedback.length < 8}>
+                <button className="primary-button" onClick={start} disabled={busy || !activeAsset || !runtime?.mutable || Boolean(feedbackError)}>
                   <Sparkles size={16} /> {busy ? 'Interpreting…' : 'Interpret & locate evidence'}
                 </button>
               )}
