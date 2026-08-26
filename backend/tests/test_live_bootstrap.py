@@ -91,7 +91,9 @@ def test_views_use_a_non_login_durable_definer() -> None:
     assert "IDENTIFIED WITH sha256_hash" in schema
     assert "ALTER USER revisionproof_view_definer_user" in roles
     assert schema.count("HOST NONE") == 2
-    assert schema.count("DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER") == 2
+    assert schema.count("DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER") == 4
+    assert schema.count("MODIFY DEFINER = revisionproof_view_definer_user") == 2
+    assert "CREATE OR REPLACE VIEW" not in schema
     assert "DEFINER = CURRENT_USER" not in schema
 
 
@@ -101,11 +103,13 @@ def test_view_security_requires_exact_definer_and_host_none() -> None:
             [
                 (
                     "search_segments",
+                    "revisionproof_view_definer_user",
                     "CREATE VIEW revisionproof.search_segments "
                     "DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS SELECT 1",
                 ),
                 (
                     "version_feature_diff",
+                    "revisionproof_view_definer_user",
                     "CREATE VIEW revisionproof.version_feature_diff "
                     "DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS SELECT 1",
                 ),
@@ -118,8 +122,12 @@ def test_view_security_requires_exact_definer_and_host_none() -> None:
     unsafe = FakeAdmin(
         [
             [
-                ("search_segments", "CREATE VIEW search_segments AS SELECT 1"),
-                ("version_feature_diff", "CREATE VIEW version_feature_diff AS SELECT 1"),
+                ("search_segments", "default", "CREATE VIEW search_segments AS SELECT 1"),
+                (
+                    "version_feature_diff",
+                    "default",
+                    "CREATE VIEW version_feature_diff AS SELECT 1",
+                ),
             ]
         ]
     )

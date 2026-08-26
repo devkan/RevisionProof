@@ -32,17 +32,29 @@ def verify_deployment_metadata(admin, project_id: str, host: str) -> None:
 
 
 def cleanup(admin) -> None:
+    # Views depend on the non-login definer user, so remove the sentinel-verified
+    # database first. Dropping users before their views fails closed in ClickHouse.
+    admin.command(f"DROP DATABASE IF EXISTS {DATABASE} SYNC")
     for user in USERS:
         admin.command(f"DROP USER IF EXISTS {user}")
     for role in ROLES:
         admin.command(f"DROP ROLE IF EXISTS {role}")
-    admin.command(f"DROP DATABASE IF EXISTS {DATABASE}")
     remaining = admin.query(
         "SELECT count() FROM system.databases WHERE name = {database:String}",
         parameters={"database": DATABASE},
     ).result_rows[0][0]
     if int(remaining) != 0:
         raise RuntimeError("ClickHouse cleanup verification failed")
+    remaining_users = admin.query(
+        "SELECT count() FROM system.users WHERE name IN {users:Array(String)}",
+        parameters={"users": list(USERS)},
+    ).result_rows[0][0]
+    remaining_roles = admin.query(
+        "SELECT count() FROM system.roles WHERE name IN {roles:Array(String)}",
+        parameters={"roles": list(ROLES)},
+    ).result_rows[0][0]
+    if int(remaining_users) != 0 or int(remaining_roles) != 0:
+        raise RuntimeError("ClickHouse identity cleanup verification failed")
 
 
 def main() -> None:

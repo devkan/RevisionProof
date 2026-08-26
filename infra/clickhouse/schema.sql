@@ -123,12 +123,12 @@ REVOKE ALL ON *.* FROM revisionproof_view_definer_user;
 GRANT revisionproof_view_definer TO revisionproof_view_definer_user;
 SET DEFAULT ROLE revisionproof_view_definer TO revisionproof_view_definer_user;
 
-CREATE OR REPLACE VIEW revisionproof.search_segments
+CREATE VIEW IF NOT EXISTS revisionproof.search_segments
 DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS
 SELECT segment_id, asset_id, start_seconds, end_seconds, transcript, visual_summary, embedding
 FROM revisionproof.segments;
 
-CREATE OR REPLACE VIEW revisionproof.version_feature_diff
+CREATE VIEW IF NOT EXISTS revisionproof.version_feature_diff
 DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS
 SELECT
     current.run_id,
@@ -166,3 +166,12 @@ INNER JOIN
     AND current.feature_name = baseline.feature_name
     AND current.time_start = baseline.time_start
     AND current.time_end = baseline.time_end;
+
+-- Do not use CREATE OR REPLACE for these security-definer views. ClickHouse 26.2 can
+-- leave stale in-memory definer dependencies after replacement. ALTER updates the
+-- dependency registry in place while preserving the view object and its grants.
+ALTER TABLE revisionproof.search_segments
+MODIFY DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER;
+
+ALTER TABLE revisionproof.version_feature_diff
+MODIFY DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER;

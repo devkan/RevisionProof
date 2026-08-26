@@ -264,15 +264,19 @@ def _provision_users(admin: Any, settings: Settings) -> None:
 
 def verify_view_security(admin: Any) -> None:
     rows = admin.query(
-        "SELECT name, create_table_query FROM system.tables "
+        "SELECT name, definer, create_table_query FROM system.tables "
         "WHERE database = 'revisionproof' "
         "AND name IN ('search_segments', 'version_feature_diff')"
     ).result_rows
-    definitions = {str(name): str(query) for name, query in rows}
+    definitions = {str(name): (str(definer), str(query)) for name, definer, query in rows}
     if set(definitions) != {"search_segments", "version_feature_diff"}:
         raise RuntimeError("RevisionProof security views are missing")
-    for name, query in definitions.items():
-        if VIEW_DEFINER_USER not in query or "SQL SECURITY DEFINER" not in query:
+    for name, (definer, query) in definitions.items():
+        if (
+            definer != VIEW_DEFINER_USER
+            or VIEW_DEFINER_USER not in query
+            or "SQL SECURITY DEFINER" not in query
+        ):
             raise RuntimeError(f"RevisionProof view {name} has an unsafe definer")
 
     user_rows = admin.query(f"SHOW CREATE USER {VIEW_DEFINER_USER}").result_rows
