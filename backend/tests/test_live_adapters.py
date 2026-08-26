@@ -6,7 +6,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from revisionproof.evidence.live import GcsObjectStore, VertexGeminiInterpreter
+from revisionproof.contracts import ParsedFeedback, SafetyClassification
+from revisionproof.evidence.live import (
+    GcsObjectStore,
+    LiveEvidenceLocator,
+    VertexGeminiInterpreter,
+)
 from revisionproof.settings import Settings
 
 
@@ -146,3 +151,43 @@ def test_vertex_adk_model_pins_vertex_project_without_global_env(monkeypatch) ->
         "project": "revisionproof-test",
         "location": "global",
     }
+
+
+@pytest.mark.asyncio
+async def test_live_locator_normalizes_clickhouse_fixed_string_segment_ids() -> None:
+    segment_id = "01J00000000000000000000002"
+
+    class FakeInterpreter:
+        def embed(self, _text: str) -> list[float]:
+            return [0.0] * 768
+
+    class FakeReader:
+        async def run_query(self, _query: str):
+            return [
+                {
+                    "segment_id": f"b'{segment_id}\\x00'",
+                    "start_seconds": 8,
+                    "end_seconds": 14,
+                    "score": 0.93,
+                    "transcript": "RevisionProof",
+                    "visual_summary": "Product reveal",
+                }
+            ]
+
+    feedback = ParsedFeedback(
+        raw_text='When the presenter says "RevisionProof," push in slightly.',
+        intent="Apply a short center punch-in",
+        target_phrase="RevisionProof",
+        classification=SafetyClassification.AUTO_PREVIEWABLE,
+        confidence=0.94,
+        rationale="The phrase and supported edit are precise.",
+        interpreter_source="google.vertex.gemini",
+    )
+
+    anchors = await LiveEvidenceLocator(
+        Settings(google_cloud_project="revisionproof-test"),
+        FakeReader(),  # type: ignore[arg-type]
+        FakeInterpreter(),  # type: ignore[arg-type]
+    ).locate("01J00000000000000000000000", feedback)
+
+    assert anchors[0].segment_id == segment_id

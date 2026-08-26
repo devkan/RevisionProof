@@ -14,6 +14,7 @@ from revisionproof.evidence.live import (
     McpClickHouseReader,
     VertexGeminiInterpreter,
     build_segment_search_query,
+    normalize_clickhouse_fixed_string,
 )
 from revisionproof.settings import Settings
 
@@ -80,16 +81,6 @@ CLICKHOUSE_CLOUD_ENGINE_ALIASES = {
 def normalize_clickhouse_engine(engine: str) -> str:
     """Return the logical MergeTree engine name reported outside ClickHouse Cloud."""
     return CLICKHOUSE_CLOUD_ENGINE_ALIASES.get(engine, engine)
-
-
-def normalize_clickhouse_fixed_string(value: Any) -> str:
-    """Normalize ClickHouse FixedString values emitted as text, bytes, or stringified bytes."""
-    if isinstance(value, bytes):
-        return value.rstrip(b"\x00").decode("utf-8")
-    text = str(value).rstrip("\x00")
-    if text.startswith("b'") and text.endswith("'"):
-        return text[2:-1].replace("\\x00", "")
-    return text
 
 
 def split_sql_statements(sql: str) -> list[str]:

@@ -96,6 +96,16 @@ def decode_clickhouse_result(payload: Any) -> list[dict[str, Any]]:
     raise RuntimeError("mcp-clickhouse returned an unsupported response shape")
 
 
+def normalize_clickhouse_fixed_string(value: Any) -> str:
+    """Normalize ClickHouse FixedString values emitted as text, bytes, or stringified bytes."""
+    if isinstance(value, bytes):
+        return value.rstrip(b"\x00").decode("utf-8")
+    text = str(value).rstrip("\x00")
+    if text.startswith("b'") and text.endswith("'"):
+        return text[2:-1].replace("\\x00", "")
+    return text
+
+
 def build_segment_search_query(asset_id: str, embedding: list[float], limit: int = 5) -> str:
     if not _ULID_RE.fullmatch(asset_id):
         raise ValueError("asset_id must be a ULID")
@@ -131,6 +141,15 @@ class McpClickHouseReader:
     settings: Settings
 
     async def run_query(self, query: str) -> list[dict[str, Any]]:
+        for attempt in range(2):
+            try:
+                return await self._run_query_once(query)
+            except TimeoutError:
+                if attempt == 1:
+                    raise
+        raise AssertionError("unreachable")
+
+    async def _run_query_once(self, query: str) -> list[dict[str, Any]]:
         try:
             from mcp import ClientSession, StdioServerParameters
             from mcp.client.stdio import stdio_client
@@ -428,7 +447,7 @@ class LiveEvidenceLocator:
         rows = await self.reader.run_query(build_segment_search_query(asset_id, embedding, 5))
         anchors = [
             EvidenceAnchor(
-                segment_id=str(row["segment_id"]),
+                segment_id=normalize_clickhouse_fixed_string(row["segment_id"]),
                 time_range=TimeRange(
                     start_seconds=float(row["start_seconds"]),
                     end_seconds=float(row["end_seconds"]),
