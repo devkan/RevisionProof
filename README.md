@@ -30,7 +30,7 @@ Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits 
 
 The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Cloud Run revision `revisionproof-staging-00009-mbh` serves the tracked `LIVE` implementation from commit `d1b9a10` with 100% traffic. The verified run `01M0Z3338TYVHWHK4FZRGADTKZ` used `google.vertex.gemini` for interpretation, `mcp-clickhouse.run_query` for evidence and feature diffs, private GCS candidate objects, and append-only ClickHouse audit rows.
 
-`/ready` deliberately reports that integrations are configured, not that every future call will succeed. Treat a run as LIVE evidence only when its raw JSON shows the live source labels and the matching ClickHouse rows exist. The verified final run is `READY` but remains unapproved for delivery (`delivery_approved=false`).
+`/ready` deliberately reports that integrations are configured, not that every future call will succeed. Treat a run as LIVE evidence only when its raw JSON shows the live source labels and the matching ClickHouse rows exist. The verified final run is `READY` and received its separate human delivery approval (`delivery_approved=true`) on 2026-08-26.
 
 ## Quality gates
 

@@ -1,6 +1,6 @@
 # LIVE hardening progress, 2026-08-26
 
-Status: **LIVE Cloud Run, Vertex Gemini, GCS, ClickHouse writer, and official MCP reader gates PASS. Final delivery approval intentionally remains pending.**
+Status: **LIVE Cloud Run, Vertex Gemini, GCS, ClickHouse writer, official MCP reader, deterministic verification, and final human delivery approval PASS.**
 
 ## Implemented
 
@@ -31,6 +31,6 @@ Status: **LIVE Cloud Run, Vertex Gemini, GCS, ClickHouse writer, and official MC
 - Deterministic version gate: v2 `BLOCKED`, v3 `READY` with all three invariants passing.
 - ClickHouse: 1 spec, 24 features, 6 checks for the final run. Bootstrap admin count 0; durable definer user count 1; durable view replicas 4; preserved backup count 1.
 - GCS: private `revisionproof_v2_blocked.mp4` (394KB) and `revisionproof_v3_ready.mp4` (395KB) under the final run.
-- Delivery approval: not executed; raw JSON remains `delivery_approved=false`.
+- Delivery approval: executed after explicit user confirmation; raw JSON reports `delivery_approved=true` and event 14 records the human approval at `2026-08-26T13:48:30.750541Z`.
 
 The remaining engineering limit is process-local run state. `max-instances=1` avoids multi-instance split ownership but does not survive a restart. A restarted service requires a new run.

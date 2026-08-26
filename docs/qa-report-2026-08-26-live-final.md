@@ -2,7 +2,7 @@
 
 ## Result
 
-Status: **PASS for the credential-backed LIVE hackathon flow. Final delivery approval intentionally not executed.**
+Status: **PASS for the complete credential-backed LIVE hackathon flow, including separately confirmed human delivery approval.**
 
 Tracked commit `d1b9a10` was built by Cloud Build `d5845e1e-9123-4e81-81cb-0fb3f6b607ec` and deployed as Cloud Run revision `revisionproof-staging-00009-mbh` with 100% traffic. The pushed RevisionProof image digest is `sha256:54e2427d56e8408dfd712c4864df8dec555d127f4b1380a070bbfe2b662e73e3`.
 
@@ -26,7 +26,7 @@ gstack exercised run `01M0Z3338TYVHWHK4FZRGADTKZ` through the public service:
 4. Candidate B froze the 1.12x patch and spec hash `9153a52af2b90262d2b026070245204cd2b5449f49de2d3d18cc22bdeca1fed5`.
 5. Uploaded `revisionproof_v2_blocked.mp4` passed the patch/audio checks, failed the locked CTA check, and entered `BLOCKED`.
 6. Uploaded `revisionproof_v3_ready.mp4` passed all three checks and entered `READY`.
-7. Raw JSON reported `delivery_approved=false`. The consequential `Approve for Delivery` action was not invoked.
+7. Before delivery approval, raw JSON reported `delivery_approved=false`. After exact user confirmation, the idempotent delivery-approval request returned HTTP 200; fresh raw JSON reports `delivery_approved=true` and event 14 records `Human approved the verified version for delivery` at `2026-08-26T13:48:30.750541Z`.
 
 Browser console errors: **0**. All mutation requests returned HTTP 200. At 375x812, `scrollWidth=375` and no horizontal overflow was present.
 

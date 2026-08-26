@@ -34,7 +34,7 @@ Final run persistence:
 - Run: `01M0Z3338TYVHWHK4FZRGADTKZ`
 - ClickHouse: one `revision_specs` row, 24 `version_features` rows, six `version_checks` rows
 - GCS: private `runs/01M0Z3338TYVHWHK4FZRGADTKZ/versions/revisionproof_v2_blocked.mp4` (394,028 bytes) and `revisionproof_v3_ready.mp4` (394,983 bytes)
-- Final state: `READY`, `delivery_approved=false`
+- Final state: `READY`, `delivery_approved=true`; human delivery approval event 14 at `2026-08-26T13:48:30.750541Z`
 
 ## Local Docker
 
