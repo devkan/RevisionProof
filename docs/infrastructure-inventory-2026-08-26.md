@@ -2,6 +2,40 @@
 
 This file records the resources and artifacts added after the 2026-08-25 foundation inventory. Read both files before modifying or removing infrastructure.
 
+## Final LIVE deployment delta
+
+These are the current resources after the historical foundation sections below:
+
+- Exact account: `secureis@gmail.com`
+- Exact project: `revisionproof-agentic-2026-kan` (`348672234012`)
+- Source commit: `d1b9a10`
+- Cloud Build source: `gs://revisionproof-agentic-2026-kan-media/cloud-build-source/1787748935.43622-57c54f8dcbb6447d822425a6f7a3b906.tgz`
+- Cloud Build: `d5845e1e-9123-4e81-81cb-0fb3f6b607ec`, `SUCCESS`
+- RevisionProof image tag: `us-central1-docker.pkg.dev/revisionproof-agentic-2026-kan/revisionproof/revisionproof-staging:d5845e1e-9123-4e81-81cb-0fb3f6b607ec`
+- RevisionProof image digest: `sha256:54e2427d56e8408dfd712c4864df8dec555d127f4b1380a070bbfe2b662e73e3`
+- Cloud Run revision: `revisionproof-staging-00009-mbh`, 100% traffic
+- Cloud Run capacity: concurrency 4, min 1, max 1; runtime service account `revisionproof-runtime@revisionproof-agentic-2026-kan.iam.gserviceaccount.com`
+- URL: `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`
+- Runtime truth: `LIVE`, mutable, `live_ready=true`; successful integrations are proven per run
+- Numeric Secret Manager version in use: version `1` for both exact RevisionProof ClickHouse secrets
+
+ClickHouse Cloud current inventory:
+
+- Organization/service: `Kanapp` / `RevisionProof`
+- Service ID: `268999c1-badb-423e-993c-ebab14b551c4`
+- Host: `r2uz2gfc2f.asia-northeast1.gcp.clickhouse.cloud`
+- Region/version observed: `asia-northeast1` / `26.2.1.558`
+- Bootstrap admin: deleted (`revisionproof_bootstrap_admin` count 0)
+- Durable view definer: `revisionproof_view_definer_user` count 1; two views across two replicas = 4 durable view replicas
+- Preserved backup: `revisionproof.segments_pre_seed_dedupe_20260826` count 1. Do not drop it.
+
+Final run persistence:
+
+- Run: `01M0Z3338TYVHWHK4FZRGADTKZ`
+- ClickHouse: one `revision_specs` row, 24 `version_features` rows, six `version_checks` rows
+- GCS: private `runs/01M0Z3338TYVHWHK4FZRGADTKZ/versions/revisionproof_v2_blocked.mp4` (394,028 bytes) and `revisionproof_v3_ready.mp4` (394,983 bytes)
+- Final state: `READY`, `delivery_approved=false`
+
 ## Local Docker
 
 - Final QA image: `revisionproof:qa-final`
@@ -25,7 +59,7 @@ Exact label-guarded cleanup, only after review:
 powershell -File infra/docker/cleanup-local.ps1 -Execute
 ```
 
-## Google Cloud deployment
+## Historical foundation deployment
 
 Every command was run with account `secureis@gmail.com`, project `revisionproof-agentic-2026-kan`, and an explicit `--project=revisionproof-agentic-2026-kan` where the command supports it. No global gcloud project was changed.
 
@@ -79,20 +113,26 @@ Its exact target set is limited to:
 - service accounts `revisionproof-runtime` and `revisionproof-build`
 - project-scoped budget `RevisionProof revisionproof-agentic-2026-kan`
 
-Dry-run:
+Always select and verify the exact Cloud Shell identity before inventory or cleanup:
 
 ```bash
-export CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com
-export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
+gcloud config set account secureis@gmail.com
+gcloud config set project revisionproof-agentic-2026-kan
+gcloud config get-value account
+gcloud config get-value project
 bash infra/gcp/inventory.sh infra/gcp/foundation.env
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env revisionproof-agentic-2026-kan
 ```
 
+Do not export `CLOUDSDK_CORE_ACCOUNT`; the guarded scripts reject delegated account overrides. A Cloud Shell session can occasionally lose its active account or fail token refresh with `metadata server ... missing 'email' field`. In that case, stop, reauthorize the existing `secureis@gmail.com` Cloud Shell session, and rerun the four preflight commands. Never substitute another authenticated account or project.
+
 Destructive cleanup is intentionally not run. After reviewing the inventory, the exact command is:
 
 ```bash
-export CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com
-export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
+gcloud config set account secureis@gmail.com
+gcloud config set project revisionproof-agentic-2026-kan
+gcloud config get-value account
+gcloud config get-value project
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env revisionproof-agentic-2026-kan --execute
 ```
 
@@ -104,7 +144,7 @@ The archive, build directory, inventory, and dry-run output above remain in the 
 
 ## LIVE hardening IAM delta, 2026-08-26
 
-These changes were applied with `CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com`, `CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan`, and exact RevisionProof resource names:
+These changes were applied after selecting `secureis@gmail.com` and `revisionproof-agentic-2026-kan`, with exact RevisionProof resource names:
 
 - Runtime bucket binding removed: `roles/storage.objectAdmin`.
 - Runtime bucket bindings present: `roles/storage.objectCreator` and `roles/storage.objectViewer` on `gs://revisionproof-agentic-2026-kan-media` only.
@@ -112,7 +152,7 @@ These changes were applied with `CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com`, `CLO
 - Custom role created: `projects/revisionproof-agentic-2026-kan/roles/revisionproofCloudRunDeployer`, stage `GA`.
 - The custom role contains 16 permissions: project lookup; Cloud Run location, operation, configuration, revision, route, and service reads; service create/update; and service IAM policy get/set.
 - Build project binding present: the custom role above for `revisionproof-build@revisionproof-agentic-2026-kan.iam.gserviceaccount.com`.
-- Secret Manager query found no RevisionProof-labeled secrets. No secret or ClickHouse Cloud resource was created.
+- Historical note: this IAM checkpoint preceded creation of the two current RevisionProof ClickHouse secrets and the dedicated ClickHouse service.
 - ScopeShift and every other project were left unchanged.
 
-The currently deployed Cloud Run revision remains `revisionproof-staging-00003-q56` in FIXTURE mode. The IAM delta does not claim that the uncommitted LIVE source or ClickHouse path is deployed.
+The current deployment is the LIVE revision recorded at the top of this file. The older FIXTURE facts in this document remain only as a dated audit trail.

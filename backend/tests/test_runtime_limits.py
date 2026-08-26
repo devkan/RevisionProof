@@ -394,9 +394,7 @@ async def test_concurrent_create_never_evicts_a_retrying_run(
 
 
 @pytest.mark.asyncio
-async def test_live_retry_reuses_preserved_feedback(
-    runtime_dir: Path, monkeypatch, caplog
-) -> None:
+async def test_live_retry_reuses_preserved_feedback(runtime_dir: Path, monkeypatch, caplog) -> None:
     settings = Settings(
         mode=ExecutionMode.LIVE,
         runtime_dir=runtime_dir,

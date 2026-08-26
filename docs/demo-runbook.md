@@ -18,19 +18,19 @@ backend/.venv/Scripts/uvicorn.exe revisionproof.main:app --app-dir backend/src -
 
 Open `http://127.0.0.1:8000`.
 
-The deployed foundation demo is `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Before a recorded run, confirm `/ready` reports `FIXTURE`, `live_credentials_configured=false`, and `integration_execution_verified=false`.
+The deployed LIVE demo is `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Before a recorded run, confirm `/health` reports `mode=LIVE`, `/ready` reports `status=ready` and `live_credentials_configured=true`, and `/api/runtime` reports `live_ready=true`. `integration_execution_verified=false` at readiness is expected because proof is established per run.
 
 ## 90-second judge path
 
-1. Point out the `FIXTURE MODE` badge and the runtime truth panel.
+1. Point out the `LIVE MODE` badge and the runtime truth panel.
 2. Submit the prefilled three-note brief. Show `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`; only the first may execute.
-3. Show the three time-coded evidence matches and their explicit fixture or MCP source.
-4. Render A/B and approve A (1.05x). Candidate B (1.12x) is also supported, but the latest deployed QA evidence uses A.
+3. Show the three time-coded evidence matches and the `mcp-clickhouse.run_query` source.
+4. Render A/B and approve B (1.12x), matching the final verified run.
 5. Point to the frozen SHA-256 spec hash.
-6. Select **Verify demo v2**. The approved patch and audio pass, the hidden CTA regression fails, before/after frames appear, and both the release gate and delivery button are blocked.
-7. Select **Verify repaired v3**. All checks pass and the release gate reads `PUBLISH READY`.
-8. Select **Approve for Delivery** and show the human approval event in the proof trace.
-9. Open raw run JSON from the proof trace if a judge asks for machine-readable evidence.
+6. Upload `runtime/demo/revisionproof_v2_blocked.mp4`. The approved patch and audio pass, the hidden CTA regression fails, before/after frames appear, and both the release gate and delivery button are blocked.
+7. Upload `runtime/demo/revisionproof_v3_ready.mp4`. All checks pass and the release gate reads `PUBLISH READY`.
+8. Open raw run JSON and show `state=READY`, the live source labels, and `delivery_approved=false`.
+9. Execute **Approve for Delivery** only when the demo operator has explicitly chosen to make that final delivery decision. It is deliberately not part of unattended QA.
 
 ## Three-run rehearsal
 

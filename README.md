@@ -26,11 +26,11 @@ backend/.venv/Scripts/uvicorn.exe revisionproof.main:app --app-dir backend/src -
 
 Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits a fake MCP or Gemini success. `OFFLINE_REHEARSAL` is read-only. `LIVE` mode fails readiness until Google Cloud, GCS, and ClickHouse settings are present.
 
-## Deployed foundation demo
+## Deployed LIVE demo
 
-The billed GCP foundation deployment is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. It is intentionally labeled `FIXTURE` and proves the isolated Cloud Build, Artifact Registry, GCS, IAM, and Cloud Run path. It is not Gemini or ClickHouse LIVE evidence.
+The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Cloud Run revision `revisionproof-staging-00009-mbh` serves the tracked `LIVE` implementation from commit `d1b9a10` with 100% traffic. The verified run `01M0Z3338TYVHWHK4FZRGADTKZ` used `google.vertex.gemini` for interpretation, `mcp-clickhouse.run_query` for evidence and feature diffs, private GCS candidate objects, and append-only ClickHouse audit rows.
 
-The next LIVE deployment is guarded by `infra/gcp/create-live-secrets.sh`, `infra/gcp/bootstrap-live.sh`, and `infra/gcp/deploy-live.sh`. It cannot deploy until the exact ClickHouse Cloud host, two numeric Secret Manager versions, append-only schema, deployment sentinel, seeded GCS object, Vertex embedding, and official `mcp-clickhouse.run_query` smoke test all pass. The public foundation URL remains FIXTURE until that gate is complete.
+`/ready` deliberately reports that integrations are configured, not that every future call will succeed. Treat a run as LIVE evidence only when its raw JSON shows the live source labels and the matching ClickHouse rows exist. The verified final run is `READY` but remains unapproved for delivery (`delivery_approved=false`).
 
 ## Quality gates
 
@@ -47,4 +47,4 @@ backend/.venv/Scripts/python.exe scripts/verify_local_clickhouse.py
 backend/.venv/Scripts/python.exe scripts/verify_local_mcp.py
 ```
 
-See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [latest QA report](docs/qa-report-2026-08-26-cloud-deploy.md), [LIVE hardening progress](docs/live-hardening-progress-2026-08-26.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).
+See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [latest LIVE QA report](docs/qa-report-2026-08-26-live-final.md), [LIVE hardening status](docs/live-hardening-progress-2026-08-26.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).

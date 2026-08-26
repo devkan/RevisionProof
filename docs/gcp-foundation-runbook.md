@@ -1,6 +1,6 @@
 # GCP foundation runbook
 
-This phase intentionally deploys `revisionproof-staging` in visibly labeled `FIXTURE` mode. It proves Docker, Cloud Build, Artifact Registry, GCS, IAM, and Cloud Run in a dedicated billed project without pretending that ClickHouse-backed LIVE verification is ready.
+This runbook began with a visibly labeled `FIXTURE` foundation and now also records the guarded path used for the current LIVE service. Historical foundation commands remain useful for rebuilding the dedicated billed project; current deployment truth is recorded in `infrastructure-inventory-2026-08-26.md`.
 
 The foundation build sets `REVISIONPROOF_INSTALL_LIVE=false`, so Google ADK and ClickHouse packages are not shipped before they are usable. The guarded final `cloudbuild.yaml` explicitly installs the LIVE extras later.
 
@@ -12,15 +12,17 @@ The foundation build sets `REVISIONPROOF_INSTALL_LIVE=false`, so Google ADK and 
 - All commands pass `--project` explicitly; no global gcloud project is changed.
 - Cloud Run uses service-level `--max=1`. Foundation deploys use service-level `--min=1` only after the credit-bearing billing account is verified.
 - A project-filtered KRW 30,000 monthly budget sends alerts at 50%, 90%, and 100%. It matches the billing account currency and is an alert, not a hard spending cap.
-- No ClickHouse secret or host is created in this phase.
+- The foundation phase creates no ClickHouse secret or host; the later LIVE bootstrap creates only the two guarded secrets and the dedicated service recorded in the inventory.
 
 ## Provision
 
 Run these from Google Cloud Shell after checking the active account and credit-bearing billing account:
 
 ```bash
-export CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com
-export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
+gcloud config set account secureis@gmail.com
+gcloud config set project revisionproof-agentic-2026-kan
+gcloud config get-value account
+gcloud config get-value project
 gcloud auth list --filter=status:ACTIVE --format='value(account)'
 gcloud projects describe revisionproof-agentic-2026-kan \
   --project=revisionproof-agentic-2026-kan \
@@ -30,6 +32,8 @@ cp infra/gcp/foundation.env.example infra/gcp/foundation.env
 bash infra/gcp/setup-foundation.sh infra/gcp/foundation.env
 bash infra/gcp/inventory.sh infra/gcp/foundation.env
 ```
+
+Do not export `CLOUDSDK_CORE_ACCOUNT`; the guarded scripts reject delegated account overrides. Keep explicit `--project=revisionproof-agentic-2026-kan` arguments on supported commands.
 
 Build and deploy the staging service from the repository root:
 
@@ -43,9 +47,9 @@ gcloud builds submit \
   .
 ```
 
-The staging URL must return HTTP 200 from `/health` and `/ready`, then report `FIXTURE` and `live_ready=false` at `/api/runtime`. Do not use `z`-suffixed operational paths on Cloud Run because the platform reserves some of them. This is billed GCP infrastructure evidence, not final Gemini/ClickHouse runtime evidence.
+For a foundation build, the staging URL must return HTTP 200 from `/health` and `/ready`, then report `FIXTURE` and `live_ready=false` at `/api/runtime`. For the current LIVE build, require `mode=LIVE`, `live_credentials_configured=true`, `live_ready=true`, and per-run Gemini/MCP/persistence evidence. Do not use `z`-suffixed operational paths on Cloud Run because the platform reserves some of them.
 
-The verified 2026-08-26 foundation deployment is Cloud Build `354696e9-0fdc-451c-9e69-cf55184ea63f`, Cloud Run revision `revisionproof-staging-00003-q56`, and URL `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Later builds must create a new source archive from the intended tracked commit and record its SHA-256 before submission.
+The historical foundation deployment is Cloud Build `354696e9-0fdc-451c-9e69-cf55184ea63f` and revision `revisionproof-staging-00003-q56`. The current LIVE deployment is Build `d5845e1e-9123-4e81-81cb-0fb3f6b607ec` and revision `revisionproof-staging-00009-mbh` at the same stable URL. Later builds must create a new source archive from the intended tracked commit and record its digest before submission.
 
 The explicit source staging directory keeps future source archives in the labeled media bucket under its one-day lifecycle. The first pre-hardening build may still appear in the automatically created `${PROJECT_ID}_cloudbuild` bucket; inventory and cleanup cover that exact project-owned bucket.
 
@@ -97,16 +101,20 @@ gcloud run services update "${SERVICE_NAME}" \
 Cleanup is dry-run by default and refuses a project ID/number mismatch or any project without the dedicated label:
 
 ```bash
-export CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com
-export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
+gcloud config set account secureis@gmail.com
+gcloud config set project revisionproof-agentic-2026-kan
+gcloud config get-value account
+gcloud config get-value project
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env "${PROJECT_ID}"
 ```
 
 After reviewing the inventory, the exact resource cleanup command is:
 
 ```bash
-export CLOUDSDK_CORE_ACCOUNT=secureis@gmail.com
-export CLOUDSDK_CORE_PROJECT=revisionproof-agentic-2026-kan
+gcloud config set account secureis@gmail.com
+gcloud config set project revisionproof-agentic-2026-kan
+gcloud config get-value account
+gcloud config get-value project
 bash infra/gcp/cleanup.sh infra/gcp/foundation.env "${PROJECT_ID}" --execute
 ```
 

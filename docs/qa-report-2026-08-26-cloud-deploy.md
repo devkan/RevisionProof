@@ -1,5 +1,7 @@
 # QA evidence - Cloud deployment and candidate-aware hardening, 2026-08-26
 
+> Historical record: this report describes the earlier FIXTURE foundation. For current LIVE evidence, read `qa-report-2026-08-26-live-final.md`.
+
 ## Result
 
 Status: **PASS for the deployed FIXTURE foundation path. LIVE remains deliberately unclaimed.**
