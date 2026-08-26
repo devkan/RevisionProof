@@ -1,5 +1,6 @@
 import pytest
 
+from revisionproof.bootstrap import normalize_clickhouse_fixed_string
 from revisionproof.evidence.live import (
     build_segment_search_query,
     build_version_diff_query,
@@ -37,3 +38,11 @@ def test_mcp_clickhouse_result_decoder_supports_current_envelope() -> None:
 def test_mcp_clickhouse_result_decoder_rejects_malformed_rows() -> None:
     with pytest.raises(RuntimeError, match="malformed row"):
         decode_clickhouse_result({"columns": ["one", "two"], "rows": [[1]]})
+
+
+def test_clickhouse_fixed_string_normalizer_supports_mcp_encodings() -> None:
+    segment_id = "01J00000000000000000000002"
+
+    assert normalize_clickhouse_fixed_string(segment_id) == segment_id
+    assert normalize_clickhouse_fixed_string(segment_id.encode()) == segment_id
+    assert normalize_clickhouse_fixed_string(f"b'{segment_id}\\x00'") == segment_id

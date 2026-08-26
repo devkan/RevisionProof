@@ -256,7 +256,7 @@ def test_bootstrap_orchestrates_every_live_gate_and_closes_admin(
 
         async def run_query(self, _query):
             calls.append("mcp")
-            return [{"segment_id": SEED_SEGMENTS[1].segment_id, "score": 0.93}]
+            return [{"segment_id": SEED_SEGMENTS[1].segment_id.encode(), "score": 0.93}]
 
     monkeypatch.setattr(bootstrap_module, "VertexGeminiInterpreter", Interpreter)
     monkeypatch.setattr(bootstrap_module, "McpClickHouseReader", Reader)

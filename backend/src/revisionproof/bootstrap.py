@@ -82,6 +82,16 @@ def normalize_clickhouse_engine(engine: str) -> str:
     return CLICKHOUSE_CLOUD_ENGINE_ALIASES.get(engine, engine)
 
 
+def normalize_clickhouse_fixed_string(value: Any) -> str:
+    """Normalize ClickHouse FixedString values emitted as text, bytes, or stringified bytes."""
+    if isinstance(value, bytes):
+        return value.rstrip(b"\x00").decode("utf-8")
+    text = str(value).rstrip("\x00")
+    if text.startswith("b'") and text.endswith("'"):
+        return text[2:-1].replace("\\x00", "")
+    return text
+
+
 def split_sql_statements(sql: str) -> list[str]:
     return [statement.strip() for statement in sql.split(";") if statement.strip()]
 
@@ -431,8 +441,18 @@ def bootstrap_live(
             build_segment_search_query(DEMO_ASSET_ID, target_embedding, 5)
         )
     )
-    if not rows or str(rows[0]["segment_id"]).rstrip("\x00") != SEED_SEGMENTS[1].segment_id:
-        raise RuntimeError("official mcp-clickhouse did not return the expected evidence segment")
+    returned_anchors = [
+        (
+            normalize_clickhouse_fixed_string(row.get("segment_id")),
+            float(row.get("score", 0.0)),
+        )
+        for row in rows
+    ]
+    if not returned_anchors or returned_anchors[0][0] != SEED_SEGMENTS[1].segment_id:
+        raise RuntimeError(
+            "official mcp-clickhouse did not return the expected evidence segment; "
+            f"returned={returned_anchors!r}"
+        )
     if float(rows[0]["score"]) < 0.82:
         raise RuntimeError("seeded evidence score is below the automatic-preview threshold")
 
