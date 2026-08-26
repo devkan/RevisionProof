@@ -112,3 +112,37 @@ def test_vertex_embedding_client_is_closed(monkeypatch) -> None:
 
     assert len(values) == 768
     assert client.closed is True
+
+
+def test_vertex_adk_model_pins_vertex_project_without_global_env(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeGenaiClient:
+        def __init__(self, **kwargs) -> None:
+            captured.update(kwargs)
+
+    for name in (
+        "GOOGLE_GENAI_USE_VERTEXAI",
+        "GOOGLE_GENAI_USE_ENTERPRISE",
+        "GOOGLE_CLOUD_PROJECT",
+        "GOOGLE_CLOUD_LOCATION",
+        "GOOGLE_API_KEY",
+        "GEMINI_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr("google.genai.Client", FakeGenaiClient)
+
+    model = VertexGeminiInterpreter(
+        Settings(
+            google_cloud_project="revisionproof-test",
+            google_cloud_location="global",
+        )
+    )._adk_model()
+
+    assert model.model == "gemini-3.5-flash-lite"
+    assert model.api_client is model.api_client
+    assert captured == {
+        "vertexai": True,
+        "project": "revisionproof-test",
+        "location": "global",
+    }

@@ -8,6 +8,7 @@ import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -173,6 +174,29 @@ class McpClickHouseReader:
 class VertexGeminiInterpreter:
     settings: Settings
 
+    def _adk_model(self):
+        try:
+            from google.adk.models import Gemini
+            from google.genai import Client
+        except ImportError as exc:
+            raise RuntimeError("install the backend 'live' extra to use Google ADK") from exc
+
+        project = self.settings.google_cloud_project
+        location = self.settings.google_cloud_location
+        if not project:
+            raise RuntimeError("Google Cloud project is required for Vertex Gemini")
+
+        class RevisionProofGemini(Gemini):
+            @cached_property
+            def api_client(self) -> Client:
+                return Client(
+                    vertexai=True,
+                    project=project,
+                    location=location,
+                )
+
+        return RevisionProofGemini(model=self.settings.gemini_model)
+
     async def interpret_many(self, raw_text: str) -> list[RevisionNote]:
         try:
             from google.adk.agents import LlmAgent
@@ -195,7 +219,7 @@ class VertexGeminiInterpreter:
 
         agent = LlmAgent(
             name="revision_note_interpreter",
-            model=self.settings.gemini_model,
+            model=self._adk_model(),
             instruction=(
                 "Split the input into video revision notes and classify each one. "
                 "AUTO_PREVIEWABLE is only a short 4-8 second center PUNCH_IN with a precise "
