@@ -13,8 +13,12 @@ if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]]; then
   echo "Refusing inventory: unexpected gcloud account." >&2
   exit 2
 fi
-export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
 export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
+active_gcloud_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' --limit=1)"
+if [[ "${active_gcloud_account}" != "${GCLOUD_ACCOUNT}" ]]; then
+  echo "Refusing inventory: active gcloud account is ${active_gcloud_account:-none}." >&2
+  exit 2
+fi
 
 actual_project_number="$(gcloud projects describe "${PROJECT_ID}" --format='value(projectNumber)')"
 if [[ "${actual_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]]; then

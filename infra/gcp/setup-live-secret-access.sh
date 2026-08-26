@@ -13,8 +13,12 @@ if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]]; then
   echo "Refusing secret IAM: unexpected gcloud account." >&2
   exit 2
 fi
-export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
 export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
+active_gcloud_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' --limit=1)"
+if [[ "${active_gcloud_account}" != "${GCLOUD_ACCOUNT}" ]]; then
+  echo "Refusing secret IAM: active gcloud account is ${active_gcloud_account:-none}." >&2
+  exit 2
+fi
 
 if [[ "${RUNTIME_SERVICE_ACCOUNT}" != "revisionproof-runtime" ]]; then
   echo "Refusing secret IAM: unexpected runtime service-account name." >&2

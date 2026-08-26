@@ -19,8 +19,12 @@ if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]] \
   echo "Refusing LIVE deploy: account or project confirmation does not match." >&2
   exit 2
 fi
-export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
 export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
+active_gcloud_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' --limit=1)"
+if [[ "${active_gcloud_account}" != "${GCLOUD_ACCOUNT}" ]]; then
+  echo "Refusing LIVE deploy: active gcloud account is ${active_gcloud_account:-none}." >&2
+  exit 2
+fi
 if [[ "${CLICKHOUSE_HOST}" != "${foundation_clickhouse_host}" ]] \
   || [[ ! "${CLICKHOUSE_HOST}" =~ ^[a-z0-9][a-z0-9.-]*\.clickhouse\.cloud$ ]] \
   || [[ ! "${CLICKHOUSE_WRITER_SECRET_VERSION}" =~ ^[1-9][0-9]*$ ]] \

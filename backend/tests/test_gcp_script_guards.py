@@ -13,7 +13,9 @@ def test_every_gcp_script_pins_the_locked_account_and_project(
     source = script_path.read_text(encoding="utf-8")
 
     assert "secureis@gmail.com" in source
-    assert 'export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"' in source
+    assert 'gcloud auth list --filter=status:ACTIVE' in source
+    assert '"${active_gcloud_account}" != "${GCLOUD_ACCOUNT}"' in source
+    assert 'export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"' not in source
     assert 'export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"' in source
 
 

@@ -14,8 +14,12 @@ if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]]; then
   echo "Refusing secret creation: unexpected gcloud account." >&2
   exit 2
 fi
-export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
 export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
+active_gcloud_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' --limit=1)"
+if [[ "${active_gcloud_account}" != "${GCLOUD_ACCOUNT}" ]]; then
+  echo "Refusing secret creation: active gcloud account is ${active_gcloud_account:-none}." >&2
+  exit 2
+fi
 
 if [[ "${CONFIRM_PROJECT}" != "${PROJECT_ID}" ]]; then
   echo "Pass the exact project id as argument 2: ${PROJECT_ID}" >&2

@@ -27,8 +27,12 @@ if [[ "${GCLOUD_ACCOUNT}" != "secureis@gmail.com" ]]; then
   echo "GCLOUD_ACCOUNT must be the locked RevisionProof owner secureis@gmail.com." >&2
   exit 2
 fi
-export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"
 export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"
+active_gcloud_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' --limit=1)"
+if [[ "${active_gcloud_account}" != "${GCLOUD_ACCOUNT}" ]]; then
+  echo "Refusing GCP changes: active gcloud account is ${active_gcloud_account:-none}." >&2
+  exit 2
+fi
 
 if [[ ! "${PROJECT_ID}" =~ ^revisionproof-[a-z0-9-]{6,16}$ ]]; then
   echo "PROJECT_ID must be a dedicated lowercase revisionproof-* id of at most 30 characters." >&2
