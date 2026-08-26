@@ -3,8 +3,12 @@ REVOKE ALL ON *.* FROM revisionproof_view_definer;
 GRANT SELECT ON revisionproof.segments TO revisionproof_view_definer;
 GRANT SELECT ON revisionproof.version_features TO revisionproof_view_definer;
 
-CREATE USER IF NOT EXISTS revisionproof_view_definer_user HOST NONE;
-ALTER USER revisionproof_view_definer_user HOST NONE;
+CREATE USER IF NOT EXISTS revisionproof_view_definer_user
+IDENTIFIED WITH sha256_hash BY 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+HOST NONE;
+ALTER USER revisionproof_view_definer_user
+IDENTIFIED WITH sha256_hash BY 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+HOST NONE;
 REVOKE ALL ON *.* FROM revisionproof_view_definer_user;
 GRANT revisionproof_view_definer TO revisionproof_view_definer_user;
 SET DEFAULT ROLE revisionproof_view_definer TO revisionproof_view_definer_user;

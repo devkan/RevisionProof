@@ -87,8 +87,10 @@ def test_views_use_a_non_login_durable_definer() -> None:
     schema = (root / "infra" / "clickhouse" / "schema.sql").read_text(encoding="utf-8")
     roles = (root / "infra" / "clickhouse" / "roles.sql").read_text(encoding="utf-8")
 
-    assert "CREATE USER IF NOT EXISTS revisionproof_view_definer_user HOST NONE" in schema
-    assert "ALTER USER revisionproof_view_definer_user HOST NONE" in roles
+    assert "CREATE USER IF NOT EXISTS revisionproof_view_definer_user" in schema
+    assert "IDENTIFIED WITH sha256_hash" in schema
+    assert "ALTER USER revisionproof_view_definer_user" in roles
+    assert schema.count("HOST NONE") == 2
     assert schema.count("DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER") == 2
     assert "DEFINER = CURRENT_USER" not in schema
 
