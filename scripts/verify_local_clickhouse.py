@@ -54,12 +54,20 @@ def main() -> None:
 
         rows = admin.query(
             "SELECT user_name, role_name, granted_role_name FROM system.role_grants "
-            "WHERE user_name IN ('revisionproof_writer_user','revisionproof_mcp_user') "
-            "OR role_name IN ('revisionproof_writer','revisionproof_mcp_reader') "
+            "WHERE user_name IN "
+            "('revisionproof_writer_user','revisionproof_mcp_user',"
+            "'revisionproof_view_definer_user') "
+            "OR role_name IN "
+            "('revisionproof_writer','revisionproof_mcp_reader','revisionproof_view_definer') "
             "ORDER BY user_name, role_name, granted_role_name"
         ).result_rows
         expected = [
             ("revisionproof_mcp_user", None, "revisionproof_mcp_reader"),
+            (
+                "revisionproof_view_definer_user",
+                None,
+                "revisionproof_view_definer",
+            ),
             ("revisionproof_writer_user", None, "revisionproof_writer"),
         ]
         if rows != expected:

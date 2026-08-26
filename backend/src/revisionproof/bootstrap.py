@@ -20,6 +20,8 @@ from revisionproof.settings import Settings
 
 _PROJECT_ID_RE = re.compile(r"^revisionproof-[a-z0-9-]{6,16}$")
 _IDENTIFIER_RE = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
+VIEW_DEFINER_USER = "revisionproof_view_definer_user"
+VIEW_DEFINER_ROLE = "revisionproof_view_definer"
 _CLICKHOUSE_CLOUD_HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.clickhouse\.cloud$")
 
 
@@ -229,6 +231,7 @@ def _provision_users(admin: Any, settings: Settings) -> None:
     for query, parameters in user_provisioning_commands(settings):
         admin.command(query, parameters=parameters or None)
     expected_memberships = {
+        VIEW_DEFINER_USER: VIEW_DEFINER_ROLE,
         settings.clickhouse_writer_username: settings.clickhouse_writer_role,
         settings.clickhouse_mcp_username: settings.clickhouse_mcp_role,
     }
@@ -243,7 +246,11 @@ def _provision_users(admin: Any, settings: Settings) -> None:
                 if not _IDENTIFIER_RE.fullmatch(granted_role):
                     raise RuntimeError("refusing an invalid inherited ClickHouse role")
                 admin.command(f"REVOKE {granted_role} FROM {grantee}")
-    for role in (settings.clickhouse_writer_role, settings.clickhouse_mcp_role):
+    for role in (
+        VIEW_DEFINER_ROLE,
+        settings.clickhouse_writer_role,
+        settings.clickhouse_mcp_role,
+    ):
         rows = admin.query(
             "SELECT granted_role_name FROM system.role_grants WHERE role_name = {role:String}",
             parameters={"role": role},
@@ -253,6 +260,24 @@ def _provision_users(admin: Any, settings: Settings) -> None:
             if not _IDENTIFIER_RE.fullmatch(inherited_role):
                 raise RuntimeError("refusing an invalid inherited ClickHouse role")
             admin.command(f"REVOKE {inherited_role} FROM {role}")
+
+
+def verify_view_security(admin: Any) -> None:
+    rows = admin.query(
+        "SELECT name, create_table_query FROM system.tables "
+        "WHERE database = 'revisionproof' "
+        "AND name IN ('search_segments', 'version_feature_diff')"
+    ).result_rows
+    definitions = {str(name): str(query) for name, query in rows}
+    if set(definitions) != {"search_segments", "version_feature_diff"}:
+        raise RuntimeError("RevisionProof security views are missing")
+    for name, query in definitions.items():
+        if VIEW_DEFINER_USER not in query or "SQL SECURITY DEFINER" not in query:
+            raise RuntimeError(f"RevisionProof view {name} has an unsafe definer")
+
+    user_rows = admin.query(f"SHOW CREATE USER {VIEW_DEFINER_USER}").result_rows
+    if len(user_rows) != 1 or "HOST NONE" not in str(user_rows[0][0]):
+        raise RuntimeError("RevisionProof view definer must be unable to log in")
 
 
 def _sha256(path: Path) -> str:
@@ -423,6 +448,7 @@ def bootstrap_live(
         ensure_deployment_metadata(admin, settings)
         verify_append_only_layouts(admin)
         _provision_users(admin, settings)
+        verify_view_security(admin)
         gcs_uri, source_uploaded = _upload_source_asset(settings, source)
         interpreter = VertexGeminiInterpreter(settings)
         inserted_segments = _seed_clickhouse(admin, settings, interpreter, gcs_uri)

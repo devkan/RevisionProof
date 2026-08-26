@@ -14,6 +14,7 @@ from revisionproof.bootstrap import (
     user_provisioning_commands,
     validate_live_bootstrap_settings,
     verify_append_only_layouts,
+    verify_view_security,
 )
 from revisionproof.contracts import ExecutionMode
 from revisionproof.settings import Settings
@@ -79,6 +80,49 @@ def test_clickhouse_sql_files_split_into_nonempty_statements() -> None:
         statements = split_sql_statements((root / relative).read_text(encoding="utf-8"))
         assert statements
         assert all(not statement.endswith(";") for statement in statements)
+
+
+def test_views_use_a_non_login_durable_definer() -> None:
+    root = Path(__file__).resolve().parents[2]
+    schema = (root / "infra" / "clickhouse" / "schema.sql").read_text(encoding="utf-8")
+    roles = (root / "infra" / "clickhouse" / "roles.sql").read_text(encoding="utf-8")
+
+    assert "CREATE USER IF NOT EXISTS revisionproof_view_definer_user HOST NONE" in schema
+    assert "ALTER USER revisionproof_view_definer_user HOST NONE" in roles
+    assert schema.count("DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER") == 2
+    assert "DEFINER = CURRENT_USER" not in schema
+
+
+def test_view_security_requires_exact_definer_and_host_none() -> None:
+    safe = FakeAdmin(
+        [
+            [
+                (
+                    "search_segments",
+                    "CREATE VIEW revisionproof.search_segments "
+                    "DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS SELECT 1",
+                ),
+                (
+                    "version_feature_diff",
+                    "CREATE VIEW revisionproof.version_feature_diff "
+                    "DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS SELECT 1",
+                ),
+            ],
+            [("CREATE USER revisionproof_view_definer_user HOST NONE",)],
+        ]
+    )
+    verify_view_security(safe)
+
+    unsafe = FakeAdmin(
+        [
+            [
+                ("search_segments", "CREATE VIEW search_segments AS SELECT 1"),
+                ("version_feature_diff", "CREATE VIEW version_feature_diff AS SELECT 1"),
+            ]
+        ]
+    )
+    with pytest.raises(RuntimeError, match="unsafe definer"):
+        verify_view_security(unsafe)
 
 
 class FakeAdmin:
@@ -257,6 +301,11 @@ def test_bootstrap_orchestrates_every_live_gate_and_closes_admin(
     monkeypatch.setattr(bootstrap_module, "_provision_users", lambda *_args: calls.append("users"))
     monkeypatch.setattr(
         bootstrap_module,
+        "verify_view_security",
+        lambda *_args: calls.append("view-security"),
+    )
+    monkeypatch.setattr(
+        bootstrap_module,
         "_upload_source_asset",
         lambda *_args: ("gs://revisionproof-agentic-2026-kan-media/source.mp4", False),
     )
@@ -292,7 +341,15 @@ def test_bootstrap_orchestrates_every_live_gate_and_closes_admin(
     )
 
     assert result["status"] == "PASS"
-    assert calls == ["schema", "metadata", "layout", "users", "seed", "mcp"]
+    assert calls == [
+        "schema",
+        "metadata",
+        "layout",
+        "users",
+        "view-security",
+        "seed",
+        "mcp",
+    ]
     assert admin.closed is True
 
 

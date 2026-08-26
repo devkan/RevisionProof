@@ -108,13 +108,24 @@ CREATE TABLE IF NOT EXISTS revisionproof.run_events
 ENGINE = MergeTree
 ORDER BY (run_id, sequence);
 
-CREATE VIEW IF NOT EXISTS revisionproof.search_segments
-DEFINER = CURRENT_USER SQL SECURITY DEFINER AS
+CREATE ROLE IF NOT EXISTS revisionproof_view_definer;
+REVOKE ALL ON *.* FROM revisionproof_view_definer;
+GRANT SELECT ON revisionproof.segments TO revisionproof_view_definer;
+GRANT SELECT ON revisionproof.version_features TO revisionproof_view_definer;
+
+CREATE USER IF NOT EXISTS revisionproof_view_definer_user HOST NONE;
+ALTER USER revisionproof_view_definer_user HOST NONE;
+REVOKE ALL ON *.* FROM revisionproof_view_definer_user;
+GRANT revisionproof_view_definer TO revisionproof_view_definer_user;
+SET DEFAULT ROLE revisionproof_view_definer TO revisionproof_view_definer_user;
+
+CREATE OR REPLACE VIEW revisionproof.search_segments
+DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS
 SELECT segment_id, asset_id, start_seconds, end_seconds, transcript, visual_summary, embedding
 FROM revisionproof.segments;
 
-CREATE VIEW IF NOT EXISTS revisionproof.version_feature_diff
-DEFINER = CURRENT_USER SQL SECURITY DEFINER AS
+CREATE OR REPLACE VIEW revisionproof.version_feature_diff
+DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS
 SELECT
     current.run_id,
     current.version_label AS current_version,

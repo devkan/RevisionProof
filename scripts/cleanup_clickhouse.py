@@ -8,8 +8,16 @@ import re
 DATABASE = "revisionproof"
 PROJECT_ID_RE = re.compile(r"^revisionproof-[a-z0-9-]{6,16}$")
 CLOUD_HOST_RE = re.compile(r"^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.clickhouse\.cloud$")
-USERS = ("revisionproof_writer_user", "revisionproof_mcp_user")
-ROLES = ("revisionproof_writer", "revisionproof_mcp_reader")
+USERS = (
+    "revisionproof_writer_user",
+    "revisionproof_mcp_user",
+    "revisionproof_view_definer_user",
+)
+ROLES = (
+    "revisionproof_writer",
+    "revisionproof_mcp_reader",
+    "revisionproof_view_definer",
+)
 
 
 def verify_deployment_metadata(admin, project_id: str, host: str) -> None:
