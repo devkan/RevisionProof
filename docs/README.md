@@ -1,5 +1,8 @@
 # RevisionProof docs
 
+- [Submission copy and release gates — 2026-08-27](submission-pack-2026-08-27.md)
+- [How to record the English demo — 2026-08-27](demo-recording-script-2026-08-27.md)
+- [Read-only LIVE submission smoke — 2026-08-27](qa-report-2026-08-27-submission-smoke.md)
 - [Architecture and trust boundaries](architecture.md)
 - [Demo runbook](demo-runbook.md)
 - [Integration status](integration-status.md)
