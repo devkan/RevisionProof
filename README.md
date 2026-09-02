@@ -28,7 +28,7 @@ Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits 
 
 ## Deployed LIVE demo
 
-The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. The exact current revision, build, image digest, and verification run are recorded in the dated deployment inventory and QA reports. Recovery run `01M1GN7EY252SSM5F2AM170TKY` proved that a timed-out official MCP process is replaced and retried; it then reached `EVIDENCE_ANCHORED` through `google.vertex.gemini` and `mcp-clickhouse.run_query`. Historical full delivery run `01M0Z3338TYVHWHK4FZRGADTKZ` remains evidence for the earlier external-upload path.
+The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. The exact current revision, build, image digest, and verification run are recorded in the dated deployment inventory and QA reports. Automatic-render run `01M1H4MDB7NQBDFQF1YNNFM0EB` used `google.vertex.gemini` and `mcp-clickhouse.run_query`, generated the selected Option B across the complete source, and reached `READY` with three PASS checks. Historical delivery-approved run `01M0Z3338TYVHWHK4FZRGADTKZ` remains evidence for the earlier external-upload path.
 
 `/ready` deliberately reports that integrations are configured, not that every future call will succeed. Treat a run as LIVE evidence only when its raw JSON shows the live source labels and the matching ClickHouse rows exist. The verified final run is `READY` and received its separate human delivery approval (`delivery_approved=true`) on 2026-08-26.
 
@@ -47,4 +47,4 @@ backend/.venv/Scripts/python.exe scripts/verify_local_clickhouse.py
 backend/.venv/Scripts/python.exe scripts/verify_local_mcp.py
 ```
 
-See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [latest MCP recovery QA](docs/qa-report-2026-09-02-mcp-recovery.md), [full LIVE delivery QA](docs/qa-report-2026-08-26-live-final.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).
+See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [automatic full-video and UI QA](docs/qa-report-2026-09-02-automatic-full-video-ui.md), [full LIVE delivery QA](docs/qa-report-2026-08-26-live-final.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).

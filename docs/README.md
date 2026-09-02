@@ -1,5 +1,6 @@
 # RevisionProof docs
 
+- [Automatic full-video workflow, UI redesign, deployment, and gstack QA — 2026-09-02](qa-report-2026-09-02-automatic-full-video-ui.md)
 - [Visual demo asset upgrade and gstack QA — 2026-09-02](qa-report-2026-09-02-visual-demo-asset.md)
 - [ClickHouse MCP recovery deployment and gstack QA — 2026-09-02](qa-report-2026-09-02-mcp-recovery.md)
 - [Submission copy and release gates — 2026-08-27](submission-pack-2026-08-27.md)

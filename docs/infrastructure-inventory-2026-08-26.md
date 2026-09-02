@@ -2,6 +2,23 @@
 
 This file records the resources and artifacts added after the 2026-08-25 foundation inventory. Read both files before modifying or removing infrastructure.
 
+## Current automatic full-video deployment - 2026-09-02
+
+- Exact account: `secureis@gmail.com`
+- Exact project: `revisionproof-agentic-2026-kan` (`348672234012`)
+- Source commit: `6012e9f`
+- Cloud Build source: `gs://revisionproof-agentic-2026-kan-media/cloud-build-source/1788354791.102835-030f2a34fe4b46b3b95d3dff1a273dbb.tgz`
+- Cloud Build: `c0c3c928-fd5a-47a3-9b04-14ec5fbcbc20`, `SUCCESS`
+- RevisionProof image tag: `us-central1-docker.pkg.dev/revisionproof-agentic-2026-kan/revisionproof/revisionproof-staging:c0c3c928-fd5a-47a3-9b04-14ec5fbcbc20`
+- RevisionProof image digest: `sha256:d434e6fbe4e5d9e5be2ea47af590aaf4ffec5cc868cce36238db59d64458aef7`
+- Cloud Run revision: `revisionproof-staging-00014-r4l`, 100% traffic
+- URL: `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`
+- Numeric Secret Manager versions: writer `1`, MCP `1`
+- LIVE automatic-render run: `01M1H4MDB7NQBDFQF1YNNFM0EB`, state `READY`, Option B, three PASS checks, delivery approval not granted
+- Generated video object: `runs/01M1H4MDB7NQBDFQF1YNNFM0EB/versions/approved-b.mp4`, generation `1788355551327949`, 817,180 bytes
+
+This deployment supersedes revision `revisionproof-staging-00013-gxn`. It added one build-source object, one Cloud Build record, one Artifact Registry image version, one Cloud Run revision, and the run's private GCS/audit artifacts. No new resource type was created, and no other GCP project was selected or modified. The build source remains subject to the owning bucket lifecycle; the service, repository, bucket objects, IAM, secrets, and ClickHouse database remain covered by the existing guarded inventory and cleanup procedures.
+
 ## Current visual demo deployment - 2026-09-02
 
 - Exact account: `secureis@gmail.com`
@@ -21,7 +38,7 @@ This file records the resources and artifacts added after the 2026-08-25 foundat
 
 The default-copy deploy used commit `81521d3`, Cloud Build `a38932bf-80ff-4b89-bdde-1353305a72ca`, source object `gs://revisionproof-agentic-2026-kan-media/cloud-build-source/1788345660.840908-b8f0dacfb1b8473f82aa5052219b25f5.tgz`, image digest `sha256:e3779de18b356002910c9983c29459cd31fe8c99c2f89e5b6668030d3c5332a8`, and revision `revisionproof-staging-00012-dnv`. The earlier visual-asset deploy used commit `dc751a9`, Cloud Build `6a90c79e-1a4c-4272-af5d-55a09b99ffd7`, source object `gs://revisionproof-agentic-2026-kan-media/cloud-build-source/1788344581.688018-63fbe01263074dedac65172494ba708f.tgz`, image digest `sha256:1e2574159637a13dae38051afb0a948efdcca980d67f7b2e06f81199587ce8f0`, and revision `revisionproof-staging-00011-sd9`. Both have been superseded by revision `00013`.
 
-These changes created no new GCP or ClickHouse resource type. They added three build-source objects, three build records, three Artifact Registry image versions, Cloud Run revisions `00011` through `00013`, one versioned visual source object, four source-index rows, and one QA run's private artifacts/audit rows. Existing guarded cleanup still targets the owning bucket, repository, service, and project-sentinel ClickHouse database. No other GCP project was selected or modified.
+These historical changes created no new GCP or ClickHouse resource type. They added three build-source objects, three build records, three Artifact Registry image versions, Cloud Run revisions `00011` through `00013`, one versioned visual source object, four source-index rows, and one QA run's private artifacts/audit rows. Existing guarded cleanup still targets the owning bucket, repository, service, and project-sentinel ClickHouse database. No other GCP project was selected or modified.
 
 ## Previous recovery deployment - 2026-09-02
 
@@ -202,4 +219,4 @@ These changes were applied after selecting `secureis@gmail.com` and `revisionpro
 - Historical note: this IAM checkpoint preceded creation of the two current RevisionProof ClickHouse secrets and the dedicated ClickHouse service.
 - ScopeShift and every other project were left unchanged.
 
-The current deployment is the 2026-09-02 LIVE recovery revision recorded at the top of this file. The older LIVE and FIXTURE facts remain as a dated audit trail.
+The current deployment is the 2026-09-02 automatic full-video revision recorded at the top of this file. The older LIVE and FIXTURE facts remain as a dated audit trail.
