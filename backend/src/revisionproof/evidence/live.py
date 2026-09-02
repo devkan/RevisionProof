@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 import sys
@@ -25,6 +26,7 @@ from revisionproof.ids import new_ulid
 from revisionproof.settings import Settings
 
 _ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
+logger = logging.getLogger(__name__)
 
 
 def _file_sha256(path: Path) -> str:
@@ -146,12 +148,17 @@ class McpClickHouseReader:
     settings: Settings
 
     async def run_query(self, query: str) -> list[dict[str, Any]]:
-        for attempt in range(2):
+        for attempt in range(1, self.settings.mcp_max_attempts + 1):
             try:
                 return await self._run_query_once(query)
             except TimeoutError:
-                if attempt == 1:
+                if attempt == self.settings.mcp_max_attempts:
                     raise
+                logger.warning(
+                    "ClickHouse MCP timeout on attempt %s/%s; retrying with a fresh process",
+                    attempt,
+                    self.settings.mcp_max_attempts,
+                )
         raise AssertionError("unreachable")
 
     async def _run_query_once(self, query: str) -> list[dict[str, Any]]:

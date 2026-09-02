@@ -71,7 +71,27 @@ async def test_mcp_reader_retries_one_timeout(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
-async def test_mcp_reader_propagates_second_timeout(monkeypatch) -> None:
+async def test_mcp_reader_recovers_after_two_timeouts(monkeypatch) -> None:
+    calls = 0
+
+    async def fake_run_once(_self, query: str):
+        nonlocal calls
+        assert query == "SELECT 1"
+        calls += 1
+        if calls < 3:
+            raise TimeoutError
+        return [{"1": 1}]
+
+    monkeypatch.setattr(McpClickHouseReader, "_run_query_once", fake_run_once)
+
+    rows = await McpClickHouseReader(Settings()).run_query("SELECT 1")
+
+    assert rows == [{"1": 1}]
+    assert calls == 3
+
+
+@pytest.mark.asyncio
+async def test_mcp_reader_propagates_third_timeout(monkeypatch) -> None:
     calls = 0
 
     async def fake_run_once(_self, _query: str):
@@ -84,4 +104,4 @@ async def test_mcp_reader_propagates_second_timeout(monkeypatch) -> None:
     with pytest.raises(TimeoutError):
         await McpClickHouseReader(Settings()).run_query("SELECT 1")
 
-    assert calls == 2
+    assert calls == 3

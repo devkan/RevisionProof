@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     ffmpeg_timeout_seconds: int = Field(default=90, ge=5, le=600)
     gemini_timeout_seconds: int = Field(default=60, ge=5, le=300)
     mcp_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    mcp_max_attempts: int = Field(default=3, ge=1, le=5)
     max_in_memory_runs: int = Field(default=64, ge=1, le=256)
     max_new_runs_per_minute: int = Field(default=12, ge=1, le=60)
     max_verification_attempts_per_run: int = Field(default=6, ge=1, le=20)
