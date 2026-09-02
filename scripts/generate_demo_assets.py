@@ -147,7 +147,14 @@ def _editing_scene(frame: np.ndarray, second: float) -> None:
     _person(frame, 160, 255, pointing=False)
     _rounded_box(frame, 275, 132, 916, 104, INK, border=PURPLE)
     _text(frame, "CLIENT FEEDBACK", 302, 162, scale=0.43, color=MUTED)
-    _text(frame, '"When the presenter says RevisionProof, push in slightly."', 302, 205, scale=0.68, thickness=2)
+    _text(
+        frame,
+        '"When the presenter says RevisionProof, push in slightly."',
+        302,
+        205,
+        scale=0.68,
+        thickness=2,
+    )
     _rounded_box(frame, 275, 258, 610, 334, INK, border=PANEL_LIGHT)
     _text(frame, "EDIT TIMELINE", 302, 290, scale=0.42, color=MUTED)
     for row, (label, color) in enumerate(
@@ -158,7 +165,9 @@ def _editing_scene(frame: np.ndarray, second: float) -> None:
         cv2.rectangle(frame, (405, y), (840, y + 38), (35, 29, 22), -1)
         clip_start = 430 + row * 38
         moving_width = int(190 + 18 * math.sin(second * 1.7 + row))
-        cv2.rectangle(frame, (clip_start, y + 5), (clip_start + moving_width, y + 33), color, -1)
+        cv2.rectangle(
+            frame, (clip_start, y + 5), (clip_start + moving_width, y + 33), color, -1
+        )
         cv2.line(frame, (655, y - 8), (655, y + 46), WHITE, 2)
     _rounded_box(frame, 910, 258, 250, 334, (30, 27, 23), border=PANEL_LIGHT)
     _text(frame, "AGENT READ", 934, 294, scale=0.42, color=CYAN)
@@ -173,7 +182,9 @@ def _editing_scene(frame: np.ndarray, second: float) -> None:
         cv2.circle(frame, (938, y), 14, color, -1)
         _text(frame, number, 933, y + 5, scale=0.38, color=INK, thickness=2)
         _text(frame, label, 966, y + 6, scale=0.43, color=WHITE)
-    _text(frame, "Ambiguity becomes an executable edit.", 302, 620, scale=0.48, color=CYAN)
+    _text(
+        frame, "Ambiguity becomes an executable edit.", 302, 620, scale=0.48, color=CYAN
+    )
 
 
 def _reveal_scene(frame: np.ndarray, second: float) -> None:
@@ -185,28 +196,75 @@ def _reveal_scene(frame: np.ndarray, second: float) -> None:
     card_y = 118 + (410 - card_h) // 2
     _rounded_box(frame, card_x, card_y, card_w, card_h, PANEL, border=PURPLE)
     _person(frame, 177, 275, pointing=True)
-    _rounded_box(frame, card_x + 38, card_y + 34, card_w - 76, 42, INK, border=PANEL_LIGHT)
-    _text(frame, "LIVE PROOF TRACE", card_x + 58, card_y + 61, scale=0.44, color=GREEN, thickness=2)
-    _text(frame, "RevisionProof", card_x + 92, card_y + 172, scale=1.38, color=WHITE, thickness=3)
+    _rounded_box(
+        frame, card_x + 38, card_y + 34, card_w - 76, 42, INK, border=PANEL_LIGHT
+    )
+    _text(
+        frame,
+        "LIVE PROOF TRACE",
+        card_x + 58,
+        card_y + 61,
+        scale=0.44,
+        color=GREEN,
+        thickness=2,
+    )
+    _text(
+        frame,
+        "RevisionProof",
+        card_x + 92,
+        card_y + 172,
+        scale=1.38,
+        color=WHITE,
+        thickness=3,
+    )
     _text(frame, "FEEDBACK", card_x + 62, card_y + 252, scale=0.43, color=MUTED)
     _text(frame, "EVIDENCE", card_x + 275, card_y + 252, scale=0.43, color=MUTED)
     _text(frame, "APPROVED", card_x + 478, card_y + 252, scale=0.43, color=MUTED)
     cv2.circle(frame, (card_x + 130, card_y + 298), 22, PURPLE, -1)
     cv2.circle(frame, (card_x + 340, card_y + 298), 22, CYAN, -1)
     cv2.circle(frame, (card_x + 535, card_y + 298), 22, GREEN, -1)
-    cv2.line(frame, (card_x + 152, card_y + 298), (card_x + 318, card_y + 298), PANEL_LIGHT, 5)
-    cv2.line(frame, (card_x + 362, card_y + 298), (card_x + 513, card_y + 298), PANEL_LIGHT, 5)
+    cv2.line(
+        frame,
+        (card_x + 152, card_y + 298),
+        (card_x + 318, card_y + 298),
+        PANEL_LIGHT,
+        5,
+    )
+    cv2.line(
+        frame,
+        (card_x + 362, card_y + 298),
+        (card_x + 513, card_y + 298),
+        PANEL_LIGHT,
+        5,
+    )
     _text(frame, "NOTE", card_x + 111, card_y + 305, scale=0.28, color=INK, thickness=2)
-    _text(frame, "08-14", card_x + 315, card_y + 305, scale=0.28, color=INK, thickness=2)
+    _text(
+        frame, "08-14", card_x + 315, card_y + 305, scale=0.28, color=INK, thickness=2
+    )
     _text(frame, "PASS", card_x + 514, card_y + 305, scale=0.28, color=INK, thickness=2)
     _rounded_box(frame, 76, 515, 1128, 95, INK, border=CYAN)
     _text(frame, "CAMERA PUSH-IN TARGET", 106, 553, scale=0.45, color=CYAN, thickness=2)
-    _text(frame, "The wordmark and proof trace stay centered from 00:08 to 00:14.", 106, 584, scale=0.56, color=WHITE)
+    _text(
+        frame,
+        "The wordmark and proof trace stay centered from 00:08 to 00:14.",
+        106,
+        584,
+        scale=0.56,
+        color=WHITE,
+    )
 
 
 def _proof_scene(frame: np.ndarray, second: float) -> None:
     _header(frame, "SCENE 03", "CONSTRAINED OPTIONS")
-    _text(frame, "Same intent. Measurable choices.", 64, 128, scale=0.75, color=WHITE, thickness=2)
+    _text(
+        frame,
+        "Same intent. Measurable choices.",
+        64,
+        128,
+        scale=0.75,
+        color=WHITE,
+        thickness=2,
+    )
     cards = (
         (64, "SOURCE", "1.00x", MUTED),
         (438, "OPTION A", "1.05x", CYAN),
@@ -217,9 +275,27 @@ def _proof_scene(frame: np.ndarray, second: float) -> None:
         _text(frame, label, x + 26, 205, scale=0.48, color=accent, thickness=2)
         _text(frame, scale_label, x + 245, 205, scale=0.48, color=WHITE, thickness=2)
         inset = 23 - index * 6
-        cv2.rectangle(frame, (x + 30 + inset, 242 + inset), (x + 310 - inset, 402 - inset), INK, -1)
-        cv2.rectangle(frame, (x + 102 - index * 10, 280 - index * 7), (x + 238 + index * 10, 360 + index * 7), accent, -1)
-        cv2.rectangle(frame, (x + 122 - index * 8, 300 - index * 5), (x + 218 + index * 8, 340 + index * 5), PANEL, -1)
+        cv2.rectangle(
+            frame,
+            (x + 30 + inset, 242 + inset),
+            (x + 310 - inset, 402 - inset),
+            INK,
+            -1,
+        )
+        cv2.rectangle(
+            frame,
+            (x + 102 - index * 10, 280 - index * 7),
+            (x + 238 + index * 10, 360 + index * 7),
+            accent,
+            -1,
+        )
+        cv2.rectangle(
+            frame,
+            (x + 122 - index * 8, 300 - index * 5),
+            (x + 218 + index * 8, 340 + index * 5),
+            PANEL,
+            -1,
+        )
         if index == 0:
             status, status_color = "REFERENCE", MUTED
         elif index == 1:
@@ -231,14 +307,30 @@ def _proof_scene(frame: np.ndarray, second: float) -> None:
         _text(frame, "Audio +/-2 dB   CTA locked", x + 28, 537, scale=0.40, color=MUTED)
     sweep_x = 64 + int(((second - 14.0) % 3.0) / 3.0 * 1088)
     cv2.line(frame, (sweep_x, 596), (sweep_x + 70, 596), CYAN, 4)
-    _text(frame, "A/B PREVIEWS ARE EDITS YOU CAN SEE, NOT JUST JSON.", 64, 628, scale=0.48, color=CYAN, thickness=2)
+    _text(
+        frame,
+        "A/B PREVIEWS ARE EDITS YOU CAN SEE, NOT JUST JSON.",
+        64,
+        628,
+        scale=0.48,
+        color=CYAN,
+        thickness=2,
+    )
 
 
 def _end_card(frame: np.ndarray, second: float) -> None:
     _header(frame, "SCENE 04", "VERIFIED DELIVERY")
     _rounded_box(frame, 62, 114, 1110, 426, PANEL, border=GREEN)
     _text(frame, "RevisionProof", 115, 215, scale=1.48, color=WHITE, thickness=3)
-    _text(frame, "Every revision ends with evidence.", 118, 260, scale=0.68, color=CYAN, thickness=2)
+    _text(
+        frame,
+        "Every revision ends with evidence.",
+        118,
+        260,
+        scale=0.68,
+        color=CYAN,
+        thickness=2,
+    )
     checks = (
         ("GEMINI INTERPRETATION", "LIVE"),
         ("CLICKHOUSE EVIDENCE", "3 MATCHES"),
@@ -257,7 +349,15 @@ def _end_card(frame: np.ndarray, second: float) -> None:
     _text(frame, "CTA SAFE ZONE", 953, 559, scale=0.38, color=CYAN)
     cv2.rectangle(frame, (72, 570), (760, 660), INK, -1)
     _text(frame, "END-CARD CONSTRAINT", 94, 604, scale=0.42, color=MUTED)
-    _text(frame, "The approval CTA must remain pixel-safe.", 94, 638, scale=0.57, color=WHITE, thickness=2)
+    _text(
+        frame,
+        "The approval CTA must remain pixel-safe.",
+        94,
+        638,
+        scale=0.57,
+        color=WHITE,
+        thickness=2,
+    )
 
 
 def render_frame(second: float) -> np.ndarray:

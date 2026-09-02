@@ -32,7 +32,7 @@ The deployed LIVE demo is `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app
 ## 90-second judge path
 
 1. Point out the `LIVE MODE` badge and the runtime truth panel.
-2. Submit the prefilled three-note brief. Show `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`; only the first may execute.
+2. Submit the prefilled three-note brief. Its first note explicitly requests a 6-second center `PUNCH_IN`, inside the 4-8 second safety window. Show `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`; only the first may execute.
 3. Show the three time-coded evidence matches and the `mcp-clickhouse.run_query` source.
 4. Render A/B, pause both previews near 00:03 so the crop difference is visible, and approve B (1.12x), matching the final verified run.
 5. Point to the frozen SHA-256 spec hash.

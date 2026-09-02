@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { api } from './api'
+import { DEFAULT_FEEDBACK } from './demoFeedback'
 import { feedbackValidationMessage } from './feedbackValidation'
 import { isTerminalRunState } from './runStream'
 import type {
@@ -28,10 +29,6 @@ import type {
   SafetyClassification,
   Verdict,
 } from './types'
-
-const DEFAULT_FEEDBACK = `1. When the presenter says "RevisionProof," push in slightly.
-2. Make the middle feel more dynamic.
-3. Add B-roll that feels more premium and on-brand.`
 
 const CLASSIFICATION_LABEL: Record<SafetyClassification, string> = {
   AUTO_PREVIEWABLE: 'AUTO PREVIEW',
