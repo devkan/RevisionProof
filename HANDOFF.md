@@ -4,9 +4,11 @@ Updated: 2026-09-02
 
 ## Current status
 
-The isolated GCP project `revisionproof-agentic-2026-kan` now serves the tracked LIVE implementation from commit `81521d3`. Cloud Build `a38932bf-80ff-4b89-bdde-1353305a72ca` succeeded, the pushed RevisionProof image digest is `sha256:e3779de18b356002910c9983c29459cd31fe8c99c2f89e5b6668030d3c5332a8`, and Cloud Run revision `revisionproof-staging-00012-dnv` receives 100% of traffic at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`.
+The isolated GCP project `revisionproof-agentic-2026-kan` now serves the tracked LIVE implementation from commit `42750d2`. Cloud Build `5624e811-29cf-4c4e-a75c-7d22b91bc905` succeeded, the pushed RevisionProof image digest is `sha256:8297e01167bcb3f9eb2fbc63c8ae6baee6eb227e7ca593a4624356058672f8b3`, and Cloud Run revision `revisionproof-staging-00013-gxn` receives 100% of traffic at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`.
 
 The LIVE source is now a visually inspectable four-scene storyboard under asset `01M00000000000000000000000`. The default supported note explicitly requests a 6-second punch-in, matching the 4-8 second safety contract. Browser run `01M1GVQRHVVZ1TAQRWJZ1H0ACC` completed Gemini interpretation, official ClickHouse MCP retrieval, A/B rendering, candidate B approval, private GCS upload, and deterministic verification. It reached `READY` with all three checks PASS; delivery approval was intentionally not granted.
+
+The original source and both A/B candidate cards now expose `View larger` controls backed by a shared 960px modal. The viewer is viewport-bounded and supports close-button, Escape, and backdrop dismissal. LIVE run `01M1GY19CVZZ7QDPG5DPPVBAG9` verified source and Option B playback after real Gemini/MCP execution and A/B rendering with no browser console errors.
 
 On 2026-09-02 the user observed a LIVE run fail after Gemini parsing and about 64 seconds of ClickHouse evidence lookup. The reader's hard-coded two 30-second attempts were too short for the sleeping service. `REVISIONPROOF_MCP_MAX_ATTEMPTS` now defaults to three bounded fresh-process attempts. Post-deploy gstack run `01M1GN7EY252SSM5F2AM170TKY` logged `ClickHouse MCP timeout on attempt 1/3`, recovered on the next process, and reached `EVIDENCE_ANCHORED` in a 51.878-second HTTP 201 response with `error=null`. See `docs/qa-report-2026-09-02-mcp-recovery.md`.
 
@@ -29,9 +31,9 @@ The `LIVE` badge alone is not success evidence; require actual Gemini/MCP events
 ## Git state
 
 - Branch: `review/qa-hardening`
-- Deployed implementation commit: `81521d3`
+- Deployed implementation commit: `42750d2`
 - Remote: `https://github.com/devkan/RevisionProof.git`
-- Push: `review/qa-hardening` is connected to `origin`; deployed implementation commit `81521d3` is pushed. The documentation checkpoint follows this handoff update. No PR or merge has been performed.
+- Push: `review/qa-hardening` is connected to `origin`; deployed implementation commit `42750d2` is pushed. The documentation checkpoint follows this handoff update. No PR or merge has been performed.
 
 ## Start here
 

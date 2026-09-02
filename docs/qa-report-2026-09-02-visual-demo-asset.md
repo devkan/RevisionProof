@@ -44,3 +44,9 @@ The final deploy uses commit `81521d3`, Cloud Build `a38932bf-80ff-4b89-bdde-135
 The prior default sentence named an effect but not its required 4-8 second duration, so Gemini correctly and intermittently held it for clarification. The deployed default now requests a 6-second center `PUNCH_IN`; it does not override Gemini's classification. LIVE browser run `01M1GVQRHVVZ1TAQRWJZ1H0ACC` produced `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`, retrieved three official-MCP evidence matches with the intended 00:08-00:14 scene scoring 100%, rendered visible A/B previews, and froze candidate B.
 
 Uploading `revisionproof_v3_ready.mp4` to that run produced three deterministic PASS checks and state `READY`. GCS stored the private 966,907-byte candidate at `runs/01M1GVQRHVVZ1TAQRWJZ1H0ACC/versions/revisionproof_v3_ready.mp4`; ClickHouse contains one spec, 12 feature rows, and three check rows for this run. Delivery approval was intentionally not granted during QA.
+
+## Enlarged video viewer follow-up
+
+Commit `42750d2` adds a shared 960px layer viewer for the original video and both rendered candidates. Each video has an explicit `View larger` button; the modal remains bounded by the viewport and closes with its close button, Escape, or a backdrop click. The candidate dialog identifies both the option and crop scale so A and B cannot be confused.
+
+Frontend verification passed with five Vitest files / six tests, ESLint, and the production build. Local browser QA exercised the original, A, and B dialogs and found no console errors. The LIVE deploy is Cloud Build `5624e811-29cf-4c4e-a75c-7d22b91bc905`, image digest `sha256:8297e01167bcb3f9eb2fbc63c8ae6baee6eb227e7ca593a4624356058672f8b3`, and Cloud Run revision `revisionproof-staging-00013-gxn` at 100% traffic. LIVE run `01M1GY19CVZZ7QDPG5DPPVBAG9` completed Gemini interpretation, official ClickHouse MCP evidence retrieval, A/B rendering, and an enlarged Option B playback check with no console errors.

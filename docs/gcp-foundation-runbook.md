@@ -49,7 +49,7 @@ gcloud builds submit \
 
 For a foundation build, the staging URL must return HTTP 200 from `/health` and `/ready`, then report `FIXTURE` and `live_ready=false` at `/api/runtime`. For the current LIVE build, require `mode=LIVE`, `live_credentials_configured=true`, `live_ready=true`, and per-run Gemini/MCP/persistence evidence. Do not use `z`-suffixed operational paths on Cloud Run because the platform reserves some of them.
 
-The historical foundation deployment is Cloud Build `354696e9-0fdc-451c-9e69-cf55184ea63f` and revision `revisionproof-staging-00003-q56`. The current LIVE deployment is Build `a38932bf-80ff-4b89-bdde-1353305a72ca` and revision `revisionproof-staging-00012-dnv` at the same stable URL. Later builds must create a new source archive from the intended tracked commit and record its digest before submission.
+The historical foundation deployment is Cloud Build `354696e9-0fdc-451c-9e69-cf55184ea63f` and revision `revisionproof-staging-00003-q56`. The current LIVE deployment is Build `5624e811-29cf-4c4e-a75c-7d22b91bc905` and revision `revisionproof-staging-00013-gxn` at the same stable URL. Later builds must create a new source archive from the intended tracked commit and record its digest before submission.
 
 The explicit source staging directory keeps future source archives in the labeled media bucket under its one-day lifecycle. The first pre-hardening build may still appear in the automatically created `${PROJECT_ID}_cloudbuild` bucket; inventory and cleanup cover that exact project-owned bucket.
 
