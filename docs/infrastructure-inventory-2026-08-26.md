@@ -2,7 +2,28 @@
 
 This file records the resources and artifacts added after the 2026-08-25 foundation inventory. Read both files before modifying or removing infrastructure.
 
-## Current recovery deployment - 2026-09-02
+## Current visual demo deployment - 2026-09-02
+
+- Exact account: `secureis@gmail.com`
+- Exact project: `revisionproof-agentic-2026-kan` (`348672234012`)
+- Source commit: `81521d3`
+- Cloud Build source: `gs://revisionproof-agentic-2026-kan-media/cloud-build-source/1788345660.840908-b8f0dacfb1b8473f82aa5052219b25f5.tgz`
+- Cloud Build: `a38932bf-80ff-4b89-bdde-1353305a72ca`, `SUCCESS`
+- RevisionProof image tag: `us-central1-docker.pkg.dev/revisionproof-agentic-2026-kan/revisionproof/revisionproof-staging:a38932bf-80ff-4b89-bdde-1353305a72ca`
+- RevisionProof image digest: `sha256:e3779de18b356002910c9983c29459cd31fe8c99c2f89e5b6668030d3c5332a8`
+- Cloud Run revision: `revisionproof-staging-00012-dnv`, 100% traffic
+- URL: `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`
+- Visual source: `gs://revisionproof-agentic-2026-kan-media/assets/01M00000000000000000000000/revisionproof_v1.mp4`, generation `1788344192014639`, 800,620 bytes
+- ClickHouse visual source rows: asset `01M00000000000000000000000` count 1; segment rows count 3; legacy asset retained
+- Complete QA run: `01M1GVQRHVVZ1TAQRWJZ1H0ACC`, state `READY`, delivery approval not granted
+- QA candidate object: `runs/01M1GVQRHVVZ1TAQRWJZ1H0ACC/versions/revisionproof_v3_ready.mp4`, generation `1788346299626803`, 966,907 bytes
+- QA ClickHouse rows: one spec, 12 version features, three version checks
+
+The intermediate visual-asset deploy used commit `dc751a9`, Cloud Build `6a90c79e-1a4c-4272-af5d-55a09b99ffd7`, source object `gs://revisionproof-agentic-2026-kan-media/cloud-build-source/1788344581.688018-63fbe01263074dedac65172494ba708f.tgz`, image digest `sha256:1e2574159637a13dae38051afb0a948efdcca980d67f7b2e06f81199587ce8f0`, and revision `revisionproof-staging-00011-sd9`. It has been superseded by revision `00012`.
+
+These changes created no new GCP or ClickHouse resource type. They added two build-source objects, two build records, two Artifact Registry image versions, Cloud Run revisions `00011` and `00012`, one versioned visual source object, four source-index rows, and one QA run's private artifacts/audit rows. Existing guarded cleanup still targets the owning bucket, repository, service, and project-sentinel ClickHouse database. No other GCP project was selected or modified.
+
+## Previous recovery deployment - 2026-09-02
 
 - Exact account: `secureis@gmail.com`
 - Exact project: `revisionproof-agentic-2026-kan` (`348672234012`)
@@ -18,7 +39,7 @@ This file records the resources and artifacts added after the 2026-08-25 foundat
 - Numeric Secret Manager version in use: version `1` for both exact RevisionProof ClickHouse secrets
 - Recovery proof: run `01M1GN7EY252SSM5F2AM170TKY`; first MCP attempt timed out, second fresh process anchored three matches, `error=null`
 
-No new GCP or ClickHouse resource type was created. This deploy added one Cloud Build source object, one build record, one Artifact Registry image version, and Cloud Run revision `00010`; the existing guarded cleanup targets already cover their parent bucket, repository, and service. The source object remains governed by the bucket's one-day delete lifecycle. No other project was selected or modified.
+This deploy added one Cloud Build source object, one build record, one Artifact Registry image version, and Cloud Run revision `00010`; the existing guarded cleanup targets already cover their parent bucket, repository, and service. The source object remains governed by the bucket's one-day delete lifecycle. No other project was selected or modified.
 
 Local Docker recovery QA image:
 

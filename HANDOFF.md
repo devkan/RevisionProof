@@ -4,7 +4,9 @@ Updated: 2026-09-02
 
 ## Current status
 
-The isolated GCP project `revisionproof-agentic-2026-kan` now serves the tracked LIVE implementation from commit `4852259`. Cloud Build `3ebc367e-31a4-4087-abba-6c245cb8c9bc` succeeded, the pushed RevisionProof image digest is `sha256:c7cd7fc4f9ebc19cbfbc37294fd42d8a79b3e1f9007715f9020a5911b8975cc5`, and Cloud Run revision `revisionproof-staging-00010-k4g` receives 100% of traffic at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`.
+The isolated GCP project `revisionproof-agentic-2026-kan` now serves the tracked LIVE implementation from commit `81521d3`. Cloud Build `a38932bf-80ff-4b89-bdde-1353305a72ca` succeeded, the pushed RevisionProof image digest is `sha256:e3779de18b356002910c9983c29459cd31fe8c99c2f89e5b6668030d3c5332a8`, and Cloud Run revision `revisionproof-staging-00012-dnv` receives 100% of traffic at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`.
+
+The LIVE source is now a visually inspectable four-scene storyboard under asset `01M00000000000000000000000`. The default supported note explicitly requests a 6-second punch-in, matching the 4-8 second safety contract. Browser run `01M1GVQRHVVZ1TAQRWJZ1H0ACC` completed Gemini interpretation, official ClickHouse MCP retrieval, A/B rendering, candidate B approval, private GCS upload, and deterministic verification. It reached `READY` with all three checks PASS; delivery approval was intentionally not granted.
 
 On 2026-09-02 the user observed a LIVE run fail after Gemini parsing and about 64 seconds of ClickHouse evidence lookup. The reader's hard-coded two 30-second attempts were too short for the sleeping service. `REVISIONPROOF_MCP_MAX_ATTEMPTS` now defaults to three bounded fresh-process attempts. Post-deploy gstack run `01M1GN7EY252SSM5F2AM170TKY` logged `ClickHouse MCP timeout on attempt 1/3`, recovered on the next process, and reached `EVIDENCE_ANCHORED` in a 51.878-second HTTP 201 response with `error=null`. See `docs/qa-report-2026-09-02-mcp-recovery.md`.
 
@@ -12,11 +14,11 @@ Final gstack run `01M0Z3338TYVHWHK4FZRGADTKZ` exercised real `google.vertex.gemi
 
 ## Remaining work
 
-Submission copy, a 2:45 recording script, and explicit release gates are in `docs/submission-pack-2026-08-27.md` and `docs/demo-recording-script-2026-08-27.md`. The 2026-09-02 recovery deploy added one interpretation/evidence run only; it stopped before previews and did not grant a new delivery approval.
+Submission copy, a 2:45 recording script, and explicit release gates are in `docs/submission-pack-2026-08-27.md` and `docs/demo-recording-script-2026-08-27.md`. The latest visual-demo QA run reached `READY` but did not grant a new delivery approval.
 
 Before submission: resolve development-tool eligibility with the organizer, obtain owner approval for public repository/video publication and branch landing, perform a clean-clone check and a fresh operator-led LIVE recording, and submit only after owner review. GitHub is currently PRIVATE with default branch `main`; work remains on `review/qa-hardening`. The existing Apache 2.0 notice was completed with the official license body on this branch; GitHub default-branch detection previously reported `Other` and must be rechecked after landing. No PR or merge has been requested.
 
-Full restart hydration remains unimplemented, and the frontend does not restore an active run after refresh. The generated demo is geometric video plus a synthetic tone, with authored transcript-like seed metadata; it is not transcribed presenter footage. Capture v2's blocked state before v3 replaces the current proof and prunes old local evidence. The existing approved run is historical evidence only, not approval for a new recording run.
+Full restart hydration remains unimplemented, and the frontend does not restore an active run after refresh. The generated demo is a stylized storyboard plus a synthetic tone, with authored transcript-like seed metadata; it is not transcribed presenter footage. Capture v2's blocked state before v3 replaces the current proof and prunes old local evidence. The existing approved run is historical evidence only, not approval for a new recording run.
 
 For later Cloud Shell operations, select and verify the exact account and project before every mutation: `gcloud config set account secureis@gmail.com`, `gcloud config set project revisionproof-agentic-2026-kan`, then `gcloud config get-value account` and `gcloud config get-value project`. Keep explicit `--project=revisionproof-agentic-2026-kan` flags. Do not use `CLOUDSDK_CORE_ACCOUNT`; the guarded scripts intentionally reject delegated environment overrides. Cloud Shell token refresh may occasionally fail with `metadata server ... missing 'email' field`; stop and reauthorize the existing secureis session rather than switching identities or projects.
 
@@ -27,10 +29,10 @@ The `LIVE` badge alone is not success evidence; require actual Gemini/MCP events
 ## Git state
 
 - Branch: `review/qa-hardening`
-- Deployed implementation commit: `4852259`
+- Deployed implementation commit: `81521d3`
 - Remote: `https://github.com/devkan/RevisionProof.git`
-- Push: `review/qa-hardening` is connected to `origin`; recovery implementation commit `4852259` is pushed. The documentation checkpoint follows this handoff update. No PR or merge has been performed.
+- Push: `review/qa-hardening` is connected to `origin`; deployed implementation commit `81521d3` is pushed. The documentation checkpoint follows this handoff update. No PR or merge has been performed.
 
 ## Start here
 
-Read `docs/README.md`, `docs/qa-report-2026-09-02-mcp-recovery.md`, `docs/submission-pack-2026-08-27.md`, and `docs/demo-recording-script-2026-08-27.md`. Use `docs/qa-report-2026-08-26-live-final.md` plus the infrastructure inventory for the full historical delivery proof. The final delivery approval has been performed for the recorded final run only.
+Read `docs/README.md`, `docs/qa-report-2026-09-02-visual-demo-asset.md`, `docs/submission-pack-2026-08-27.md`, and `docs/demo-recording-script-2026-08-27.md`. Use `docs/qa-report-2026-08-26-live-final.md` plus the infrastructure inventory for the full historical delivery-approved proof. The final delivery approval has been performed for the recorded historical run only.

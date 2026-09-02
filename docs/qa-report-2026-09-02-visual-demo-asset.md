@@ -36,3 +36,11 @@ Verification completed:
 ## LIVE asset identity
 
 The visual sample uses asset ID `01M00000000000000000000000` and segment IDs ending in `001`, `002`, and `003`. The prior `01J...` source and rows remain untouched for auditability. The new GCS object and ClickHouse rows must exist before deploying the code that selects the new asset ID.
+
+## LIVE deployment and browser proof
+
+The final deploy uses commit `81521d3`, Cloud Build `a38932bf-80ff-4b89-bdde-1353305a72ca`, image digest `sha256:e3779de18b356002910c9983c29459cd31fe8c99c2f89e5b6668030d3c5332a8`, and Cloud Run revision `revisionproof-staging-00012-dnv` with 100% traffic. `/health` and `/ready` both returned LIVE success responses.
+
+The prior default sentence named an effect but not its required 4-8 second duration, so Gemini correctly and intermittently held it for clarification. The deployed default now requests a 6-second center `PUNCH_IN`; it does not override Gemini's classification. LIVE browser run `01M1GVQRHVVZ1TAQRWJZ1H0ACC` produced `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`, retrieved three official-MCP evidence matches with the intended 00:08-00:14 scene scoring 100%, rendered visible A/B previews, and froze candidate B.
+
+Uploading `revisionproof_v3_ready.mp4` to that run produced three deterministic PASS checks and state `READY`. GCS stored the private 966,907-byte candidate at `runs/01M1GVQRHVVZ1TAQRWJZ1H0ACC/versions/revisionproof_v3_ready.mp4`; ClickHouse contains one spec, 12 feature rows, and three check rows for this run. Delivery approval was intentionally not granted during QA.
