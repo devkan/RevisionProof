@@ -25,21 +25,22 @@ The generated 30-second sample is deliberately visual rather than a blank test p
 - 00:14–00:24: source, 1.05x, and 1.12x comparison cards
 - 00:24–00:30: verified-delivery card with the locked bottom-right CTA
 
-At the preview step, pause both options near 00:03 to compare crop strength. At the verification step, compare the 26-second evidence frames: v2 removes the CTA and must block; v3 preserves it and must pass.
+At the preview step, pause both options near 00:03 to compare crop strength. After choosing B, the app applies that 1.12x punch-in to the full 30-second source, verifies it, and exposes the complete MP4 without asking the operator to upload a revised file.
 
 The deployed LIVE demo is `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Before a recorded run, confirm `/health` reports `mode=LIVE`, `/ready` reports `status=ready` and `live_credentials_configured=true`, and `/api/runtime` reports `live_ready=true`. `integration_execution_verified=false` at readiness is expected because proof is established per run.
 
 ## 90-second judge path
 
-1. Point out the `LIVE MODE` badge and the runtime truth panel.
-2. Submit the prefilled three-note brief. Its first note explicitly requests a 6-second center `PUNCH_IN`, inside the 4-8 second safety window. Show `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`; only the first may execute.
-3. Show the three time-coded evidence matches and the `mcp-clickhouse.run_query` source.
-4. Render A/B, pause both previews near 00:03 so the crop difference is visible, and approve B (1.12x), matching the final verified run.
-5. Point to the frozen SHA-256 spec hash.
-6. Upload `runtime/demo/revisionproof_v2_blocked.mp4`. The approved patch and audio pass, the hidden CTA regression fails, before/after frames appear, and both the release gate and delivery button are blocked.
-7. Upload `runtime/demo/revisionproof_v3_ready.mp4`. All checks pass and the release gate reads `PUBLISH READY`.
-8. Before the separate delivery action, open raw run JSON and show `state=READY`, the live source labels, and `delivery_approved=false`.
-9. Execute **Approve for Delivery** only when the demo operator has explicitly chosen to make that final delivery decision, then show `delivery_approved=true` and the new human approval event. Final evidence run `01M0Z3338TYVHWHK4FZRGADTKZ` has completed this step.
+1. Point out the `LIVE` badge and the runtime truth panel.
+2. Submit the prefilled three-note brief. Its first note requests a 6-second center `PUNCH_IN`, inside the 4-8 second safety window.
+3. Show the checklist: one request is ready, one needs details, and one needs an editor. Select only the ready request; the other two remain unchanged.
+4. Point to the `mcp-clickhouse.run_query` scene match, create A/B previews, and open each preview larger near 00:03 to compare crop strength.
+5. Choose B (1.12x). Keep the processing banner visible while RevisionProof freezes the spec, builds the complete video, and runs all three checks.
+6. Play the final 30-second result in the page or enlarged viewer. Show all three PASS checks and download the generated MP4 if needed.
+7. Before the separate delivery action, open raw run JSON and show `state=READY`, the live source labels, `generated_version_url`, and `delivery_approved=false`.
+8. Execute **Approve for delivery** only when the demo operator explicitly makes that final decision, then show `delivery_approved=true` and the new human approval event.
+
+The collapsed **Verify a video edited somewhere else** panel is optional. Use it only for an externally produced MP4. The accepted boundary is H.264/AAC MP4, 1280×720, up to 60 seconds, and up to 24 MiB.
 
 ## Three-run rehearsal
 

@@ -118,6 +118,70 @@ async def test_real_media_v2_blocks_then_v3_passes(
     assert snapshot.delivery_approved is True
 
 
+@pytest.mark.asyncio
+async def test_selected_request_builds_and_verifies_full_video(
+    service: RevisionProofService, runtime_dir: Path
+) -> None:
+    snapshot = await service.create_run(
+        CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback=THREE_NOTES)
+    )
+    auto_note = next(
+        note
+        for note in snapshot.notes
+        if note.classification is SafetyClassification.AUTO_PREVIEWABLE
+    )
+    snapshot = service.generate_previews(
+        snapshot.run_id,
+        selected_note_id=auto_note.note_id,
+    )
+    assert snapshot.selected_note_id == auto_note.note_id
+    snapshot = service.approve(snapshot.run_id, ApprovalRequest(candidate_id="B"))
+
+    snapshot = service.render_approved_version(
+        snapshot.run_id,
+        idempotency_key=f"{snapshot.run_id}:automatic-version",
+    )
+
+    assert snapshot.state is RunState.READY
+    assert snapshot.generated_version_url == f"/api/runs/{snapshot.run_id}/generated-video"
+    assert snapshot.proof is not None and snapshot.proof.publish_allowed is True
+    assert all(check.verdict is Verdict.PASS for check in snapshot.proof.checks)
+    generated = service.repository.version_path(snapshot.run_id)
+    assert generated.is_file()
+    assert generated.stat().st_size <= service.settings.max_upload_bytes
+    assert not (runtime_dir / "runs" / snapshot.run_id / "render").exists()
+
+    replay = service.render_approved_version(
+        snapshot.run_id,
+        idempotency_key=f"{snapshot.run_id}:automatic-version",
+    )
+    assert replay.generated_version_url == snapshot.generated_version_url
+
+    app = FastAPI()
+    app.state.service = service
+    app.include_router(router)
+    response = TestClient(app).get(snapshot.generated_version_url)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("video/mp4")
+
+
+@pytest.mark.asyncio
+async def test_unsupported_request_cannot_enter_preview_pipeline(
+    service: RevisionProofService,
+) -> None:
+    snapshot = await service.create_run(
+        CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback=THREE_NOTES)
+    )
+    manual_note = next(
+        note
+        for note in snapshot.notes
+        if note.classification is SafetyClassification.MANUAL_CREATIVE
+    )
+
+    with pytest.raises(ValueError, match="select one request marked ready"):
+        service.generate_previews(snapshot.run_id, selected_note_id=manual_note.note_id)
+
+
 @pytest.mark.parametrize("candidate_id", ["A", "B"])
 def test_demo_versions_follow_the_frozen_candidate(
     service: RevisionProofService, candidate_id: str

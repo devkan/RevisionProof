@@ -1,19 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ArrowRight,
+  AlertTriangle,
   Check,
   CheckCircle2,
   ChevronRight,
   CircleDot,
   Clock3,
-  FileCheck2,
+  Download,
+  ExternalLink,
   Film,
   Fingerprint,
+  Info,
   LockKeyhole,
+  RefreshCw,
   Search,
   ShieldAlert,
   Sparkles,
   Upload,
+  WandSparkles,
   XCircle,
   ZoomIn,
 } from 'lucide-react'
@@ -25,16 +29,69 @@ import { VideoLightbox, type VideoLightboxContent } from './VideoLightbox'
 import type {
   DemoAsset,
   PatchCandidate,
+  RevisionNote,
   RunSnapshot,
   RuntimeStatus,
   SafetyClassification,
   Verdict,
 } from './types'
 
-const CLASSIFICATION_LABEL: Record<SafetyClassification, string> = {
-  AUTO_PREVIEWABLE: 'AUTO PREVIEW',
-  NEEDS_CLARIFICATION: 'CLARIFY',
-  MANUAL_CREATIVE: 'MANUAL',
+type ProcessingPhase =
+  | 'interpreting'
+  | 'rendering-previews'
+  | 'approving'
+  | 'building-video'
+  | 'verifying-upload'
+  | 'delivery-approval'
+  | 'retrying'
+
+const PROCESSING_COPY: Record<ProcessingPhase, { title: string; detail: string }> = {
+  interpreting: {
+    title: 'Reviewing every client request…',
+    detail: 'Gemini is separating safe automatic edits from requests that need details or an editor.',
+  },
+  'rendering-previews': {
+    title: 'Creating two preview options…',
+    detail: 'ClickHouse evidence anchors the scene, then FFmpeg renders the 1.05× and 1.12× options.',
+  },
+  approving: {
+    title: 'Freezing your approved option…',
+    detail: 'RevisionProof is locking the selected edit, CTA, and audio requirements into one spec.',
+  },
+  'building-video': {
+    title: 'Building and checking the full video…',
+    detail: 'The selected punch-in is being applied to the 30-second source, then all three checks run automatically.',
+  },
+  'verifying-upload': {
+    title: 'Checking the external edit…',
+    detail: 'RevisionProof is comparing the uploaded full MP4 with the frozen edit and locked elements.',
+  },
+  'delivery-approval': {
+    title: 'Recording final delivery approval…',
+    detail: 'The verified result is being marked as approved for delivery.',
+  },
+  retrying: {
+    title: 'Retrying the preserved feedback…',
+    detail: 'Your original note is safe. RevisionProof is reconnecting to the live interpretation path.',
+  },
+}
+
+const CLASSIFICATION_CONTENT: Record<
+  SafetyClassification,
+  { label: string; helper: string }
+> = {
+  AUTO_PREVIEWABLE: {
+    label: 'Ready to automate',
+    helper: 'Precise enough to preview and apply safely.',
+  },
+  NEEDS_CLARIFICATION: {
+    label: 'Needs details',
+    helper: 'RevisionProof will not guess what the client meant.',
+  },
+  MANUAL_CREATIVE: {
+    label: 'Needs an editor',
+    helper: 'Requires new creative material or a subjective choice.',
+  },
 }
 
 function formatTime(seconds: number) {
@@ -47,52 +104,120 @@ function VerdictPill({ verdict }: { verdict: Verdict }) {
   const Icon = verdict === 'PASS' ? CheckCircle2 : verdict === 'FAIL' ? XCircle : ShieldAlert
   return (
     <span className={`verdict verdict-${verdict.toLowerCase()}`}>
-      <Icon size={14} /> {verdict}
+      <Icon size={16} /> {verdict.replace('_', ' ')}
     </span>
+  )
+}
+
+function ProcessingBanner({ phase }: { phase: ProcessingPhase }) {
+  const copy = PROCESSING_COPY[phase]
+  return (
+    <section className="processing-banner" role="status" aria-live="polite" aria-busy="true">
+      <span className="spinner" aria-hidden="true" />
+      <div>
+        <strong>{copy.title}</strong>
+        <p>{copy.detail}</p>
+      </div>
+    </section>
+  )
+}
+
+function RequestRow({
+  note,
+  selected,
+  executable,
+  disabled,
+  onSelect,
+}: {
+  note: RevisionNote
+  selected: boolean
+  executable: boolean
+  disabled: boolean
+  onSelect: () => void
+}) {
+  const content =
+    note.classification === 'AUTO_PREVIEWABLE' && !executable
+      ? {
+          label: 'Ready in another proof',
+          helper: 'This proof already grounds one deterministic edit. Start a new proof for this request.',
+        }
+      : CLASSIFICATION_CONTENT[note.classification]
+  const Icon = executable
+    ? CheckCircle2
+    : note.classification === 'NEEDS_CLARIFICATION'
+      ? AlertTriangle
+      : Info
+
+  return (
+    <article className={`request-row request-${note.classification.toLowerCase()} ${selected ? 'request-selected' : ''}`}>
+      <label className="request-select">
+        <input
+          type="checkbox"
+          checked={selected}
+          disabled={!executable || disabled}
+          onChange={onSelect}
+          aria-label={`${selected ? 'Deselect' : 'Select'} request: ${note.raw_text}`}
+        />
+      </label>
+      <div className="request-body">
+        <div className="request-heading">
+          <span className={`request-status status-${note.classification.toLowerCase()}`}>
+            <Icon size={16} /> {content.label}
+          </span>
+          <span className="confidence">{Math.round(note.confidence * 100)}% confidence</span>
+        </div>
+        <h3>{note.raw_text}</h3>
+        <p>{note.intent}</p>
+        <small>{content.helper}</small>
+        {note.clarification_question && (
+          <div className="clarification-callout">
+            <strong>Ask the client:</strong> {note.clarification_question}
+          </div>
+        )}
+      </div>
+    </article>
   )
 }
 
 function CandidateCard({
   candidate,
   approved,
-  onApprove,
+  onChoose,
   onViewLarge,
   busy,
 }: {
   candidate: PatchCandidate
   approved: boolean
-  onApprove: () => void
+  onChoose: () => void
   onViewLarge: () => void
   busy: boolean
 }) {
+  const strength = candidate.candidate_id === 'A' ? 'Subtle' : 'Stronger'
   return (
     <article className={`candidate-card ${approved ? 'candidate-approved' : ''}`}>
       <div className="candidate-heading">
         <span className="candidate-letter">{candidate.candidate_id}</span>
         <div>
-          <p>{candidate.scale.toFixed(2)}× center punch-in</p>
-          <span>
-            {formatTime(candidate.time_range.start_seconds)}–{formatTime(candidate.time_range.end_seconds)}
-          </span>
+          <h3>{strength} center punch-in</h3>
+          <p>{candidate.scale.toFixed(2)}× · {formatTime(candidate.time_range.start_seconds)}–{formatTime(candidate.time_range.end_seconds)}</p>
         </div>
-        {approved && <span className="approved-label"><Check size={13} /> Approved</span>}
+        {approved && <span className="approved-label"><Check size={15} /> Selected</span>}
       </div>
-      {candidate.preview_url && <video src={candidate.preview_url} controls muted playsInline />}
       {candidate.preview_url && (
-        <button
-          className="view-larger-button"
-          type="button"
-          onClick={onViewLarge}
-          aria-label={`View option ${candidate.candidate_id} larger`}
-        >
-          <ZoomIn size={15} /> View larger
-        </button>
+        <video src={candidate.preview_url} controls muted playsInline preload="metadata" />
       )}
-      {!approved && (
-        <button className="secondary-button full-button" onClick={onApprove} disabled={busy}>
-          Approve option {candidate.candidate_id} <ArrowRight size={15} />
-        </button>
-      )}
+      <div className="candidate-actions">
+        {candidate.preview_url && (
+          <button className="secondary-button" type="button" onClick={onViewLarge}>
+            <ZoomIn size={17} /> View larger
+          </button>
+        )}
+        {!approved && (
+          <button className="primary-button candidate-choice" onClick={onChoose} disabled={busy}>
+            <WandSparkles size={17} /> Choose {candidate.candidate_id} and build full video
+          </button>
+        )}
+      </div>
     </article>
   )
 }
@@ -102,11 +227,13 @@ export default function App() {
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null)
   const [run, setRun] = useState<RunSnapshot | null>(null)
   const [feedback, setFeedback] = useState(DEFAULT_FEEDBACK)
-  const [busy, setBusy] = useState(false)
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
+  const [processing, setProcessing] = useState<ProcessingPhase | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<VideoLightboxContent | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const runId = run?.run_id
+  const busy = processing !== null
   const feedbackError = run ? null : feedbackValidationMessage(feedback)
 
   useEffect(() => {
@@ -134,178 +261,248 @@ export default function App() {
   }, [runId])
 
   const activeAsset = run?.asset ?? assets[0]
-  const progress = useMemo(() => {
-    if (!run) return 0
-    if (run.delivery_approved) return 100
-    if (run.state === 'READY') return 94
-    if (run.state === 'BLOCKED') return 84
-    if (run.state === 'HUMAN_APPROVED') return 68
-    if (run.state === 'PREVIEWS_READY') return 50
-    if (run.state === 'EVIDENCE_ANCHORED') return 32
-    return 15
-  }, [run])
+  const executableNotes = useMemo(
+    () =>
+      run?.notes.filter(
+        (note) => note.classification === 'AUTO_PREVIEWABLE' && run.feedback?.raw_text === note.raw_text,
+      ) ?? [],
+    [run],
+  )
+  const unsupportedCount = useMemo(
+    () => run?.notes.filter((note) => note.classification !== 'AUTO_PREVIEWABLE').length ?? 0,
+    [run?.notes],
+  )
+  const currentStep = !run ? 1 : !run.candidates.length ? 2 : !run.spec ? 3 : 4
 
-  async function action(work: () => Promise<RunSnapshot>) {
-    setBusy(true)
+  async function action(phase: ProcessingPhase, work: () => Promise<RunSnapshot>) {
+    setProcessing(phase)
     setError(null)
     try {
-      setRun(await work())
+      const next = await work()
+      setRun(next)
+      return next
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unexpected request failure')
+      return null
     } finally {
-      setBusy(false)
+      setProcessing(null)
     }
   }
 
   function start() {
     if (!activeAsset || !runtime?.mutable) return
-    void action(() => api.createRun(activeAsset.asset_id, feedback))
+    setSelectedNoteId(null)
+    void action('interpreting', () => api.createRun(activeAsset.asset_id, feedback))
+  }
+
+  function renderPreviews() {
+    if (!run || !selectedNoteId) return
+    void action('rendering-previews', () => api.previews(run.run_id, selectedNoteId))
+  }
+
+  async function chooseAndBuild(candidateId: 'A' | 'B') {
+    if (!run) return
+    setError(null)
+    setProcessing('approving')
+    try {
+      const approved = await api.approve(run.run_id, candidateId)
+      setRun(approved)
+      setProcessing('building-video')
+      setRun(await api.renderApprovedVersion(run.run_id))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Automatic video build failed')
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  function retryAutomaticBuild() {
+    if (!run) return
+    void action('building-video', () => api.renderApprovedVersion(run.run_id))
   }
 
   function uploadManual(file?: File) {
     if (!run || !file) return
-    void action(() => api.uploadVersion(run.run_id, file.name.replace(/\.mp4$/i, ''), file))
+    void action('verifying-upload', () =>
+      api.uploadVersion(run.run_id, file.name.replace(/\.mp4$/i, ''), file),
+    )
+  }
+
+  function resetProof() {
+    if (busy) return
+    setRun(null)
+    setSelectedNoteId(null)
+    setError(null)
+    setFeedback(DEFAULT_FEEDBACK)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <a className="brand" href="#top" aria-label="RevisionProof home">
-          <span className="brand-mark"><Fingerprint size={20} /></span>
+          <span className="brand-mark"><Fingerprint size={22} /></span>
           <span>Revision<span>Proof</span></span>
         </a>
         <div className="header-meta">
           <span className={`mode-badge mode-${(run?.mode ?? runtime?.mode ?? 'UNAVAILABLE').toLowerCase()}`}>
-            <CircleDot size={12} /> {run?.mode ?? runtime?.mode ?? 'CHECKING'} MODE
+            <CircleDot size={13} /> {run?.mode ?? runtime?.mode ?? 'CHECKING'}
           </span>
-          <span className="run-id">{run ? `RUN ${run.run_id.slice(-8)}` : 'NEW PROOF'}</span>
+          <button className="new-proof-button" onClick={resetProof} disabled={busy || !run}>
+            <RefreshCw size={16} /> New proof
+          </button>
         </div>
       </header>
 
       <main id="top">
-        <section className="hero">
-          <div className="eyebrow"><LockKeyhole size={14} /> APPROVAL, MADE EXECUTABLE</div>
-          <h1>Know exactly<br /><em>what changed.</em></h1>
-          <p>Turn ambiguous feedback into an approved patch, then block any version that breaks what was already locked.</p>
-          <div className="hero-rule"><span style={{ width: `${progress}%` }} /></div>
+        <section className="workspace-intro">
+          <div>
+            <span className="eyebrow">VIDEO REVISION WORKSPACE</span>
+            <h1>Turn client notes into a verified video.</h1>
+            <p>Review what can be automated, choose an A/B edit, then get the full checked MP4.</p>
+          </div>
+          <ol className="step-rail" aria-label="Revision workflow progress">
+            {['Source & notes', 'Review requests', 'Compare A/B', 'Build & verify'].map((label, index) => {
+              const step = index + 1
+              const state = step < currentStep ? 'done' : step === currentStep ? 'active' : 'waiting'
+              return (
+                <li className={`step-${state}`} key={label}>
+                  <span>{state === 'done' ? <Check size={16} /> : step}</span>
+                  <strong>{label}</strong>
+                </li>
+              )
+            })}
+          </ol>
         </section>
 
-        {error && <div className="error-banner"><ShieldAlert size={17} /><span>{error}</span></div>}
-        {run?.state === 'FAILED' && run.retryable && (
-          <div className="error-banner">
-            <ShieldAlert size={17} />
-            <span>{run.error ?? 'The live interpretation failed closed.'}</span>
-            <button className="quiet-button" onClick={() => void action(() => api.retryRun(run.run_id))} disabled={busy}>
-              {busy ? 'Retrying…' : 'Retry preserved feedback'}
+        {processing && <ProcessingBanner phase={processing} />}
+        {error && (
+          <div className="error-banner" role="alert">
+            <ShieldAlert size={22} />
+            <div><strong>RevisionProof could not finish that step.</strong><p>{error}</p></div>
+          </div>
+        )}
+        {run?.state === 'FAILED' && run.retryable && !processing && (
+          <div className="recovery-banner">
+            <div><strong>Your original feedback is preserved.</strong><p>{run.error ?? 'The live request failed closed.'}</p></div>
+            <button className="secondary-button" onClick={() => void action('retrying', () => api.retryRun(run.run_id))}>
+              Retry review
             </button>
           </div>
         )}
         {runtime && runtime.mode !== 'LIVE' && (
           <div className="runtime-banner">
-            <CircleDot size={16} />
-            <span><strong>{runtime.mode}</strong> — {runtime.message}</span>
+            <CircleDot size={18} />
+            <span><strong>{runtime.mode}</strong> · {runtime.message}</span>
           </div>
         )}
 
         <section className="workspace-grid">
           <div className="primary-column">
-            <section className="panel intake-panel">
-              <div className="panel-heading">
-                <div><span className="step-number">01</span><h2>Interpret the note</h2></div>
-                <span className="panel-status">{run ? 'CAPTURED' : 'WAITING'}</span>
+            <section className="workspace-section source-section">
+              <div className="section-heading">
+                <div><span className="step-number">01</span><div><h2>Source video and client notes</h2><p>Start with the exact video and the client’s original wording.</p></div></div>
+                <span className={`section-state ${run ? 'state-complete' : ''}`}>{run ? 'Reviewed' : 'Ready'}</span>
               </div>
-              {activeAsset && (
-                <div className="asset-strip">
-                  <Film size={18} />
-                  <div><strong>{activeAsset.title}</strong><span>{activeAsset.width}×{activeAsset.height} · {activeAsset.duration_seconds}s · {activeAsset.codec}</span></div>
-                  <button
-                    className="view-larger-button asset-view-button"
-                    type="button"
-                    aria-label="View original video larger"
-                    onClick={() => setVideoPreview({
-                      src: activeAsset.source_url,
-                      title: 'Original video',
-                      detail: `${activeAsset.title} · ${activeAsset.width}×${activeAsset.height}`,
-                    })}
-                  >
-                    <ZoomIn size={15} /> View larger
-                  </button>
-                </div>
-              )}
-              <label htmlFor="feedback">Client feedback</label>
-              <textarea
-                id="feedback"
-                value={feedback}
-                onChange={(event) => setFeedback(event.target.value)}
-                disabled={Boolean(run)}
-                aria-describedby={feedbackError ? 'feedback-help' : undefined}
-                aria-invalid={Boolean(feedbackError)}
-              />
-              {feedbackError && (
-                <p className="input-help input-help-error" id="feedback-help" role="status">
-                  {feedbackError}
-                </p>
-              )}
-              {!run && (
-                <button className="primary-button" onClick={start} disabled={busy || !activeAsset || !runtime?.mutable || Boolean(feedbackError)}>
-                  <Sparkles size={16} /> {busy ? 'Interpreting…' : 'Interpret & locate evidence'}
-                </button>
-              )}
-              {run?.notes.length ? (
-                <div className="note-results">
-                  {run.notes.map((note) => (
-                    <article className={`note-card note-${note.classification.toLowerCase()}`} key={note.note_id}>
-                      <div className="note-heading">
-                        <span>{note.note_id.replace('_', ' ')}</span>
-                        <strong>{CLASSIFICATION_LABEL[note.classification]}</strong>
-                      </div>
-                      <p>{note.raw_text}</p>
-                      <small>{note.intent}</small>
-                      {note.clarification_question && <em>{note.clarification_question}</em>}
-                      <div className="confidence">{Math.round(note.confidence * 100)}% confidence</div>
-                    </article>
-                  ))}
-                  {run.feedback && (
-                    <div className="active-operation">
-                      <span className="micro-label">SAFE OPERATION</span>
-                      <div className="chip-row"><span>PUNCH_IN</span><span>“{run.feedback.target_phrase}”</span></div>
-                      <small>Source: {run.feedback.interpreter_source}</small>
+              <div className="source-layout">
+                {activeAsset && (
+                  <div className="source-video-card">
+                    <video src={activeAsset.source_url} controls muted playsInline preload="metadata" />
+                    <div className="source-video-meta">
+                      <div><strong>{activeAsset.title}</strong><span>{activeAsset.width}×{activeAsset.height} · {activeAsset.duration_seconds}s · {activeAsset.codec}</span></div>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        aria-label="View original video larger"
+                        onClick={() => setVideoPreview({
+                          src: activeAsset.source_url,
+                          title: 'Original video',
+                          detail: `${activeAsset.title} · ${activeAsset.width}×${activeAsset.height}`,
+                        })}
+                      >
+                        <ZoomIn size={17} /> View larger
+                      </button>
                     </div>
+                  </div>
+                )}
+                <div className="feedback-field">
+                  <label htmlFor="feedback">Client feedback</label>
+                  <textarea
+                    id="feedback"
+                    value={feedback}
+                    onChange={(event) => setFeedback(event.target.value)}
+                    disabled={Boolean(run) || busy}
+                    aria-describedby={feedbackError ? 'feedback-help' : 'feedback-guidance'}
+                    aria-invalid={Boolean(feedbackError)}
+                  />
+                  <p className={`input-help ${feedbackError ? 'input-help-error' : ''}`} id={feedbackError ? 'feedback-help' : 'feedback-guidance'}>
+                    {feedbackError ?? 'One request per line works best. RevisionProof will never silently execute an unsupported request.'}
+                  </p>
+                  {!run && (
+                    <button className="primary-button" onClick={start} disabled={busy || !activeAsset || !runtime?.mutable || Boolean(feedbackError)}>
+                      <Sparkles size={18} /> Review what can be automated
+                    </button>
                   )}
                 </div>
-              ) : null}
+              </div>
             </section>
 
-            {run?.evidence.length ? (
-              <section className="panel evidence-panel">
-                <div className="panel-heading">
-                  <div><span className="step-number">02</span><h2>Anchor the evidence</h2></div>
-                  <span className="panel-status panel-status-good">3 MATCHES</span>
+            {run?.notes.length ? (
+              <section className="workspace-section request-section">
+                <div className="section-heading">
+                  <div><span className="step-number">02</span><div><h2>Choose a safe request</h2><p>Only checked requests can change the video.</p></div></div>
+                  <span className="section-state state-active">Your decision</span>
                 </div>
-                <div className="evidence-list">
-                  {run.evidence.map((item, index) => (
-                    <article className={index === 0 ? 'evidence-primary' : ''} key={item.segment_id}>
-                      <div className="time-code"><Clock3 size={13} /> {formatTime(item.time_range.start_seconds)}–{formatTime(item.time_range.end_seconds)}</div>
-                      <div><strong>{item.visual_summary}</strong><p>“{item.transcript}”</p><small>{item.source}</small></div>
-                      <span className="score">{Math.round(item.score * 100)}%</span>
-                    </article>
-                  ))}
+                <div className="request-summary" role="status">
+                  <span className="summary-supported"><CheckCircle2 size={18} /> {executableNotes.length} ready</span>
+                  <span><AlertTriangle size={18} /> {run.notes.filter((note) => note.classification === 'NEEDS_CLARIFICATION').length} need details</span>
+                  <span><Info size={18} /> {run.notes.filter((note) => note.classification === 'MANUAL_CREATIVE').length} need an editor</span>
                 </div>
-                {run.state === 'EVIDENCE_ANCHORED' && (
-                  <button className="primary-button" onClick={() => void action(() => api.previews(run.run_id))} disabled={busy}>
-                    <Film size={16} /> {busy ? 'Rendering A/B…' : 'Render constrained previews'}
-                  </button>
+                {unsupportedCount > 0 && (
+                  <div className="partial-plan-callout">
+                    <ShieldAlert size={20} />
+                    <div><strong>Partial execution is explicit.</strong><p>RevisionProof will apply only the request you select below. The other {unsupportedCount} request{unsupportedCount === 1 ? '' : 's'} will remain unchanged.</p></div>
+                  </div>
+                )}
+                <div className="request-list">
+                  {run.notes.map((note) => {
+                    const executable = note.classification === 'AUTO_PREVIEWABLE' && run.feedback?.raw_text === note.raw_text
+                    return (
+                      <RequestRow
+                        key={note.note_id}
+                        note={note}
+                        executable={executable}
+                        selected={selectedNoteId === note.note_id}
+                        disabled={busy || Boolean(run.candidates.length)}
+                        onSelect={() => setSelectedNoteId((current) => current === note.note_id ? null : note.note_id)}
+                      />
+                    )
+                  })}
+                </div>
+                {!run.candidates.length && run.state !== 'FAILED' && (
+                  <div className="section-action-bar">
+                    <div><strong>{selectedNoteId ? '1 request selected' : 'Select one ready request'}</strong><p>This demo applies one deterministic edit per proof.</p></div>
+                    <button className="primary-button" onClick={renderPreviews} disabled={busy || !selectedNoteId}>
+                      <Film size={18} /> Create A/B previews
+                    </button>
+                  </div>
                 )}
               </section>
             ) : null}
 
             {run?.candidates.length ? (
-              <section className="panel">
-                <div className="panel-heading">
-                  <div><span className="step-number">03</span><h2>Choose the approved patch</h2></div>
-                  <span className="panel-status">HUMAN GATE</span>
+              <section className="workspace-section compare-section">
+                <div className="section-heading">
+                  <div><span className="step-number">03</span><div><h2>Compare and choose</h2><p>Both options preserve timing and audio. Only the center crop strength changes.</p></div></div>
+                  <span className="section-state state-active">Choose A or B</span>
                 </div>
-                <p className="section-copy">Both options preserve timing and audio. Only the center crop strength changes.</p>
+                {run.evidence[0] && (
+                  <div className="evidence-summary">
+                    <Clock3 size={20} />
+                    <div><strong>Matched scene {formatTime(run.evidence[0].time_range.start_seconds)}–{formatTime(run.evidence[0].time_range.end_seconds)}</strong><p>{run.evidence[0].visual_summary}</p></div>
+                    <span>{Math.round(run.evidence[0].score * 100)}% match</span>
+                  </div>
+                )}
                 <div className="candidate-grid">
                   {run.candidates.map((candidate) => (
                     <CandidateCard
@@ -313,7 +510,7 @@ export default function App() {
                       candidate={candidate}
                       approved={run.spec?.approved_candidate.candidate_id === candidate.candidate_id}
                       busy={busy || Boolean(run.spec)}
-                      onApprove={() => void action(() => api.approve(run.run_id, candidate.candidate_id))}
+                      onChoose={() => void chooseAndBuild(candidate.candidate_id)}
                       onViewLarge={() => {
                         if (!candidate.preview_url) return
                         setVideoPreview({
@@ -328,56 +525,44 @@ export default function App() {
               </section>
             ) : null}
 
-            {run?.spec && (
-              <section className="panel spec-panel">
-                <div className="panel-heading">
-                  <div><span className="step-number">04</span><h2>Verify the revision</h2></div>
-                  <span className="panel-status panel-status-good"><LockKeyhole size={12} /> SPEC FROZEN</span>
-                </div>
-                <div className="hash-block"><Fingerprint size={17} /><div><span>SHA-256 REVISION SPEC</span><code>{run.spec.spec_hash}</code></div></div>
-                <p className="section-copy">
-                  {run.mode === 'FIXTURE'
-                    ? 'Try the intentional failure first. v2 keeps the punch-in but removes the locked CTA. v3 repairs it.'
-                    : 'Upload the actual revised MP4 to verify it against the frozen revision spec.'}
-                </p>
-                <div className="version-actions">
-                  {run.mode === 'FIXTURE' && (
-                    <>
-                      <button className="danger-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v2'))} disabled={busy || run.state === 'READY'}>
-                        <ShieldAlert size={16} /> Verify demo v2
-                      </button>
-                      <button className="primary-button" onClick={() => void action(() => api.demoVersion(run.run_id, 'v3'))} disabled={busy || run.state === 'HUMAN_APPROVED' || run.state === 'READY'}>
-                        <FileCheck2 size={16} /> Verify repaired v3
-                      </button>
-                    </>
-                  )}
-                  <button className="quiet-button" onClick={() => fileInput.current?.click()} disabled={busy || run.state === 'READY'}>
-                    <Upload size={15} /> Upload MP4
-                  </button>
-                  <input ref={fileInput} hidden type="file" accept="video/mp4" onChange={(event) => uploadManual(event.target.files?.[0])} />
-                </div>
-                <p className="privacy-note">Use only licensed, non-sensitive demo media. Uploaded candidate files are never exposed through the public media route.</p>
+            {run?.spec && !run.proof && !processing && (
+              <section className="workspace-section build-recovery-section">
+                <div><AlertTriangle size={24} /><div><h2>The option is approved, but the full video is not ready.</h2><p>Retry the automatic build. Your frozen approval will not change.</p></div></div>
+                <button className="primary-button" onClick={retryAutomaticBuild}><WandSparkles size={18} /> Build full video</button>
               </section>
             )}
 
             {run?.proof && (
-              <section className={`gate-panel gate-${run.proof.publish_allowed ? 'ready' : 'blocked'}`}>
-                <div className="gate-summary">
-                  <div className="gate-icon">{run.proof.publish_allowed ? <CheckCircle2 /> : <ShieldAlert />}</div>
-                  <div><span>RELEASE GATE · {run.proof.version_label.toUpperCase()}</span><h2>{run.proof.publish_allowed ? 'PUBLISH READY' : 'PUBLISH BLOCKED'}</h2><p>{run.proof.publish_allowed ? 'Every approved and locked invariant passed.' : 'A locked invariant regressed. Approval cannot be reused.'}</p></div>
+              <section className={`result-section result-${run.proof.publish_allowed ? 'ready' : 'blocked'}`}>
+                <div className="result-heading">
+                  <div className="result-icon">{run.proof.publish_allowed ? <CheckCircle2 size={28} /> : <ShieldAlert size={28} />}</div>
+                  <div><span>04 · FULL VIDEO VERIFICATION</span><h2>{run.proof.publish_allowed ? 'Your revised video is ready.' : 'The revised video is blocked.'}</h2><p>{run.proof.publish_allowed ? 'The selected edit was applied and every locked element still passes.' : 'At least one locked requirement changed. Delivery stays disabled.'}</p></div>
                 </div>
+
+                {run.generated_version_url && (
+                  <div className="final-video-block">
+                    <video src={run.generated_version_url} controls playsInline preload="metadata" />
+                    <div className="final-video-actions">
+                      <button className="secondary-button" onClick={() => setVideoPreview({ src: run.generated_version_url!, title: 'Full revised video', detail: `Option ${run.spec?.approved_candidate.candidate_id} applied to the complete ${run.asset.duration_seconds}-second source` })}>
+                        <ZoomIn size={17} /> View larger
+                      </button>
+                      <a className="download-button" href={run.generated_version_url} download><Download size={17} /> Download MP4</a>
+                    </div>
+                  </div>
+                )}
+
                 <div className="check-list">
                   {run.proof.checks.map((check) => (
                     <article key={check.check_id}>
-                      <div><strong>{check.label}</strong><span>{formatTime(check.evidence_time_range.start_seconds)}–{formatTime(check.evidence_time_range.end_seconds)}</span></div>
+                      <div className="check-name"><strong>{check.label}</strong><span>{formatTime(check.evidence_time_range.start_seconds)}–{formatTime(check.evidence_time_range.end_seconds)}</span></div>
                       <div className="check-metrics">
-                        <span>measured {JSON.stringify(check.measured)}</span>
-                        <span>threshold {JSON.stringify(check.threshold)}</span>
+                        <span>Measured: {JSON.stringify(check.measured)}</span>
+                        <span>Required: {JSON.stringify(check.threshold)}</span>
                         {check.failure_code && <code>{check.failure_code}</code>}
                         {check.evidence_urls.length === 2 && (
                           <div className="evidence-frames">
-                            <figure><img src={check.evidence_urls[0]} alt="Approved baseline CTA evidence" /><figcaption>BASELINE</figcaption></figure>
-                            <figure><img src={check.evidence_urls[1]} alt={`${run.proof?.version_label} CTA evidence`} /><figcaption>{run.proof?.version_label.toUpperCase()}</figcaption></figure>
+                            <figure><img src={check.evidence_urls[0]} alt="Approved baseline CTA evidence" /><figcaption>ORIGINAL</figcaption></figure>
+                            <figure><img src={check.evidence_urls[1]} alt={`${run.proof?.version_label} CTA evidence`} /><figcaption>REVISED</figcaption></figure>
                           </div>
                         )}
                       </div>
@@ -385,32 +570,41 @@ export default function App() {
                     </article>
                   ))}
                 </div>
+
                 <div className="delivery-action">
-                  <button
-                    className="delivery-button"
-                    onClick={() => void action(() => api.approveForDelivery(run.run_id))}
-                    disabled={busy || !run.proof.publish_allowed || run.delivery_approved || !runtime?.mutable}
-                  >
-                    {run.delivery_approved ? <CheckCircle2 size={17} /> : <LockKeyhole size={17} />}
-                    {run.delivery_approved ? 'Approved for Delivery' : 'Approve for Delivery'}
+                  <div><strong>{run.delivery_approved ? 'Delivery approved' : 'Final human gate'}</strong><p>{run.delivery_approved ? 'This verified version is approved for delivery.' : 'Confirm only after you watch the full result.'}</p></div>
+                  <button className="delivery-button" onClick={() => void action('delivery-approval', () => api.approveForDelivery(run.run_id))} disabled={busy || !run.proof.publish_allowed || run.delivery_approved || !runtime?.mutable}>
+                    {run.delivery_approved ? <CheckCircle2 size={18} /> : <LockKeyhole size={18} />}
+                    {run.delivery_approved ? 'Approved for delivery' : 'Approve for delivery'}
                   </button>
-                  {!run.proof.publish_allowed && <span>Disabled until every frozen invariant passes.</span>}
                 </div>
               </section>
+            )}
+
+            {run?.spec && (
+              <details className="external-verification">
+                <summary><ExternalLink size={17} /> Verify a video edited somewhere else</summary>
+                <div>
+                  <p>Use this only when an editor or another tool produced a separate full MP4. RevisionProof already builds its own result above.</p>
+                  <button className="secondary-button" onClick={() => fileInput.current?.click()} disabled={busy || run.state === 'READY'}><Upload size={17} /> Choose external MP4</button>
+                  <input ref={fileInput} hidden type="file" accept="video/mp4" onChange={(event) => uploadManual(event.target.files?.[0])} />
+                  <small>Limits: MP4 · H.264/AAC · 1280×720 · up to 60 seconds · up to 24 MiB.</small>
+                </div>
+              </details>
             )}
           </div>
 
           <aside className="trace-column">
-            <section className="panel sticky-panel">
+            <section className="proof-panel">
               <div className="trace-heading"><span>PROOF TRACE</span><span className={`live-dot live-dot-${(run?.mode ?? runtime?.mode ?? 'UNAVAILABLE').toLowerCase()}`} /></div>
               <div className="trace-list">
                 {(run?.events ?? []).map((event) => (
                   <div className="trace-event" key={event.sequence}>
-                    <span className="trace-node"><Check size={11} /></span>
+                    <span className="trace-node"><Check size={13} /></span>
                     <div><strong>{event.state.replaceAll('_', ' ')}</strong><p>{event.message}</p><small>{new Date(event.occurred_at).toLocaleTimeString()}</small></div>
                   </div>
                 ))}
-                {!run && <div className="empty-trace"><Search size={22} /><p>Evidence and verification events will appear here.</p></div>}
+                {!run && <div className="empty-trace"><Search size={28} /><p>Run evidence and verification will appear here.</p></div>}
               </div>
               <div className="integration-box">
                 <span className="micro-label">RUNTIME TRUTH</span>
@@ -421,15 +615,13 @@ export default function App() {
                   <div><dt>Verdict owner</dt><dd>OpenCV + FFmpeg</dd></div>
                 </dl>
               </div>
-              {run && <a className="api-link" href={`/api/runs/${run.run_id}`} target="_blank" rel="noreferrer">Inspect raw run JSON <ChevronRight size={14} /></a>}
+              {run && <a className="api-link" href={`/api/runs/${run.run_id}`} target="_blank" rel="noreferrer">Inspect raw run JSON <ChevronRight size={17} /></a>}
             </section>
           </aside>
         </section>
       </main>
-      <footer><span>RevisionProof / v2</span><span>Evidence before confidence.</span></footer>
-      {videoPreview && (
-        <VideoLightbox content={videoPreview} onClose={() => setVideoPreview(null)} />
-      )}
+      <footer><span>RevisionProof / v3</span><span>Only selected, verifiable edits run.</span></footer>
+      {videoPreview && <VideoLightbox content={videoPreview} onClose={() => setVideoPreview(null)} />}
     </div>
   )
 }

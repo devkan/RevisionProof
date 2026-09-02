@@ -4,12 +4,12 @@ RevisionProof is a deterministic approval firewall for video revisions. It conve
 
 The hackathon path is deliberately narrow:
 
-1. Index a 720p demo video and classify three notes as auto-previewable, clarification, or manual creative work.
-2. Anchor only the safe punch-in note to actual scene evidence; unsupported notes never execute.
+1. Index a 720p demo video and classify every client request as ready to automate, needing details, or needing an editor.
+2. Present the result as a checklist. Only the explicitly selected, evidence-grounded punch-in may execute; the other requests remain unchanged.
 3. Generate two constrained 4–8 second punch-in previews (1.05x and 1.12x).
-4. Human approval freezes an immutable, SHA-256-addressed spec.
-5. Upload v2: the requested patch passes, but a missing CTA blocks publishing.
-6. Upload v3: all deterministic checks pass and the human `Approve for Delivery` gate becomes available.
+4. Choosing A or B freezes an immutable, SHA-256-addressed spec and applies that option to the full 30-second source.
+5. FFmpeg and OpenCV automatically verify the requested patch, locked CTA, and audio continuity. A passing result is available to watch and download.
+6. A separate human `Approve for delivery` gate remains required. Uploading an externally edited MP4 is available only as a secondary verification path.
 
 ## Local quick start
 
@@ -28,7 +28,7 @@ Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits 
 
 ## Deployed LIVE demo
 
-The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Cloud Run revision `revisionproof-staging-00010-k4g` serves the tracked `LIVE` implementation from commit `4852259` with 100% traffic. Recovery run `01M1GN7EY252SSM5F2AM170TKY` proved that a timed-out official MCP process is replaced and retried; it then reached `EVIDENCE_ANCHORED` through `google.vertex.gemini` and `mcp-clickhouse.run_query`. The earlier full delivery run `01M0Z3338TYVHWHK4FZRGADTKZ` remains the end-to-end proof for private GCS candidates and append-only ClickHouse audit rows.
+The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. The exact current revision, build, image digest, and verification run are recorded in the dated deployment inventory and QA reports. Recovery run `01M1GN7EY252SSM5F2AM170TKY` proved that a timed-out official MCP process is replaced and retried; it then reached `EVIDENCE_ANCHORED` through `google.vertex.gemini` and `mcp-clickhouse.run_query`. Historical full delivery run `01M0Z3338TYVHWHK4FZRGADTKZ` remains evidence for the earlier external-upload path.
 
 `/ready` deliberately reports that integrations are configured, not that every future call will succeed. Treat a run as LIVE evidence only when its raw JSON shows the live source labels and the matching ClickHouse rows exist. The verified final run is `READY` and received its separate human delivery approval (`delivery_approved=true`) on 2026-08-26.
 

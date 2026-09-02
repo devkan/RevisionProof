@@ -279,11 +279,13 @@ class RunSnapshot(BaseModel):
     mode: ExecutionMode
     state: RunState
     notes: list[RevisionNote] = Field(default_factory=list)
+    selected_note_id: str | None = Field(default=None, max_length=64)
     feedback: ParsedFeedback | None = None
     evidence: list[EvidenceAnchor] = Field(default_factory=list)
     candidates: list[PatchCandidate] = Field(default_factory=list)
     spec: RevisionSpec | None = None
     proof: VerificationProof | None = None
+    generated_version_url: str | None = None
     delivery_approved: bool = False
     retryable: bool = False
     events: list[RunEvent] = Field(default_factory=list)
@@ -298,3 +300,7 @@ class CreateRunRequest(BaseModel):
 
 class ApprovalRequest(BaseModel):
     candidate_id: Literal["A", "B"]
+
+
+class PreviewRequest(BaseModel):
+    note_id: str = Field(min_length=1, max_length=64)

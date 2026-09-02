@@ -35,7 +35,7 @@ from revisionproof.contracts import (
 from revisionproof.evidence.fixture import FixtureEvidenceLocator, FixtureInterpreter
 from revisionproof.ids import new_ulid
 from revisionproof.media.executor import MediaExecutor
-from revisionproof.media.preview import generate_preview
+from revisionproof.media.preview import generate_full_revision, generate_preview
 from revisionproof.media.probe import probe_media, validate_hackathon_media
 from revisionproof.repository import InMemoryRunRepository
 from revisionproof.settings import Settings
@@ -167,12 +167,17 @@ class RevisionProofService:
             self._create_timestamps.append(now)
 
     @staticmethod
-    def _feedback_from_notes(snapshot: RunSnapshot, source: str) -> ParsedFeedback | None:
+    def _feedback_from_notes(
+        snapshot: RunSnapshot,
+        source: str,
+        selected_note_id: str | None = None,
+    ) -> ParsedFeedback | None:
         note = next(
             (
                 item
                 for item in snapshot.notes
                 if item.classification is SafetyClassification.AUTO_PREVIEWABLE
+                and (selected_note_id is None or item.note_id == selected_note_id)
             ),
             None,
         )
@@ -361,23 +366,47 @@ class RevisionProofService:
             "Evidence selected through mcp-clickhouse.run_query",
         )
 
-    def generate_previews(self, run_id: str, idempotency_key: str | None = None) -> RunSnapshot:
+    def generate_previews(
+        self,
+        run_id: str,
+        idempotency_key: str | None = None,
+        selected_note_id: str | None = None,
+    ) -> RunSnapshot:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
-        fingerprint = self._fingerprint(run_id)
+        fingerprint = self._fingerprint(f"{run_id}:{selected_note_id or 'default'}")
         with self.repository.locked(run_id):
             replay = self.repository.recall_idempotent(f"{run_id}:previews", key, fingerprint)
             if replay is not None:
                 return replay
             with self._exclusive_media_pipeline():
-                snapshot = self._generate_previews_locked(run_id)
+                snapshot = self._generate_previews_locked(run_id, selected_note_id)
                 self.repository.remember_idempotent(f"{run_id}:previews", key, fingerprint, run_id)
                 return snapshot
 
-    def _generate_previews_locked(self, run_id: str) -> RunSnapshot:
+    def _generate_previews_locked(
+        self, run_id: str, selected_note_id: str | None = None
+    ) -> RunSnapshot:
         snapshot = self.repository.get(run_id)
         if snapshot.state is not RunState.EVIDENCE_ANCHORED:
             raise ValueError("previews require EVIDENCE_ANCHORED state")
+        selected_feedback = self._feedback_from_notes(
+            snapshot,
+            snapshot.feedback.interpreter_source if snapshot.feedback else "fixture.interpreter",
+            selected_note_id,
+        )
+        if selected_feedback is None:
+            raise ValueError("select one request marked ready for automatic editing")
+        if snapshot.feedback is None or selected_feedback.raw_text != snapshot.feedback.raw_text:
+            raise ValueError("the selected request does not match the anchored scene evidence")
+        selected_note = next(
+            item
+            for item in snapshot.notes
+            if item.classification is SafetyClassification.AUTO_PREVIEWABLE
+            and item.raw_text == selected_feedback.raw_text
+            and (selected_note_id is None or item.note_id == selected_note_id)
+        )
+        snapshot.selected_note_id = selected_note.note_id
         anchor = snapshot.evidence[0]
         anchor_duration = anchor.time_range.end_seconds - anchor.time_range.start_seconds
         preview_duration = min(8.0, max(4.0, anchor_duration))
@@ -416,7 +445,11 @@ class RevisionProofService:
                 executor=self.executor,
             )
         snapshot.candidates = candidates
-        self._transition(snapshot, RunState.PREVIEWS_READY, "Two constrained previews rendered")
+        self._transition(
+            snapshot,
+            RunState.PREVIEWS_READY,
+            f"Two constrained previews rendered for {snapshot.selected_note_id}",
+        )
         return snapshot
 
     def approve(
@@ -690,6 +723,66 @@ class RevisionProofService:
                 self.repository.remember_idempotent(f"{run_id}:version", key, fingerprint, run_id)
                 return snapshot
 
+    def render_approved_version(
+        self, run_id: str, idempotency_key: str | None = None
+    ) -> RunSnapshot:
+        """Render the approved candidate into the full source, then verify it."""
+        self._assert_mutable_mode()
+        key = self._validate_idempotency_key(idempotency_key)
+        with self.repository.locked(run_id):
+            snapshot = self.repository.get(run_id)
+            if snapshot.spec is None:
+                raise ValueError("automatic render requires an approved preview")
+            fingerprint = self._fingerprint(f"{run_id}:{snapshot.spec.spec_hash}")
+            replay = self.repository.recall_idempotent(
+                f"{run_id}:automatic-version", key, fingerprint
+            )
+            if replay is not None:
+                return replay
+            snapshot = self.repository.get(run_id)
+            if snapshot.state not in {
+                RunState.HUMAN_APPROVED,
+                RunState.BLOCKED,
+                RunState.FAILED,
+            }:
+                raise ValueError(
+                    "automatic render requires HUMAN_APPROVED, BLOCKED, or retryable FAILED state"
+                )
+            assert snapshot.spec is not None
+            with self._exclusive_media_pipeline():
+                build_dir = self.settings.runtime_dir / "runs" / run_id / "render"
+                staging = build_dir / f".automatic-{new_ulid()}.mp4"
+                version_label = f"approved-{snapshot.spec.approved_candidate.candidate_id.lower()}"
+                try:
+                    generate_full_revision(
+                        source=self.repository.source_path(run_id),
+                        destination=staging,
+                        candidate=snapshot.spec.approved_candidate,
+                        executor=self.executor,
+                    )
+                    with staging.open("rb") as stream:
+                        snapshot = self._upload_and_verify_locked(
+                            run_id=run_id,
+                            version_label=version_label,
+                            stream=stream,
+                            size=staging.stat().st_size,
+                        )
+                    snapshot.generated_version_url = f"/api/runs/{run_id}/generated-video"
+                    self.repository.append_event(
+                        run_id,
+                        snapshot.state,
+                        "Approved option applied to the full source video",
+                    )
+                    self.repository.remember_idempotent(
+                        f"{run_id}:automatic-version", key, fingerprint, run_id
+                    )
+                    return snapshot
+                finally:
+                    if staging.exists():
+                        staging.unlink()
+                    if build_dir.exists() and not any(build_dir.iterdir()):
+                        build_dir.rmdir()
+
     def verify_demo_version(
         self,
         *,
@@ -766,6 +859,7 @@ class RevisionProofService:
                 shutil.copyfileobj(stream, output)
             info = probe_media(staging_destination, self.executor)
             validate_hackathon_media(info, max_duration_seconds=self.settings.max_duration_seconds)
+            snapshot.generated_version_url = None
             self._transition(snapshot, RunState.VERSION_UPLOADED, f"{version_label} uploaded")
             self._transition(snapshot, RunState.VERIFYING, "Deterministic verification started")
             snapshot.proof = None

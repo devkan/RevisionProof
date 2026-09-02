@@ -15,7 +15,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from starlette.types import Receive, Scope, Send
 
 from revisionproof.assets import list_demo_assets
@@ -23,6 +23,7 @@ from revisionproof.contracts import (
     ApprovalRequest,
     CreateRunRequest,
     ExecutionMode,
+    PreviewRequest,
     RevisionSpec,
     RunSnapshot,
     RunState,
@@ -183,10 +184,15 @@ def get_run_events(run_id: str, request: Request, service: ServiceDep):
 def create_previews(
     run_id: str,
     service: ServiceDep,
+    payload: PreviewRequest | None = None,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> RunSnapshot:
     try:
-        return service.generate_previews(run_id, idempotency_key)
+        return service.generate_previews(
+            run_id,
+            idempotency_key,
+            selected_note_id=payload.note_id if payload else None,
+        )
     except Exception as exc:
         raise as_http_error(exc) from exc
 
@@ -200,6 +206,37 @@ def approve(
 ) -> RunSnapshot:
     try:
         return service.approve(run_id, payload, idempotency_key)
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+
+
+@router.post("/runs/{run_id}/automatic-version", response_model=RunSnapshot)
+def render_approved_version(
+    run_id: str,
+    service: ServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> RunSnapshot:
+    try:
+        return service.render_approved_version(run_id, idempotency_key)
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+
+
+@router.get("/runs/{run_id}/generated-video")
+def generated_video(run_id: str, service: ServiceDep):
+    try:
+        snapshot = service.repository.get(run_id)
+        if snapshot.generated_version_url is None:
+            raise FileNotFoundError("generated video is not available")
+        path = service.repository.version_path(run_id)
+        if not path.is_file():
+            raise FileNotFoundError("generated video is not available")
+        return FileResponse(
+            path,
+            media_type="video/mp4",
+            filename=f"revisionproof-{run_id[-8:]}.mp4",
+            content_disposition_type="inline",
+        )
     except Exception as exc:
         raise as_http_error(exc) from exc
 

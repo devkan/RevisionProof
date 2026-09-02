@@ -35,10 +35,11 @@ export const api = {
       method: 'POST',
       headers: mutationHeaders(`${runId}:retry:${crypto.randomUUID()}`),
     }),
-  previews: (runId: string) =>
+  previews: (runId: string, noteId: string) =>
     request<RunSnapshot>(`/api/runs/${runId}/previews`, {
       method: 'POST',
-      headers: mutationHeaders(`${runId}:previews`),
+      headers: mutationHeaders(`${runId}:previews:${noteId}`, true),
+      body: JSON.stringify({ note_id: noteId }),
     }),
   approve: (runId: string, candidateId: 'A' | 'B') =>
     request<RunSnapshot>(`/api/runs/${runId}/approvals`, {
@@ -50,6 +51,11 @@ export const api = {
     request<RunSnapshot>(`/api/runs/${runId}/delivery-approval`, {
       method: 'POST',
       headers: mutationHeaders(`${runId}:delivery-approval`),
+    }),
+  renderApprovedVersion: (runId: string) =>
+    request<RunSnapshot>(`/api/runs/${runId}/automatic-version`, {
+      method: 'POST',
+      headers: mutationHeaders(`${runId}:automatic-version`),
     }),
   uploadVersion: async (runId: string, versionLabel: string, file: Blob) => {
     const contentSha256 = await blobSha256(file)

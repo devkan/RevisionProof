@@ -20,17 +20,20 @@ mcp-clickhouse.run_query ── evidence view, top 5 → UI top 3
    ▼
 FFmpeg A/B previews ── 1.05x / 1.12x
    │
-   ▼ human approval
+   ▼ human A/B selection
 Immutable RevisionSpec JSON + SHA-256
    │
-   ▼ version upload
+   ▼ full-source FFmpeg render
 FFmpeg/OpenCV deterministic feature extraction
    │
    ├── direct ClickHouse INSERT (audit facts)
    ├── mcp-clickhouse.run_query (version feature diff view)
    │         └── Python reapplies frozen manifest thresholds → PASS/FAIL
-   └── GCS version object
+   ├── private GCS version object (durable audit artifact)
+   └── generated MP4 returned for review and download
 ```
+
+The primary path is server-owned: selecting A or B renders and verifies the complete source automatically. `/versions` remains a secondary path for checking a full MP4 produced by an external editor or tool; it is not required to complete the normal demo.
 
 ## Trust boundaries
 
@@ -59,7 +62,7 @@ version verification failure → FAILED → retry upload from the frozen approve
 
 ## API
 
-The OpenAPI contract is available at `/docs`. Core routes include `/api/runtime`, `/api/demo-assets`, `/api/runs`, resumable `/events`, `/previews`, `/approvals`, `/spec`, `/versions`, `/proof`, and `/delivery-approval`. Cloud Run-safe health and readiness routes are `/health` and `/ready`; the legacy `z`-suffixed aliases remain for local compatibility only because Cloud Run reserves some paths ending in `z`.
+The OpenAPI contract is available at `/docs`. Core routes include `/api/runtime`, `/api/demo-assets`, `/api/runs`, resumable `/events`, `/previews`, `/approvals`, `/automatic-version`, `/generated-video`, `/spec`, the secondary `/versions` upload, `/proof`, and `/delivery-approval`. Cloud Run-safe health and readiness routes are `/health` and `/ready`; the legacy `z`-suffixed aliases remain for local compatibility only because Cloud Run reserves some paths ending in `z`.
 
 ## Hackathon durability boundary
 

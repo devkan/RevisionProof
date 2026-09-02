@@ -130,11 +130,13 @@ export interface RunSnapshot {
   mode: ExecutionMode
   state: RunState
   notes: RevisionNote[]
+  selected_note_id?: string
   feedback?: ParsedFeedback
   evidence: EvidenceAnchor[]
   candidates: PatchCandidate[]
   spec?: RevisionSpec
   proof?: VerificationProof
+  generated_version_url?: string
   delivery_approved: boolean
   retryable: boolean
   events: RunEvent[]
