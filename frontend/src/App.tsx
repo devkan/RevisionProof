@@ -10,17 +10,18 @@ import {
   Film,
   Fingerprint,
   LockKeyhole,
-  Play,
   Search,
   ShieldAlert,
   Sparkles,
   Upload,
   XCircle,
+  ZoomIn,
 } from 'lucide-react'
 import { api } from './api'
 import { DEFAULT_FEEDBACK } from './demoFeedback'
 import { feedbackValidationMessage } from './feedbackValidation'
 import { isTerminalRunState } from './runStream'
+import { VideoLightbox, type VideoLightboxContent } from './VideoLightbox'
 import type {
   DemoAsset,
   PatchCandidate,
@@ -55,11 +56,13 @@ function CandidateCard({
   candidate,
   approved,
   onApprove,
+  onViewLarge,
   busy,
 }: {
   candidate: PatchCandidate
   approved: boolean
   onApprove: () => void
+  onViewLarge: () => void
   busy: boolean
 }) {
   return (
@@ -75,6 +78,16 @@ function CandidateCard({
         {approved && <span className="approved-label"><Check size={13} /> Approved</span>}
       </div>
       {candidate.preview_url && <video src={candidate.preview_url} controls muted playsInline />}
+      {candidate.preview_url && (
+        <button
+          className="view-larger-button"
+          type="button"
+          onClick={onViewLarge}
+          aria-label={`View option ${candidate.candidate_id} larger`}
+        >
+          <ZoomIn size={15} /> View larger
+        </button>
+      )}
       {!approved && (
         <button className="secondary-button full-button" onClick={onApprove} disabled={busy}>
           Approve option {candidate.candidate_id} <ArrowRight size={15} />
@@ -91,6 +104,7 @@ export default function App() {
   const [feedback, setFeedback] = useState(DEFAULT_FEEDBACK)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [videoPreview, setVideoPreview] = useState<VideoLightboxContent | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const runId = run?.run_id
   const feedbackError = run ? null : feedbackValidationMessage(feedback)
@@ -204,7 +218,18 @@ export default function App() {
                 <div className="asset-strip">
                   <Film size={18} />
                   <div><strong>{activeAsset.title}</strong><span>{activeAsset.width}×{activeAsset.height} · {activeAsset.duration_seconds}s · {activeAsset.codec}</span></div>
-                  <Play size={16} />
+                  <button
+                    className="view-larger-button asset-view-button"
+                    type="button"
+                    aria-label="View original video larger"
+                    onClick={() => setVideoPreview({
+                      src: activeAsset.source_url,
+                      title: 'Original video',
+                      detail: `${activeAsset.title} · ${activeAsset.width}×${activeAsset.height}`,
+                    })}
+                  >
+                    <ZoomIn size={15} /> View larger
+                  </button>
                 </div>
               )}
               <label htmlFor="feedback">Client feedback</label>
@@ -289,6 +314,14 @@ export default function App() {
                       approved={run.spec?.approved_candidate.candidate_id === candidate.candidate_id}
                       busy={busy || Boolean(run.spec)}
                       onApprove={() => void action(() => api.approve(run.run_id, candidate.candidate_id))}
+                      onViewLarge={() => {
+                        if (!candidate.preview_url) return
+                        setVideoPreview({
+                          src: candidate.preview_url,
+                          title: `Option ${candidate.candidate_id} · ${candidate.scale.toFixed(2)}× punch-in`,
+                          detail: `${formatTime(candidate.time_range.start_seconds)}–${formatTime(candidate.time_range.end_seconds)} · centered crop`,
+                        })
+                      }}
                     />
                   ))}
                 </div>
@@ -394,6 +427,9 @@ export default function App() {
         </section>
       </main>
       <footer><span>RevisionProof / v2</span><span>Evidence before confidence.</span></footer>
+      {videoPreview && (
+        <VideoLightbox content={videoPreview} onClose={() => setVideoPreview(null)} />
+      )}
     </div>
   )
 }
