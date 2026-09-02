@@ -2,9 +2,35 @@
 
 This file records the resources and artifacts added after the 2026-08-25 foundation inventory. Read both files before modifying or removing infrastructure.
 
-## Final LIVE deployment delta
+## Current recovery deployment - 2026-09-02
 
-These are the current resources after the historical foundation sections below:
+- Exact account: `secureis@gmail.com`
+- Exact project: `revisionproof-agentic-2026-kan` (`348672234012`)
+- Source commit: `4852259`
+- Cloud Build source: `gs://revisionproof-agentic-2026-kan-media/cloud-build-source/1788338726.755047-7758a1b6f2ef4705862725a167e09763.tgz`
+- Cloud Build: `3ebc367e-31a4-4087-abba-6c245cb8c9bc`, `SUCCESS`
+- RevisionProof image tag: `us-central1-docker.pkg.dev/revisionproof-agentic-2026-kan/revisionproof/revisionproof-staging:3ebc367e-31a4-4087-abba-6c245cb8c9bc`
+- RevisionProof image digest: `sha256:c7cd7fc4f9ebc19cbfbc37294fd42d8a79b3e1f9007715f9020a5911b8975cc5`
+- Cloud Run revision: `revisionproof-staging-00010-k4g`, 100% traffic
+- Cloud Run capacity: concurrency 4, min 1, max 1; runtime service account `revisionproof-runtime@revisionproof-agentic-2026-kan.iam.gserviceaccount.com`
+- URL: `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`
+- Runtime truth: `LIVE`, mutable, `live_ready=true`; successful integrations are proven per run
+- Numeric Secret Manager version in use: version `1` for both exact RevisionProof ClickHouse secrets
+- Recovery proof: run `01M1GN7EY252SSM5F2AM170TKY`; first MCP attempt timed out, second fresh process anchored three matches, `error=null`
+
+No new GCP or ClickHouse resource type was created. This deploy added one Cloud Build source object, one build record, one Artifact Registry image version, and Cloud Run revision `00010`; the existing guarded cleanup targets already cover their parent bucket, repository, and service. The source object remains governed by the bucket's one-day delete lifecycle. No other project was selected or modified.
+
+Local Docker recovery QA image:
+
+- Tag: `revisionproof:mcp-retry-fix`
+- Image ID: `sha256:75a7b5d452d6051703283a621c68d6f112bee501abab1fa8b8afaacbc8be7915`
+- Image size: 2,270,263,589 bytes
+- Temporary port: `127.0.0.1:18081`
+- Result: `/health` and `/ready` PASS in `FIXTURE` mode; the temporary container was removed and the image retained
+
+## Previous final LIVE deployment delta - 2026-08-26
+
+These were the current resources before the 2026-09-02 recovery deployment above:
 
 - Exact account: `secureis@gmail.com`
 - Exact project: `revisionproof-agentic-2026-kan` (`348672234012`)
@@ -155,4 +181,4 @@ These changes were applied after selecting `secureis@gmail.com` and `revisionpro
 - Historical note: this IAM checkpoint preceded creation of the two current RevisionProof ClickHouse secrets and the dedicated ClickHouse service.
 - ScopeShift and every other project were left unchanged.
 
-The current deployment is the LIVE revision recorded at the top of this file. The older FIXTURE facts in this document remain only as a dated audit trail.
+The current deployment is the 2026-09-02 LIVE recovery revision recorded at the top of this file. The older LIVE and FIXTURE facts remain as a dated audit trail.

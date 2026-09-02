@@ -28,7 +28,7 @@ Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits 
 
 ## Deployed LIVE demo
 
-The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Cloud Run revision `revisionproof-staging-00009-mbh` serves the tracked `LIVE` implementation from commit `d1b9a10` with 100% traffic. The verified run `01M0Z3338TYVHWHK4FZRGADTKZ` used `google.vertex.gemini` for interpretation, `mcp-clickhouse.run_query` for evidence and feature diffs, private GCS candidate objects, and append-only ClickHouse audit rows.
+The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Cloud Run revision `revisionproof-staging-00010-k4g` serves the tracked `LIVE` implementation from commit `4852259` with 100% traffic. Recovery run `01M1GN7EY252SSM5F2AM170TKY` proved that a timed-out official MCP process is replaced and retried; it then reached `EVIDENCE_ANCHORED` through `google.vertex.gemini` and `mcp-clickhouse.run_query`. The earlier full delivery run `01M0Z3338TYVHWHK4FZRGADTKZ` remains the end-to-end proof for private GCS candidates and append-only ClickHouse audit rows.
 
 `/ready` deliberately reports that integrations are configured, not that every future call will succeed. Treat a run as LIVE evidence only when its raw JSON shows the live source labels and the matching ClickHouse rows exist. The verified final run is `READY` and received its separate human delivery approval (`delivery_approved=true`) on 2026-08-26.
 
@@ -47,4 +47,4 @@ backend/.venv/Scripts/python.exe scripts/verify_local_clickhouse.py
 backend/.venv/Scripts/python.exe scripts/verify_local_mcp.py
 ```
 
-See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [latest LIVE QA report](docs/qa-report-2026-08-26-live-final.md), [LIVE hardening status](docs/live-hardening-progress-2026-08-26.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).
+See the [documentation index](docs/README.md), [architecture](docs/architecture.md), [demo runbook](docs/demo-runbook.md), [latest MCP recovery QA](docs/qa-report-2026-09-02-mcp-recovery.md), [full LIVE delivery QA](docs/qa-report-2026-08-26-live-final.md), [deployment inventory](docs/infrastructure-inventory-2026-08-26.md), and [project handoff](HANDOFF.md).
