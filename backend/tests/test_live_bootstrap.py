@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 import revisionproof.bootstrap as bootstrap_module
+from revisionproof.assets import DEMO_ASSET_ID
 from revisionproof.bootstrap import (
     SEED_SEGMENTS,
     _seed_clickhouse,
@@ -393,6 +394,6 @@ def test_source_asset_upload_closes_storage_client(runtime_dir: Path, monkeypatc
         live_settings(runtime_dir=runtime_dir), source
     )
 
-    assert uri.endswith("/assets/01J00000000000000000000000/revisionproof_v1.mp4")
+    assert uri.endswith(f"/assets/{DEMO_ASSET_ID}/revisionproof_v1.mp4")
     assert created is True
     assert storage_client.closed is True

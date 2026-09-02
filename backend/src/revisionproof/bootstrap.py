@@ -37,7 +37,7 @@ class SeedSegment:
 
 SEED_SEGMENTS = (
     SeedSegment(
-        segment_id="01J00000000000000000000001",
+        segment_id="01M00000000000000000000001",
         start_seconds=0,
         end_seconds=8,
         transcript="A producer introduces the delivery risk before the product reveal.",
@@ -45,7 +45,7 @@ SEED_SEGMENTS = (
         embedding_text="video revision approval workflow introduction",
     ),
     SeedSegment(
-        segment_id="01J00000000000000000000002",
+        segment_id="01M00000000000000000000002",
         start_seconds=8,
         end_seconds=14,
         transcript='The presenter says "RevisionProof" and reveals the approval firewall.',
@@ -53,7 +53,7 @@ SEED_SEGMENTS = (
         embedding_text="RevisionProof",
     ),
     SeedSegment(
-        segment_id="01J00000000000000000000003",
+        segment_id="01M00000000000000000000003",
         start_seconds=24,
         end_seconds=29,
         transcript="The end card asks the viewer to approve the verified delivery.",

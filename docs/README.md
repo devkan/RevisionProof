@@ -1,5 +1,6 @@
 # RevisionProof docs
 
+- [Visual demo asset upgrade and gstack QA — 2026-09-02](qa-report-2026-09-02-visual-demo-asset.md)
 - [ClickHouse MCP recovery deployment and gstack QA — 2026-09-02](qa-report-2026-09-02-mcp-recovery.md)
 - [Submission copy and release gates — 2026-08-27](submission-pack-2026-08-27.md)
 - [How to record the English demo — 2026-08-27](demo-recording-script-2026-08-27.md)

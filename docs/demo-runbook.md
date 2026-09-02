@@ -18,6 +18,15 @@ backend/.venv/Scripts/uvicorn.exe revisionproof.main:app --app-dir backend/src -
 
 Open `http://127.0.0.1:8000`.
 
+The generated 30-second sample is deliberately visual rather than a blank test pattern:
+
+- 00:00–00:08: editor feedback and agent interpretation
+- 00:08–00:14: centered presenter/product reveal used for the A/B punch-in
+- 00:14–00:24: source, 1.05x, and 1.12x comparison cards
+- 00:24–00:30: verified-delivery card with the locked bottom-right CTA
+
+At the preview step, pause both options near 00:03 to compare crop strength. At the verification step, compare the 26-second evidence frames: v2 removes the CTA and must block; v3 preserves it and must pass.
+
 The deployed LIVE demo is `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Before a recorded run, confirm `/health` reports `mode=LIVE`, `/ready` reports `status=ready` and `live_credentials_configured=true`, and `/api/runtime` reports `live_ready=true`. `integration_execution_verified=false` at readiness is expected because proof is established per run.
 
 ## 90-second judge path
@@ -25,7 +34,7 @@ The deployed LIVE demo is `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app
 1. Point out the `LIVE MODE` badge and the runtime truth panel.
 2. Submit the prefilled three-note brief. Show `AUTO PREVIEW`, `CLARIFY`, and `MANUAL`; only the first may execute.
 3. Show the three time-coded evidence matches and the `mcp-clickhouse.run_query` source.
-4. Render A/B and approve B (1.12x), matching the final verified run.
+4. Render A/B, pause both previews near 00:03 so the crop difference is visible, and approve B (1.12x), matching the final verified run.
 5. Point to the frozen SHA-256 spec hash.
 6. Upload `runtime/demo/revisionproof_v2_blocked.mp4`. The approved patch and audio pass, the hidden CTA regression fails, before/after frames appear, and both the release gate and delivery button are blocked.
 7. Upload `runtime/demo/revisionproof_v3_ready.mp4`. All checks pass and the release gate reads `PUBLISH READY`.
