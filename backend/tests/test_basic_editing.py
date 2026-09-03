@@ -27,9 +27,25 @@ def test_live_edit_draft_schema_converts_with_installed_vertex_sdk():
 
     # Exercise the real SDK conversion that happens before the Vertex request.
     schema = _transformers.t_schema(SimpleNamespace(vertexai=True), EditDraftOutput)
-    assert schema.properties["operations"].items.properties["end"].maximum == 60.05
+    operation_schema = schema.properties["operations"].items
+    assert operation_schema.properties["end"].type == "NUMBER"
+    assert set(operation_schema.required) == set(operation_schema.properties)
+    wire = schema.model_dump_json(exclude_none=True)
+    for unsupported in ("additional_properties", "default", "maximum", "max_items"):
+        assert f'"{unsupported}"' not in wire
+    # Simplifying the provider schema must never weaken runtime validation.
+    for bad in (
+        {"kind": "zoom", "start": 0, "end": 0},
+        {"kind": "zoom", "start": 0, "end": 61},
+        {"kind": "text", "start": 0, "end": 5, "text": "x" * 161},
+        {"kind": "zoom", "start": 0, "end": 5, "unexpected": True},
+    ):
+        with pytest.raises(ValidationError):
+            EditDraftOutput.model_validate({"operations": [bad]})
     with pytest.raises(ValidationError):
-        EditOperation(kind="zoom", start=0, end=0)
+        EditDraftOutput.model_validate(
+            {"operations": [{"kind": "zoom", "start": 0, "end": 5}] * 25}
+        )
 
 
 @pytest.mark.parametrize("index", [0, 1, 2])

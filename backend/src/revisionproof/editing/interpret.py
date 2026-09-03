@@ -19,6 +19,24 @@ class EditDraftOutput(BaseModel):
     operations: list[EditOperation] = Field(max_length=24)
     warnings: list[str] = Field(default_factory=list, max_length=10)
 
+    @classmethod
+    def model_json_schema(cls, **kwargs) -> dict:
+        # Vertex rejects the complex renderer schema. Its wire schema only needs
+        # the shape; Pydantic still enforces every original constraint on return.
+        def wire_schema(schema: dict) -> dict:
+            allowed = {"type", "enum", "items", "properties", "required", "$defs", "$ref"}
+            result = {key: value for key, value in schema.items() if key in allowed}
+            for key in ("properties", "$defs"):
+                if key in result:
+                    result[key] = {name: wire_schema(value) for name, value in result[key].items()}
+            if "properties" in result:
+                result["required"] = list(result["properties"])
+            if "items" in result:
+                result["items"] = wire_schema(result["items"])
+            return result
+
+        return wire_schema(super().model_json_schema(**kwargs))
+
 
 def interpret_local(request: InterpretEditRequest) -> EditInterpretation:
     operations, warnings = [], []

@@ -31,7 +31,7 @@ export function RequestDraft({ text, onText, duration, disabled, onApply, onBusy
     <label htmlFor="feedback">Describe your edit <small>Optional · English or Korean</small></label>
     <textarea id="feedback" value={text} maxLength={2000} disabled={disabled || loading}
       placeholder={'4–10초를 확대하면서 ‘AI, made practical.’ 문구를 하단에 표시'}
-      onChange={e => onText(e.target.value)} aria-describedby="request-help" />
+      onChange={e => { onText(e.target.value); setError(null) }} aria-describedby="request-help" />
     <p id="request-help" className="input-help">Use original-video times and put exact words in quotes. No time specified? The draft uses the whole video.</p>
     <button type="button" className="secondary-button" disabled={disabled || loading || text.trim().length < 2} onClick={() => void interpret()}>
       {loading ? <span className="spinner" /> : <Sparkles size={18} />}{loading ? 'Preparing an editable draft…' : 'Turn request into edit plan'}
