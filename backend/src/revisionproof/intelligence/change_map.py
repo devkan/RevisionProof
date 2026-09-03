@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 
 from revisionproof.contracts import EditCandidate, RevisionSpec
+from revisionproof.editing.sampling import sample_plan_frame
 from revisionproof.editing.verify import approved_reference
 from revisionproof.intelligence.models import ChangeWindow
 from revisionproof.media.executor import MediaExecutor
@@ -92,10 +93,16 @@ def measure_frame_pairs(
             )
             for sample in range(SAMPLE_FPS):
                 t = second + (sample + 0.5) * (end - second) / SAMPLE_FPS
+                frame_sample = sample_plan_frame(patch.plan, t) if planned else None
                 frames = []
                 for index, capture in enumerate(captures):
-                    at = patch.plan.source_time(t) if planned and index == 0 else t
-                    capture.set(cv2.CAP_PROP_POS_MSEC, at * 1000)
+                    if frame_sample is not None:
+                        frame_index = (
+                            frame_sample.source_frame if index == 0 else frame_sample.output_frame
+                        )
+                        capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+                    else:
+                        capture.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
                     ok, frame = capture.read()
                     if not ok or frame is None:
                         raise ValueError(f"Change Map frame missing at {t:.3f}s")
@@ -104,8 +111,8 @@ def measure_frame_pairs(
                 if original.shape != revised.shape:
                     raise ValueError("Change Map requires matching source and candidate geometry")
                 requested = (
-                    patch.plan.is_visual_edit(t)
-                    if planned
+                    frame_sample.visual_edit
+                    if frame_sample is not None
                     else patch.time_range.start_seconds <= t < patch.time_range.end_seconds
                 )
                 expected = (

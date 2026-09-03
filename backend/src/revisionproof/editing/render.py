@@ -11,10 +11,9 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
 from revisionproof.editing.models import EditOperation, EditPlan
+from revisionproof.editing.sampling import FPS
 from revisionproof.media.executor import MediaExecutor
 from revisionproof.media.preview import punch_in_filter
-
-FPS = 30
 
 
 def font_path() -> Path:

@@ -11,10 +11,13 @@ import numpy as np
 from revisionproof.media.executor import MediaExecutor
 
 
-def read_frame(path: Path, seconds: float) -> np.ndarray:
+def read_frame(path: Path, seconds: float, *, frame_index: int | None = None) -> np.ndarray:
     capture = cv2.VideoCapture(str(path))
     try:
-        capture.set(cv2.CAP_PROP_POS_MSEC, seconds * 1000)
+        if frame_index is None:
+            capture.set(cv2.CAP_PROP_POS_MSEC, seconds * 1000)
+        else:
+            capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
         ok, frame = capture.read()
     finally:
         capture.release()

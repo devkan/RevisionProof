@@ -11,6 +11,7 @@ from revisionproof.contracts import (
     VerificationCheck,
     VerificationProof,
 )
+from revisionproof.editing.sampling import sample_plan_frame
 from revisionproof.state_machine import release_verdict
 from revisionproof.verification.metrics import audio_levels_db, normalized_similarity, read_frame
 
@@ -59,11 +60,12 @@ def verify_plan(
     scores = []
     for index in range(max(1, int(plan.output_duration * 2))):
         t = min((index + 0.5) / 2, plan.output_duration - 0.05)
-        actual = read_frame(candidate, t)
+        sample = sample_plan_frame(plan, t)
+        actual = read_frame(candidate, t, frame_index=sample.output_frame)
         expected = (
-            read_frame(reference, t)
-            if plan.is_visual_edit(t)
-            else read_frame(source, plan.source_time(t))
+            read_frame(reference, t, frame_index=sample.output_frame)
+            if sample.visual_edit
+            else read_frame(source, plan.source_time(t), frame_index=sample.source_frame)
         )
         scores.append(normalized_similarity(expected, actual))
     manifest = spec.manifest_for("locked_cta")
