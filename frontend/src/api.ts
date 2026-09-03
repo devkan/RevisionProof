@@ -1,4 +1,4 @@
-import type { DemoAsset, EditMemorySearch, RunSnapshot, RuntimeStatus, SearchEngine, TimeRange } from './types'
+import type { DemoAsset, EditInterpretation, EditMemorySearch, EditPlan, RunSnapshot, RuntimeStatus, SearchEngine, TimeRange } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -22,15 +22,20 @@ async function blobSha256(blob: Blob): Promise<string> {
 }
 
 export const api = {
+  interpretEdit: (text: string, duration: number) => request<EditInterpretation>('/api/edit-plans/interpret', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, duration, start: 0, end: duration }),
+  }),
   runtime: () => request<RuntimeStatus>('/api/runtime'),
   assets: () => request<DemoAsset[]>('/api/demo-assets'),
-  uploadSource: async (file: File, feedback: string, range: TimeRange, onProgress: (value: number) => void): Promise<RunSnapshot> => {
+  uploadSource: async (file: File, feedback: string, range: TimeRange, onProgress: (value: number) => void, editPlan?: EditPlan): Promise<RunSnapshot> => {
     const digest = await blobSha256(file)
     const form = new FormData()
     form.append('file', file)
     form.append('feedback', feedback)
     form.append('start_seconds', String(range.start_seconds))
     form.append('end_seconds', String(range.end_seconds))
+    if (editPlan) form.append('edit_plan', JSON.stringify(editPlan))
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.open('POST', '/api/runs/upload')
@@ -56,22 +61,22 @@ export const api = {
       method: 'POST',
       headers: workspaceKey ? { 'X-Workspace-Key': workspaceKey } : {},
     }),
-  createRun: (assetId: string, feedback: string) =>
+  createRun: (assetId: string, feedback: string, editPlan?: EditPlan) =>
     request<RunSnapshot>('/api/runs', {
       method: 'POST',
       headers: mutationHeaders(`create:${crypto.randomUUID()}`, true),
-      body: JSON.stringify({ asset_id: assetId, feedback }),
+      body: JSON.stringify({ asset_id: assetId, feedback, edit_plan: editPlan }),
     }),
   retryRun: (runId: string) =>
     request<RunSnapshot>(`/api/runs/${runId}/retry`, {
       method: 'POST',
       headers: mutationHeaders(`${runId}:retry:${crypto.randomUUID()}`),
     }),
-  previews: (runId: string, noteId: string) =>
+  previews: (runId: string, noteId: string, editPlan?: EditPlan) =>
     request<RunSnapshot>(`/api/runs/${runId}/previews`, {
       method: 'POST',
-      headers: mutationHeaders(`${runId}:previews:${noteId}`, true),
-      body: JSON.stringify({ note_id: noteId }),
+      headers: mutationHeaders(`${runId}:previews:${editPlan ? crypto.randomUUID() : noteId}`, true),
+      body: JSON.stringify({ note_id: noteId, edit_plan: editPlan }),
     }),
   approve: (runId: string, candidateId: 'A' | 'B') =>
     request<RunSnapshot>(`/api/runs/${runId}/approvals`, {

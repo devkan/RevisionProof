@@ -1,0 +1,72 @@
+.edit-composer { margin-top: 32px; padding-top: 28px; border-top: 1px solid var(--line); }
+.workspace-section, .result-section { scroll-margin-top: 90px; }
+.check-metrics summary { cursor: pointer; color: var(--cyan-soft); font-size: 13px; padding: 10px 0; }
+.check-metrics[open] > span { display: block; margin-top: 8px; white-space: normal; overflow-wrap: anywhere; }
+.composer-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.composer-heading h3 { margin: 5px 0 0; font-size: 24px; letter-spacing: -.025em; }
+.edit-type-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.edit-type { position: relative; text-align: left; display: flex; flex-direction: column; align-items: start; gap: 10px; padding: 18px 14px; min-height: 150px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface-soft); color: var(--ink); }
+.edit-type > svg:first-child { color: var(--cyan); }
+.edit-type strong { font-size: 15px; }
+.edit-type span { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.edit-type-plus { position: absolute; top: 16px; right: 12px; color: var(--muted); }
+.edit-type:hover:not(:disabled), .example-grid button:hover:not(:disabled) { border-color: var(--cyan); background: #12232e; }
+.edit-examples { margin-top: 20px; border: 1px solid var(--line); border-radius: 8px; padding: 0 16px; background: #0b1723; }
+.edit-examples summary { padding: 16px 0; cursor: pointer; color: var(--cyan-soft); font-weight: 650; }
+.example-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.example-grid button { display: flex; flex-direction: column; gap: 7px; text-align: left; color: var(--ink); border: 1px solid var(--line-strong); padding: 16px; border-radius: 7px; background: var(--surface); }
+.example-grid span { color: var(--muted); font-size: 14px; }
+.edit-list { display: grid; gap: 18px; margin-top: 24px; }
+.edit-time-guidance { color: var(--muted); margin: 0; font-size: 14px; }
+.edit-time-guidance strong { color: var(--cyan-soft); }
+.edit-card { min-width: 0; position: relative; margin: 0; padding: 18px 20px 14px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface-soft); }
+.edit-card legend { padding: 0 10px; font-size: 17px; font-weight: 750; }
+.edit-card legend span { color: var(--cyan); margin-right: 5px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 42px; min-height: 42px; background: var(--surface); color: var(--muted); border: 1px solid var(--line); border-radius: 6px; }
+.remove-edit { position: absolute; right: 15px; top: 7px; }
+.icon-button:hover { color: var(--red); border-color: var(--red); }
+.edit-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding-right: 40px; margin: 2px 0 16px; }
+.edit-fields label, .caption-fields label { display: grid; gap: 7px; font-size: 14px; color: var(--muted); }
+.edit-fields input { width: 115px; }
+.edit-fields input, .edit-fields select, .caption-fields select, .caption-fields textarea { min-height: 44px; border: 1px solid var(--line-strong); border-radius: 6px; padding: 10px 12px; background: var(--surface-raised); color: var(--ink); }
+.edit-fields .secondary-button { min-height: 44px; font-size: 14px; }
+.caption-fields { display: grid; grid-template-columns: minmax(0, 1fr) 165px; gap: 16px; margin-bottom: 12px; }
+.caption-fields textarea { min-height: 76px; width: 100%; resize: vertical; }
+.caption-fields select { align-self: start; width: 100%; }
+.edit-card .input-help { font-size: 14px; margin: 8px 0; }
+.capability-note { color: var(--muted); font-size: 13px; line-height: 1.65; margin: 20px 0 0; }
+.request-draft > label { display: flex; flex-direction: column; gap: 3px; }
+.request-draft > label small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.request-draft > textarea { min-height: 140px; }
+.request-draft .spinner { width: 18px; height: 18px; }
+.draft-result { margin-top: 16px; padding: 16px; border: 1px solid var(--line-strong); border-radius: 8px; background: #11222a; font-size: 14px; }
+.draft-result ul { padding-left: 20px; overflow-wrap: anywhere; }
+.draft-result li { margin: 8px 0; }
+.draft-result .primary-button { font-size: 14px; }
+.classic-toggle { background: none; border: 0; color: var(--muted); text-decoration: underline; font-size: 13px; padding: 12px 0 0; margin-top: 14px; }
+.plan-review-list { display: grid; gap: 10px; }
+.plan-review-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding: 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+.plan-review-row.chosen { border-color: #376a6e; background: #0e1c26; }
+.plan-review-row > label { display: flex; align-items: center; gap: 14px; cursor: pointer; min-width: 0; flex: 1; }
+.plan-review-row input { accent-color: var(--cyan); width: 20px; height: 20px; flex-shrink: 0; }
+.plan-review-row label > span { display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere; }
+.plan-review-row label > span > span { color: var(--muted); font-size: 14px; }
+.plan-review-row .secondary-button { flex-shrink: 0; font-size: 13px; }
+.plan-duration { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 22px; color: var(--muted); font-size: 14px; }
+.plan-duration strong { color: var(--ink); margin-left: 8px; font-variant-numeric: tabular-nums; }
+.edit-type:focus-visible, .edit-composer button:focus-visible, .edit-composer input:focus-visible, .edit-composer textarea:focus-visible, .edit-composer select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+@media (max-width: 1300px) { .edit-type-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } .edit-type { min-height: 132px; } }
+@media (max-width: 700px) {
+  .composer-heading { align-items: start; flex-direction: column; gap: 4px; }
+  .composer-heading h3 { font-size: 21px; }
+  .edit-type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .example-grid { grid-template-columns: 1fr; }
+  .edit-card { padding: 16px 12px; }
+  .edit-fields { gap: 10px; padding-right: 35px; }
+  .edit-fields input { width: 100px; }
+  .edit-fields .secondary-button { flex-basis: 100%; }
+  .caption-fields { grid-template-columns: 1fr; }
+  .plan-review-row { padding: 14px; align-items: start; flex-direction: column; }
+  .plan-review-row .secondary-button { margin-left: 34px; }
+  .edit-examples summary { font-size: 14px; }
+}

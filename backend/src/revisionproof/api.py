@@ -30,6 +30,7 @@ from revisionproof.contracts import (
     TimeRange,
     VerificationProof,
 )
+from revisionproof.editing.models import EditInterpretation, EditPlan, InterpretEditRequest
 from revisionproof.intelligence.models import (
     EditMemorySearch,
     MemoryAuthorizationError,
@@ -131,6 +132,14 @@ def demo_assets(service: ServiceDep):
     return list_demo_assets(service.settings.runtime_dir, service.executor)
 
 
+@router.post("/edit-plans/interpret", response_model=EditInterpretation)
+async def interpret_edit_plan(payload: InterpretEditRequest, service: ServiceDep):
+    try:
+        return await service.interpret_edit_plan(payload)
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+
+
 @router.post("/runs", response_model=RunSnapshot, status_code=status.HTTP_201_CREATED)
 async def create_run(
     payload: CreateRunRequest,
@@ -146,12 +155,13 @@ async def create_run(
 @router.post("/runs/upload", response_model=RunSnapshot, status_code=201)
 async def upload_source(
     file: Annotated[UploadFile, File()],
-    feedback: Annotated[str, Form(min_length=8, max_length=2000)],
+    feedback: Annotated[str, Form(min_length=2, max_length=2000)],
     start_seconds: Annotated[float, Form(ge=0)],
     end_seconds: Annotated[float, Form(gt=0)],
     service: ServiceDep,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     content_sha256: Annotated[str | None, Header(alias="X-Content-SHA256")] = None,
+    edit_plan: Annotated[str | None, Form(max_length=24000)] = None,
 ) -> RunSnapshot:
     try:
         if file.content_type not in {
@@ -170,6 +180,7 @@ async def upload_source(
             selected_range=TimeRange(start_seconds=start_seconds, end_seconds=end_seconds),
             content_sha256=content_sha256 or "",
             idempotency_key=idempotency_key,
+            edit_plan=EditPlan.model_validate_json(edit_plan) if edit_plan else None,
         )
     except Exception as exc:
         raise as_http_error(exc) from exc
@@ -266,6 +277,7 @@ def create_previews(
             run_id,
             idempotency_key,
             selected_note_id=payload.note_id if payload else None,
+            edit_plan=payload.edit_plan if payload else None,
         )
     except Exception as exc:
         raise as_http_error(exc) from exc

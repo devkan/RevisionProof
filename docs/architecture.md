@@ -2,46 +2,35 @@
 
 ## Product boundary
 
-RevisionProof is a revision approval firewall. It does not expose a timeline editor, arbitrary effects, XML/EDL export, collaboration, billing, or 4K output in the hackathon build. The only generated patch is a centered `PUNCH_IN` at 1.05x or 1.12x for a 4–8 second evidence range. Original uploads accept MP4/MOV/WebM up to 24 MiB and 4–60 seconds; FFmpeg prepares an aspect-preserving 1280×720, 30 fps H.264/AAC working copy. A silent input receives a silent AAC track.
+RevisionProof combines bounded video edits with human approval and deterministic export verification. The owner expanded the hackathon scope on 2026-09-03 to center zoom, literal text overlays, timed subtitle cues, exact interval cuts, and reviewed silence removal. Sources remain MP4/MOV/WebM, <=24 MiB, 4–60 seconds; prepared media is aspect-preserving 1280×720, 30 fps H.264/AAC. There are at most 24 operations and at least one output second. Auto-transcription, object/background manipulation, generation and removal of burned-in text are outside scope.
 
-The source-upload and optional-memory UX changes, including the KANAPP audio and request-recovery fixes, are deployed as of 2026-09-03 in revision `revisionproof-staging-00017-cnr` (source `1c12046`). See [implementation and usage](source-upload-and-memory-ux-2026-09-03.md) and [current deployment evidence](kanapp-demo-fix-2026-09-03.md).
+See [current usage and release evidence](basic-editing-guide-2026-09-03.md) and [engineering review](basic-editing-plan-2026-09-03.md). The original scene-search proof remains an explicit alternate demo; its legacy PUNCH_IN contracts and 4–8 second previews retain their behavior.
 
-## Runtime
+## Runtime and editing path
 
-One Cloud Run container serves the built React application and FastAPI API. The deployed configuration uses concurrency 4 and a maximum of one 4 GiB instance. One instance matches the process-local run repository; four request slots allow the long-lived resumable SSE stream, a mutation, and supporting media requests to coexist. Concurrency 1 was rejected by LIVE QA because the SSE stream occupied the only slot and Cloud Run returned platform HTTP 429 for the next mutation. The public demo also caps new runs per minute, bounds the in-memory repository and idempotency ledger, and removes per-key async locks once all waiters exit. Live candidate media is created once in private GCS with SHA-256 metadata; an existing object is reused only when its hash and size match. The public media allowlist exposes only demo assets, A/B previews, and proof PNGs.
+A Cloud Run container serves React and FastAPI with one 4 GiB / 2 CPU instance and concurrency 4. Media jobs are serialized; SSE and supporting requests can coexist. Runs are process-local, bounded and rate-limited. A restart requires a new run. Private GCS stores verified version objects; ClickHouse stores append-only facts. Originals and previews are not recovered after restart.
 
 ```text
-Client note
-   │
-   ▼
-Google ADK / Gemini ── interpretation only
-   │
-   ▼ embedding (768 dimensions)
-mcp-clickhouse.run_query ── evidence view, top 5 → UI top 3
-   │
-   ▼
-FFmpeg A/B previews ── 1.05x / 1.12x
-   │
-   ▼ human A/B selection
-Immutable RevisionSpec JSON + SHA-256
-   │
-   ▼ full-source FFmpeg render
-FFmpeg/OpenCV deterministic feature extraction
-   │
-   ├── direct ClickHouse INSERT (audit facts)
-   ├── mcp-clickhouse.run_query (version feature diff view)
-   │         └── Python reapplies frozen manifest thresholds → PASS/FAIL
-   ├── private GCS version object (durable audit artifact)
-   └── generated MP4 returned for review and download
+User edit controls OR natural-language draft (LIVE Google ADK/Gemini)
+  -> explicit editable plan: original times, literal words, positions
+  -> normalized original + per-channel silence analysis
+  -> user selects operations and proposed cuts
+  -> FFmpeg full previews (A/B appearance; cut-only gets A)
+  -> human choice freezes spec 3.0 + full-preview SHA-256
+  -> copy approved preview to export
+  -> exact identity + mapped kept scenes + approved audio checks
+  -> ClickHouse INSERT -> official MCP feature diff -> frozen thresholds
+  -> private GCS artifact + Change Map + user playback
+  -> separate final human delivery approval
 ```
 
-The primary path is server-owned: selecting A or B renders and verifies the complete source automatically. `/versions` remains a secondary path for checking a full MP4 produced by an external editor or tool; it is not required to complete the normal demo.
+All operations use original time. Frame-aligned cuts merge into kept spans; source time maps from output time for verification and synchronized browser comparison. Text is rasterized using Pillow and a bundled Korean/English font into PNG layers; user strings never enter FFmpeg expressions. All zoom filters are applied before text overlays, then both picture and audio are trimmed by identical boundaries and concatenated. Silence detection uses the maximum per-channel RMS over 20ms blocks, preserving 0.12s margins. Proposed cuts require explicit selection; surplus proposals are bounded and explained.
 
-For an uploaded original, the user explicitly selects the target time range. LIVE Gemini classifies the feedback with that range as context; local FIXTURE uses conservative `local.range_rules`. The evidence source is `user.selected_range`, with no inferred transcript. This route does not query or reuse the bundled sample's segment index. The normalized upload becomes the source of A/B generation, full-video rendering, comparisons, and verification; full duration is preserved.
+New EDIT_PLAN candidates use spec 3.0. The approved full preview is hashed and rechecked at use. Export is byte-identical, so short or small missing text cannot slip through sampled frame checks. Kept, unedited scenes compare against mapped original frames, while intended visual changes compare against the approved reference. Audio levels compare against the approved cut timeline. The existing three ClickHouse check IDs remain compatible; the feature-diff baseline is labelled `approved-reference`, not legacy `v1`. Change Map remains sampled diagnostics, not a semantic or every-frame verdict.
 
-New uploaded originals freeze spec version `2.2` with a `VIDEO_CONTENT` lock covering the whole timeline and full frame. At two samples per second, verification compares the revised frame against the expected punch-in inside the approved range and the prepared original outside it. The audio check covers the actual duration: RMS delta must be at most 3 dB and absolute peak delta from the prepared original at most 0.1 dB. This preserves the source baseline even when decoded AAC peaks already exceed 0 dBFS. Existing `2.0`/`2.1` specs retain their frozen absolute peak ceilings; `2.0` also retains its sample CTA contract. All versions use the existing wire check ID `locked_cta` for compatibility with ClickHouse's three-check schema; uploaded-video specs display it as “Full video follows the approved edit.” This is sampled similarity verification, not an every-frame or audio-waveform identity guarantee.
+Legacy spec 2.0 retains CTA/absolute audio limits, 2.1 retains uploaded full-video/absolute audio limits, and 2.2 retains original-relative audio RMS/peak deltas. Their original canonical JSON/hash is covered by pinned pre-expansion fixtures. The external-editor verification UI remains available only for the legacy approximate-check contract; new plans require the exact approved export.
 
-Text, caption and logo insertion remain unsupported. Compound requests containing these edits are held as whole manual notes rather than partially executed. `Edit request` preserves the selected local file, range and wording while returning to an editable form; submitting again creates a new review. Uploaded labels are copied verbatim from the source note, with timing grounded in the user's explicit selection.
+Guided controls report `user.structured`. Natural language returns a reviewable draft and warnings, never executable commands or approval. Ambiguity preserves input and the manual controls. The edit library currently accepts only legacy zoom proofs, so multi-edit save is rejected rather than encoded as a false zoom.
 
 ## Trust boundaries
 

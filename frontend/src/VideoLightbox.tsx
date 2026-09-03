@@ -5,6 +5,7 @@ export interface VideoLightboxContent {
   src: string
   title: string
   detail: string
+  startSeconds?: number
 }
 
 export function VideoLightbox({
@@ -57,11 +58,10 @@ export function VideoLightbox({
           </button>
         </header>
         <div className="video-modal-stage">
-          <video key={content.src} src={content.src} controls playsInline preload="metadata" />
+          <video key={content.src} src={content.src} controls playsInline preload="metadata" onLoadedMetadata={event => { if (content.startSeconds !== undefined) event.currentTarget.currentTime = content.startSeconds }} />
         </div>
-        <footer>Use the player controls to pause on the 00:08–00:14 punch-in.</footer>
+        <footer>Use the player controls to inspect the picture, text and audio before choosing an edit.</footer>
       </section>
     </div>
   )
 }
-

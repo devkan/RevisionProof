@@ -6,17 +6,14 @@ Branch: review/qa-hardening
 
 ## Current Status
 
-- KANAPP demo fixes are pushed and deployed from source `1c1204620382244fc817ce4f8f457f6867dc57cc`: unchanged positive-peak audio no longer falsely blocks new spec 2.2 uploads; Korean uploaded targets use the explicit user range; unsupported text requests show guidance and `Edit request`. Backend 303 / frontend 19 tests passed. Read [the KANAPP debug/release record](docs/kanapp-demo-fix-2026-09-03.md) first. Text/caption/logo insertion remains unimplemented.
-- Cloud Build `95808615-6694-4d67-ad58-c04097cbf46a` succeeded at `2026-09-03T08:51:17.608781Z`; revision `revisionproof-staging-00017-cnr` serves 100% traffic at [the LIVE site](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=1c12046). Image digest: `sha256:ad118dc715b9bdbbb4489ce523581f3ccbbc1efcbd93c26b67edf02b9869a5c2`. Existing browser tabs may need a hard refresh; correct script is `index-55CB_99c.js`.
-- Actual `demo_movie_kanapp.mp4` local run `01M1K6VB9HVFPY112AQRKXD9EC` is READY / three PASS. Post-deploy retransmission of that file to LIVE was rejected by automatic approval review, which requires explicit file-and-destination approval. Do not bypass that rejection. Read-only health/runtime checks and non-sensitive synthetic-video LIVE QA were completed separately.
-- Fresh synthetic LIVE run `01M1K7XV7QF85PVHE9Q1EKD9HQ` completed READY / three PASS / official MCP Change Map with 20 samples and 10 windows, zero review flags. Source and candidate decoded peaks both +2.13 dBFS; peak/RMS deltas both 0. MP4 download/playback, 390px width and console/network checks passed. Exact compound Korean guidance and `Edit request` preservation passed in run `01M1K7W9763JK70AV2NGBDTTHJ`. Final delivery approval and memory save remain false.
-- The preceding original-upload release was source `d7676495ed7b2cf29a8ec03a9e865d9bb05f580c`, build `41e73ed2-e824-485e-b464-e3fc166f259b`, revision `revisionproof-staging-00016-j4q`. Its [release record](docs/deployment-2026-09-03-source-upload.md) remains historical evidence. Cloud Shell deployment authorization was already explicitly approved by the owner.
-- Branch remains `review/qa-hardening`; repository remains PRIVATE, with no PR, merge or visibility change. Post-deploy documentation is a separate commit from the deployed application source; use current Git HEAD for that documentation checkpoint.
-- Preceding-release LIVE run `01M1K3CSTV2R01X4VF3CHNFWK5` uploaded a separate 12-second portrait video, selected 2–8 seconds, used Gemini, and generated the complete Option B video. READY / three PASS / official MCP Change Map with 24 samples and 12 windows / zero review flags. MP4 download and playback passed. Final delivery approval and memory save are false.
-- Approved Edit Memory is read-only in public LIVE until separate owner-key setup. Cloud HNSW/QBit schema exists; actual vector/index execution was verified on a populated isolated server, not on the empty Cloud library.
-- The additive ClickHouse migration belongs to the preceding release and was not rerun. The old revision `revisionproof-staging-00015-h6b` and earlier resources remain available; no cleanup was performed.
+- The owner authorized and implementation now includes center zoom, literal text, timed subtitle cues, exact cuts and reviewed silence removal. The default UI has selectable examples, editable cards, explicit draft review, preserved-input adjustment and mapped comparisons. Read [the current guide](docs/basic-editing-guide-2026-09-03.md) and [engineering review](docs/basic-editing-plan-2026-09-03.md).
+- New EDIT_PLAN spec 3.0 freezes original-time operations and a full-preview SHA-256. Export is a byte-identical copy. Legacy 2.x JSON/hash behavior remains compatible. All audio channels must be quiet; proposed cuts require user selection.
+- Actual KANAPP compound request passed locally: run `01M1KD2G84K7G3CCT5RAG0WS89`, B, READY / 3 PASS, zero map flags. Text is visibly present at 6 seconds. Synthetic subtitles + manual/silence cuts run `01M1KDAT3C4Z43KQJTYB8ZSW3J` passed, 10s -> 7.766667s; revised 3s maps to original 5.233333s.
+- Final regression and deployment of the expansion are in progress at this checkpoint. Current LIVE remains `revisionproof-staging-00017-cnr`, source `1c1204620382244fc817ce4f8f457f6867dc57cc`, build `95808615-6694-4d67-ad58-c04097cbf46a`, image `sha256:ad118dc715b9bdbbb4489ce523581f3ccbbc1efcbd93c26b67edf02b9869a5c2`. This preceding release does not have the new editor. Update after rollout.
+- Branch/repo remain `review/qa-hardening` / PRIVATE. No PR, merge or visibility change. Push and existing-service Cloud Shell deployment were already authorized; no repeat approval is needed.
+- Earlier automatic review rejected retransmission of `demo_movie_kanapp.mp4` to LIVE without explicit file-and-destination approval. Keep it local and use non-sensitive synthetic media for LIVE QA. Never auto-approve final delivery or seed Cloud memory.
 
-## Completed This Session
+## Previous Release Context
 
 - Diagnosed the actual KANAPP audio false block and the LIVE Korean target-phrase error from logs, added failing regressions, then fixed them with schema 2.2 and explicit unsupported-request recovery. Current backend 303 / frontend 19 and static/build checks passed. Local actual-video proof and post-deploy synthetic-video evidence are in the new debug record.
 - Added bounded original MP4/MOV/WebM upload, aspect-preserving 720p preparation, explicit 4–8 second selection, actual-source A/B/full rendering, spec 2.1 full-video checks, and preserved-source interpretation retry. Approved references are collapsed and fetched only when opened; zero records no longer imply vector search execution.
@@ -27,6 +24,9 @@ Branch: review/qa-hardening
 - Updated release evidence, usage guide, architecture, README and docs index. Local QA used ports 18125/18126; recheck local server state after the desktop restart before relying on those URLs.
 
 ## Relevant Docs
+
+- [Basic editing guide and release evidence](docs/basic-editing-guide-2026-09-03.md) — current work; read first.
+- [gstack engineering review](docs/basic-editing-plan-2026-09-03.md) — scope and design decisions.
 
 - [KANAPP demo fix and deployment](docs/kanapp-demo-fix-2026-09-03.md) — read first; source/build/image/revision IDs, 303/19 tests, actual-video local proof, fresh synthetic LIVE checks and actual-file retransmission approval boundary.
 - [Source upload deployment](docs/deployment-2026-09-03-source-upload.md) — preceding release's source/build/image/revision IDs, 292/19 tests and upload evidence.
@@ -41,11 +41,10 @@ Branch: review/qa-hardening
 
 ## Remaining Work
 
-The source-upload/UX and KANAPP bug-fix deployments are complete. One validation step requires explicit approval: retransmit `demo_movie_kanapp.mp4` to the existing LIVE service for post-deploy actual-file verification. It already passed local testing; automatic approval review blocked the network retransmission. Separate follow-up work:
-
-1. If the owner wants LIVE memory saves, obtain separate credential-setup approval; first ensure the deployment preserves a pinned memory secret alongside existing ClickHouse bindings, then configure the private operator token and validate an explicitly human-approved save/retrieval.
-2. Continue owner testing and update the demo script for source upload, checkbox selection, automatic full-video generation, Change Map and the actual memory activation state.
-3. Before submission, recheck official rules/tool eligibility, obtain publication/landing approvals, perform clean-clone and operator-led recording checks, and decide ClickHouse trial-expiry hosting/export.
+1. Finish final test/lint gates, commit and push the basic editor.
+2. Deploy the SHA-verified committed archive with the existing Cloud Build workflow; no ClickHouse migration is needed.
+3. Verify fresh LIVE drafting, English/Korean text, captions/cuts, MCP verdict/map and browser playback using synthetic media. Record source/build/revision/run IDs in the current guide and this handoff.
+4. Leave final human delivery approval false. Private memory keys, auto-transcription, original burned-in text replacement and general video effects remain separate work.
 
 ## Watchouts
 
@@ -53,11 +52,11 @@ The source-upload/UX and KANAPP bug-fix deployments are complete. One validation
 - ClickHouse host `r2uz2gfc2f.asia-northeast1.gcp.clickhouse.cloud`, service `268999c1-badb-423e-993c-ebab14b551c4`. Seven extension objects/grants are already applied; do not rerun historical bootstrap or revoke existing grants.
 - Preserve `revisionproof.segments_pre_seed_dedupe_20260826`, shared roles/definer, other projects and Docker volumes. Deletion, billing and new credentials require scoped owner authority.
 - Runs are process-local; refresh does not restore the active UI, and restart may make old run APIs unavailable. Keep Cloud Run concurrency 4 / min-max 1 unless that state model is deliberately changed.
-- The bundled source is an authored storyboard/tone with seeded metadata. User uploads instead use explicit user-selected timing and no inferred transcription. Only constrained punch-in is automated; Change Map and full-video checks use sampled diagnostics. Prepared uploads are process-local, not durably archived originals.
+- The bundled source is an authored storyboard/tone with seeded metadata. User uploads instead use explicit user-selected timing and no inferred transcription. Basic editing is authorized and implemented; new exports have exact preview identity checks while the Change Map remains sampled diagnostics. Prepared uploads are process-local, not durably archived originals.
 - Never auto-approve LIVE delivery or seed fake Cloud memory. Historical human-approved run `01M0Z3338TYVHWHK4FZRGADTKZ` is not approval for a new run.
 - A LIVE badge or selected HNSW/QBit option alone is not proof of successful live calls/index use. Hosted CI does not run on this branch push; previous local test and Cloud Build successes are separate evidence.
 - Secrets, archives, backups and ignored `.gstack/` evidence must not be published. New windows must reacquire browser sessions; trial end/date and Cloud state should be rechecked before operational changes.
 
 ## Suggested Next Action
 
-Use the release URL above or a hard refresh for owner testing. If the owner explicitly approves retransmitting the actual KANAPP file to the existing LIVE service, finish that post-deploy check with the exact compound request, `Edit request`, then zoom-only/B/three checks; keep final delivery approval false. No further deployment or ClickHouse migration is needed for these fixes. Text insertion is separate feature work and has not been authorized or implemented in this fix.
+Finish the release steps above. Local gstack QA uses port 18128 and `.gstack/basic-editor-browser/`; recheck process state after an interruption. The [basic editing guide](docs/basic-editing-guide-2026-09-03.md) has user instructions and current evidence. Existing deployment resources and secret versions must be preserved.

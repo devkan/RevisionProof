@@ -49,6 +49,11 @@ class DeterministicVerifier:
         spec: RevisionSpec,
         version_label: str,
     ) -> VerificationProof:
+        spec = RevisionSpec.model_validate_json(spec.model_dump_json())
+        if spec.schema_version == "3.0":
+            from revisionproof.editing.verify import verify_plan
+
+            return verify_plan(source, candidate, spec, version_label, self.executor)
         checks = [
             self._approved_patch(source, candidate, spec),
             self._locked_cta(source, candidate, spec),

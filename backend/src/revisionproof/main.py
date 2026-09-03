@@ -99,7 +99,7 @@ def frontend(full_path: str):
         return FileResponse(requested)
     index = FRONTEND_DIST / "index.html"
     if index.exists():
-        return FileResponse(index)
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
     return JSONResponse(
         status_code=503,
         content={"detail": "frontend build missing; run npm run build --prefix frontend"},

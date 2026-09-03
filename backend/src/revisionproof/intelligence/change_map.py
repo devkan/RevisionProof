@@ -10,7 +10,8 @@ from typing import Any
 import cv2
 import numpy as np
 
-from revisionproof.contracts import RevisionSpec
+from revisionproof.contracts import EditCandidate, RevisionSpec
+from revisionproof.editing.verify import approved_reference
 from revisionproof.intelligence.models import ChangeWindow
 from revisionproof.media.executor import MediaExecutor
 from revisionproof.verification.metrics import apply_punch_in, normalized_similarity, roi_similarity
@@ -66,10 +67,15 @@ def measure_frame_pairs(
     """Bounded sampled diagnostics. No frame-level embedding or LLM verdict."""
     if not 0 < duration <= 600:
         raise ValueError("Change Map duration is outside the bounded media contract")
-    audio_a = _audio_samples(source, duration, executor)
-    audio_b = _audio_samples(candidate, duration, executor)
-    captures = [cv2.VideoCapture(str(path)) for path in (source, candidate)]
     patch = spec.approved_candidate
+    planned = isinstance(patch, EditCandidate)
+    reference = approved_reference(source, spec) if planned else source
+    audio_a = _audio_samples(reference, duration, executor)
+    audio_b = _audio_samples(candidate, duration, executor)
+    captures = [
+        cv2.VideoCapture(str(path))
+        for path in ((source, candidate, reference) if planned else (source, candidate))
+    ]
     cta = spec.manifest_for("locked_cta")
     full_video = any(element.kind == "VIDEO_CONTENT" for element in spec.locked_elements)
     assert cta.roi is not None
@@ -87,17 +93,28 @@ def measure_frame_pairs(
             for sample in range(SAMPLE_FPS):
                 t = second + (sample + 0.5) * (end - second) / SAMPLE_FPS
                 frames = []
-                for capture in captures:
-                    capture.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+                for index, capture in enumerate(captures):
+                    at = patch.plan.source_time(t) if planned and index == 0 else t
+                    capture.set(cv2.CAP_PROP_POS_MSEC, at * 1000)
                     ok, frame = capture.read()
                     if not ok or frame is None:
                         raise ValueError(f"Change Map frame missing at {t:.3f}s")
                     frames.append(frame)
-                original, revised = frames
+                original, revised = frames[:2]
                 if original.shape != revised.shape:
                     raise ValueError("Change Map requires matching source and candidate geometry")
-                requested = patch.time_range.start_seconds <= t < patch.time_range.end_seconds
-                expected = apply_punch_in(original, patch.scale) if requested else original
+                requested = (
+                    patch.plan.is_visual_edit(t)
+                    if planned
+                    else patch.time_range.start_seconds <= t < patch.time_range.end_seconds
+                )
+                expected = (
+                    frames[2]
+                    if planned
+                    else apply_punch_in(original, patch.scale)
+                    if requested
+                    else original
+                )
                 cta_active = cta.time_range.start_seconds <= t < cta.time_range.end_seconds
                 pairs.append(
                     {

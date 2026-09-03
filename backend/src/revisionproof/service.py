@@ -22,6 +22,7 @@ from revisionproof.contracts import (
     ApprovalRequest,
     CreateRunRequest,
     DemoAsset,
+    EditCandidate,
     EvidenceAnchor,
     ExecutionMode,
     LockedElement,
@@ -36,6 +37,9 @@ from revisionproof.contracts import (
     VerificationManifest,
     VerificationProof,
 )
+from revisionproof.editing.models import EditPlan, InterpretEditRequest
+from revisionproof.editing.verify import approved_reference
+from revisionproof.editing.workflow import plan_previews, review_plan
 from revisionproof.evidence.fixture import FixtureEvidenceLocator, FixtureInterpreter
 from revisionproof.ids import new_ulid
 from revisionproof.intelligence.models import EditMemorySearch, MemorySaveResult, SearchEngine
@@ -141,6 +145,26 @@ class RevisionProofService:
         if self.settings.mode is ExecutionMode.UNAVAILABLE:
             raise ValueError("runtime integrations are unavailable")
 
+    async def interpret_edit_plan(self, request: InterpretEditRequest):
+        from revisionproof.editing.interpret import interpret_live, interpret_local
+
+        self._assert_mutable_mode()
+        self._record_new_run()
+        if self.settings.mode is ExecutionMode.LIVE:
+            if self.settings.live_missing_settings:
+                raise ValueError(
+                    "Request interpretation is unavailable. Use the edit controls below."
+                )
+            try:
+                return await interpret_live(request, self.settings)
+            except Exception as exc:
+                logger.exception("Edit plan interpretation failed")
+                raise ValueError(
+                    "We could not turn this request into an edit plan. "
+                    "Your words are preserved; use the edit buttons below or try again."
+                ) from exc
+        return interpret_local(request)
+
     @staticmethod
     def _validate_idempotency_key(key: str | None) -> str | None:
         if key is not None and not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", key):
@@ -229,6 +253,7 @@ class RevisionProofService:
         selected_range: TimeRange,
         content_sha256: str,
         idempotency_key: str | None,
+        edit_plan: EditPlan | None = None,
     ) -> RunSnapshot:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
@@ -238,8 +263,9 @@ class RevisionProofService:
             raise SourceUploadError(
                 f"Video is too large or empty. Maximum: {self.settings.max_upload_mib} MiB.", 413
             )
-        if not 8 <= len(feedback) <= 2000:
-            raise SourceUploadError("Describe the edit in 8–2000 characters.")
+        minimum = 2 if edit_plan is not None else 8
+        if not minimum <= len(feedback) <= 2000:
+            raise SourceUploadError(f"Describe the edit in {minimum}–2000 characters.")
         self.settings.runtime_dir.mkdir(parents=True, exist_ok=True)
         async with self._create_idempotency_lock("source:" + key):
             with tempfile.TemporaryDirectory(
@@ -255,7 +281,15 @@ class RevisionProofService:
                         content_sha256,
                     )
                     fingerprint = self._fingerprint(
-                        json.dumps([digest, feedback, selected_range.model_dump()], sort_keys=True)
+                        json.dumps(
+                            [
+                                digest,
+                                feedback,
+                                selected_range.model_dump(),
+                                edit_plan.model_dump() if edit_plan else None,
+                            ],
+                            sort_keys=True,
+                        )
                     )
                     replay = self.repository.recall_idempotent("upload_source", key, fingerprint)
                     if replay is not None:
@@ -280,6 +314,7 @@ class RevisionProofService:
                     state=RunState.INDEXED,
                     selected_range=selected_range,
                     source_feedback=feedback,
+                    edit_plan=edit_plan,
                     asset=DemoAsset(
                         asset_id=run_id,
                         title=title,
@@ -312,6 +347,9 @@ class RevisionProofService:
                 return snapshot
 
     async def _interpret_uploaded(self, snapshot: RunSnapshot, feedback: str) -> None:
+        if snapshot.edit_plan is not None:
+            await asyncio.to_thread(review_plan, self, snapshot, snapshot.edit_plan)
+            return
         selected = snapshot.selected_range
         if selected is None:
             raise ValueError("Uploaded videos require an explicit selected section")
@@ -368,16 +406,27 @@ class RevisionProofService:
         )
         self._record_new_run()
         run_id = new_ulid()
+        if request.edit_plan is not None:
+            # Planned exports own an immutable reference beside their source, including samples.
+            owned_source = self.settings.runtime_dir / "runs" / run_id / "source" / "source.mp4"
+            owned_source.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source_path, owned_source)
+            source_path = owned_source
         snapshot = RunSnapshot(
             run_id=run_id,
             asset=asset,
             mode=self.settings.mode,
             state=RunState.INDEXED,
             source_feedback=request.feedback,
+            edit_plan=request.edit_plan,
         )
         self.repository.create(snapshot, source_path, active=True)
         try:
             await self._cleanup_pending_evictions()
+            if snapshot.edit_plan is not None:
+                await asyncio.to_thread(review_plan, self, snapshot, snapshot.edit_plan)
+                self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
+                return snapshot
             if self.settings.mode is ExecutionMode.FIXTURE:
                 snapshot.notes = self.fixture_interpreter.interpret_many(request.feedback)
                 snapshot.feedback = self._feedback_from_notes(snapshot, "fixture.interpreter")
@@ -524,25 +573,32 @@ class RevisionProofService:
         run_id: str,
         idempotency_key: str | None = None,
         selected_note_id: str | None = None,
+        edit_plan: EditPlan | None = None,
     ) -> RunSnapshot:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
-        fingerprint = self._fingerprint(f"{run_id}:{selected_note_id or 'default'}")
+        fingerprint = self._fingerprint(
+            f"{run_id}:{selected_note_id or 'default'}:"
+            f"{edit_plan.model_dump_json() if edit_plan else ''}"
+        )
         with self.repository.locked(run_id):
             replay = self.repository.recall_idempotent(f"{run_id}:previews", key, fingerprint)
             if replay is not None:
                 return replay
             with self._exclusive_media_pipeline():
-                snapshot = self._generate_previews_locked(run_id, selected_note_id)
+                snapshot = self._generate_previews_locked(run_id, selected_note_id, edit_plan)
                 self.repository.remember_idempotent(f"{run_id}:previews", key, fingerprint, run_id)
                 return snapshot
 
     def _generate_previews_locked(
-        self, run_id: str, selected_note_id: str | None = None
+        self, run_id: str, selected_note_id: str | None = None, edit_plan: EditPlan | None = None
     ) -> RunSnapshot:
         snapshot = self.repository.get(run_id)
         if snapshot.state is not RunState.EVIDENCE_ANCHORED:
             raise ValueError("previews require EVIDENCE_ANCHORED state")
+        if snapshot.edit_plan is not None:
+            plan_previews(self, snapshot, edit_plan)
+            return snapshot
         selected_feedback = self._feedback_from_notes(
             snapshot,
             snapshot.feedback.interpreter_source if snapshot.feedback else "fixture.interpreter",
@@ -632,15 +688,17 @@ class RevisionProofService:
         )
         if candidate is None:
             raise ValueError("candidate does not exist")
-        uploaded = snapshot.asset.source_kind == "upload"
+        planned = isinstance(candidate, EditCandidate)
+        uploaded = snapshot.asset.source_kind == "upload" or planned
+        output_duration = (
+            candidate.plan.output_duration if planned else snapshot.asset.duration_seconds
+        )
         visual_range = (
-            TimeRange(start_seconds=0, end_seconds=snapshot.asset.duration_seconds)
+            TimeRange(start_seconds=0, end_seconds=output_duration)
             if uploaded
             else TimeRange(start_seconds=24, end_seconds=29)
         )
-        audio_range = TimeRange(
-            start_seconds=0, end_seconds=snapshot.asset.duration_seconds if uploaded else 30
-        )
+        audio_range = TimeRange(start_seconds=0, end_seconds=output_duration if uploaded else 30)
         frozen_spec = RevisionSpec.freeze(
             run_id=run_id,
             asset_id=snapshot.asset.asset_id,
@@ -766,7 +824,8 @@ class RevisionProofService:
             "audio_peak_dbfs": audio_range,
         }
         rows = []
-        for label, values in (("v1", baseline_values), (version_label, current_values)):
+        baseline_label = "approved-reference" if snapshot.spec.schema_version == "3.0" else "v1"
+        for label, values in ((baseline_label, baseline_values), (version_label, current_values)):
             rows.extend(
                 [
                     snapshot.run_id,
@@ -785,7 +844,7 @@ class RevisionProofService:
             destination, f"runs/{snapshot.run_id}/versions/{version_label}.mp4"
         )
         reader = McpClickHouseReader(self.settings)
-        query = build_version_diff_query(snapshot.run_id, version_label, "v1")
+        query = build_version_diff_query(snapshot.run_id, version_label, baseline_label)
         try:
             diff_rows = asyncio.run(reader.run_query(query))
             if not diff_rows:
@@ -824,9 +883,12 @@ class RevisionProofService:
             raise RuntimeError("immutable spec is missing")
         baseline_proof = self._baseline_proofs.get(snapshot.run_id)
         if baseline_proof is None:
+            original = self.repository.source_path(snapshot.run_id)
             baseline_proof = self.verifier.verify(
-                source=self.repository.source_path(snapshot.run_id),
-                candidate=self.repository.source_path(snapshot.run_id),
+                source=original,
+                candidate=approved_reference(original, snapshot.spec)
+                if snapshot.spec.schema_version == "3.0"
+                else original,
                 spec=snapshot.spec,
                 version_label="v1",
             )
@@ -840,12 +902,19 @@ class RevisionProofService:
             raise RuntimeError("verification proof or immutable spec is missing")
         manifest = snapshot.spec.manifest_for("locked_cta")
         second = (manifest.time_range.start_seconds + manifest.time_range.end_seconds) / 2
+        original_second = (
+            snapshot.spec.approved_candidate.plan.source_time(second)
+            if isinstance(snapshot.spec.approved_candidate, EditCandidate)
+            else second
+        )
         evidence_dir = self.settings.runtime_dir / "runs" / snapshot.run_id / "evidence"
         baseline_name = "baseline-cta.png"
         current_name = f"{version_label}-cta.png"
         baseline_path = evidence_dir / baseline_name
         if not baseline_path.exists():
-            write_frame_png(self.repository.source_path(snapshot.run_id), second, baseline_path)
+            write_frame_png(
+                self.repository.source_path(snapshot.run_id), original_second, baseline_path
+            )
         write_frame_png(destination, second, evidence_dir / current_name)
         check = next(item for item in snapshot.proof.checks if item.check_id == "locked_cta")
         check.evidence_urls = [
@@ -924,12 +993,22 @@ class RevisionProofService:
                 staging = build_dir / f".automatic-{new_ulid()}.mp4"
                 version_label = f"approved-{snapshot.spec.approved_candidate.candidate_id.lower()}"
                 try:
-                    generate_full_revision(
-                        source=self.repository.source_path(run_id),
-                        destination=staging,
-                        candidate=snapshot.spec.approved_candidate,
-                        executor=self.executor,
+                    snapshot.spec = RevisionSpec.model_validate_json(
+                        snapshot.spec.model_dump_json()
                     )
+                    if snapshot.spec.schema_version == "3.0":
+                        staging.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(
+                            approved_reference(self.repository.source_path(run_id), snapshot.spec),
+                            staging,
+                        )
+                    else:
+                        generate_full_revision(
+                            source=self.repository.source_path(run_id),
+                            destination=staging,
+                            candidate=snapshot.spec.approved_candidate,
+                            executor=self.executor,
+                        )
                     with staging.open("rb") as stream:
                         snapshot = self._upload_and_verify_locked(
                             run_id=run_id,
@@ -1031,8 +1110,13 @@ class RevisionProofService:
                 shutil.copyfileobj(stream, output)
             info = probe_media(staging_destination, self.executor)
             validate_hackathon_media(info, max_duration_seconds=self.settings.max_duration_seconds)
-            if abs(info.duration_seconds - snapshot.asset.duration_seconds) > 0.15:
-                raise ValueError("Revised video must preserve the full original duration")
+            expected_duration = (
+                snapshot.spec.approved_candidate.plan.output_duration
+                if isinstance(snapshot.spec.approved_candidate, EditCandidate)
+                else snapshot.asset.duration_seconds
+            )
+            if abs(info.duration_seconds - expected_duration) > 0.15:
+                raise ValueError("Revised video duration must match the approved timeline")
             snapshot.generated_version_url = None
             snapshot.change_map = None
             snapshot.memory_saved = False
@@ -1138,6 +1222,20 @@ class RevisionProofService:
             ):
                 raise ValueError("delivery approval requires a READY proof with all checks passed")
             if not snapshot.delivery_approved:
+                if snapshot.spec is None:
+                    raise ValueError("Delivery requires an approved edit.")
+                RevisionSpec.model_validate_json(snapshot.spec.model_dump_json())
+                if snapshot.spec.schema_version == "3.0":
+                    from revisionproof.editing.verify import file_hash
+
+                    reference = approved_reference(
+                        self.repository.source_path(run_id), snapshot.spec
+                    )
+                    version = self.repository.version_path(run_id)
+                    if file_hash(reference) != file_hash(version):
+                        raise ValueError(
+                            "The verified export changed. Verify it again before delivery."
+                        )
                 snapshot.delivery_approved = True
                 self.repository.append_event(
                     run_id, RunState.READY, "Human approved the verified version for delivery"

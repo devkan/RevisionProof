@@ -1,15 +1,15 @@
 # RevisionProof
 
-RevisionProof is a deterministic approval firewall for video revisions. It converts ambiguous client feedback into an evidence-anchored `RevisionSpec`, produces constrained A/B punch-in previews, and blocks publishing when a new version violates the approved patch or a locked creative element.
+RevisionProof turns video edit requests into reviewable previews and verified exports. Choose basic edits directly or use an editable natural-language draft, approve the exact result, then check it before delivery.
 
-The hackathon path is deliberately narrow:
+1. Upload MP4/MOV/WebM, up to 24 MiB and 4–60 seconds, or use the sample.
+2. Combine center zoom, text, timed subtitle cues, interval cuts and reviewed silence removal. Examples and editable cards show exactly what can run.
+3. Review original-video times and exact words. Quiet pauses become optional cut suggestions; the user selects them.
+4. Watch full A/B previews (zoom strength/text size). Cut-only plans produce one preview.
+5. Choosing a preview freezes spec 3.0 and its SHA-256. The export is an exact copy; media checks and the LIVE ClickHouse MCP feature diff verify the result.
+6. Watch the result, use `Adjust edits` if needed, then explicitly approve delivery.
 
-1. Upload an original MP4/MOV/WebM (up to 24 MiB, 4–60 seconds), or use the indexed sample. For an upload, choose the 4–8 second section to edit; the app prepares a 720p working copy while preserving aspect ratio.
-2. Present the result as a checklist. Only the explicitly selected, evidence-grounded punch-in may execute; the other requests remain unchanged.
-3. Generate two constrained 4–8 second punch-in previews (1.05x and 1.12x).
-4. Choosing A or B freezes an immutable, SHA-256-addressed spec and applies that option to the complete source, preserving its duration.
-5. FFmpeg and OpenCV verify the requested patch, protected video content, and audio levels. Uploaded originals use sampled full-video checks; the bundled sample retains its specific CTA check. A passing result is available to watch and download.
-6. A separate human `Approve for delivery` gate remains required. Uploading an externally edited MP4 is available only as a secondary verification path.
+See the [basic editing guide and release evidence](docs/basic-editing-guide-2026-09-03.md) for Korean/English examples, current deployment status and limitations. The original scene-search punch-in proof remains an alternate demo, and its existing spec 2.x JSON/hash contracts remain supported.
 
 ## Revision intelligence
 
@@ -17,13 +17,13 @@ With `REVISIONPROOF_INTELLIGENCE_ENABLED=true`, the full-video result includes a
 
 **Past approved edits** is a collapsed, optional reference area. It searches only when opened, so it does not delay the main review flow. It finds similar, previously verified and human-approved edits; suggestions never auto-select an option. An empty library explains why nothing is available and hides search-engine controls. LIVE retrieval uses the official ClickHouse MCP and supports exact, verified HNSW, and QBit search. Small libraries explicitly use exact search; an empty library reports that no vector engine ran. The public deployment is read-only unless an owner configures a private save key. Local FIXTURE memory is process-local and labelled accordingly.
 
-Uploaded-video timing comes from the user's selection, not automatic transcription or scene recognition. LIVE classifies the feedback with Gemini; FIXTURE uses explicitly labelled local rules. Only center punch-in is automated; text, captions and logos are unsupported. `Edit request` keeps the file, range and wording available for correction. See the [upload and memory UX guide](docs/source-upload-and-memory-ux-2026-09-03.md) for usage, limits, and verification. These upload/UX changes are deployed and verified on the LIVE service below.
+All edit times refer to the original video; comparisons map around removed sections. LIVE natural-language drafts use Google ADK/Gemini, local drafts use conservative rules, and direct controls report user-entered plans. Text is literal overlays, not automatic speech transcription or removal of text already burned into the original. Object/background manipulation and generated scenes are outside this build. The existing approved-edit library stores only legacy zoom proofs; multi-edit plans do not show unsupported memory controls.
 
 ClickHouse 26.2+ is required. Existing installations must run the additive migration before enabling the feature. See the [intelligence runbook](docs/clickhouse-intelligence-runbook.md) for setup, private saving, trial-expiry export, restore, and rollback. The extension is enabled on the LIVE demo; its migration, deployment and persisted evidence are in the [2026-09-03 release record](docs/deployment-2026-09-03-clickhouse-intelligence.md).
 
 ## Local quick start
 
-Prerequisites: Python 3.12, Node 22+, uv, and FFmpeg/FFprobe.
+Prerequisites: Python 3.12, Node 22+, uv, FFmpeg/FFprobe, and Noto Sans CJK (Linux) or Malgun Gothic (Windows) for text rendering. Docker installs the font.
 
 ```powershell
 Copy-Item .env.example .env

@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from revisionproof.editing.models import EditPlan
 from revisionproof.intelligence.models import EditMemorySearch, RevisionChangeMap
 
 
@@ -40,6 +41,7 @@ class Verdict(StrEnum):
 
 class PatchType(StrEnum):
     PUNCH_IN = "PUNCH_IN"
+    EDIT_PLAN = "EDIT_PLAN"
 
 
 class SafetyClassification(StrEnum):
@@ -85,7 +87,9 @@ class ParsedFeedback(BaseModel):
     patch_type: PatchType = PatchType.PUNCH_IN
     target_phrase: str = Field(min_length=1, max_length=200)
     rationale: str = Field(min_length=1, max_length=1000)
-    interpreter_source: Literal["fixture.interpreter", "google.vertex.gemini", "local.range_rules"]
+    interpreter_source: Literal[
+        "fixture.interpreter", "google.vertex.gemini", "local.range_rules", "user.structured"
+    ]
 
 
 class RevisionNote(BaseModel):
@@ -114,8 +118,9 @@ class RevisionNote(BaseModel):
 
 
 class PatchCandidate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     candidate_id: Literal["A", "B"]
-    patch_type: PatchType = PatchType.PUNCH_IN
+    patch_type: Literal[PatchType.PUNCH_IN] = PatchType.PUNCH_IN
     scale: Literal[1.05, 1.12]
     time_range: TimeRange
     preview_url: str | None = None
@@ -125,6 +130,30 @@ class PatchCandidate(BaseModel):
         duration = self.time_range.end_seconds - self.time_range.start_seconds
         if not 4 <= duration <= 8:
             raise ValueError("PUNCH_IN preview duration must be between 4 and 8 seconds")
+        return self
+
+
+class EditCandidate(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    candidate_id: Literal["A", "B"]
+    patch_type: Literal["EDIT_PLAN"] = "EDIT_PLAN"
+    time_range: TimeRange
+    preview_url: str
+    plan: EditPlan
+    reference_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def resolved(self) -> EditCandidate:
+        self.plan.validate_selection()
+        if not self.plan.operations or any(
+            op.kind == "remove_silence" for op in self.plan.operations
+        ):
+            raise ValueError("Approve a resolved edit plan with at least one edit.")
+        if (
+            self.time_range.start_seconds != 0
+            or abs(self.time_range.end_seconds - self.plan.output_duration) > 0.001
+        ):
+            raise ValueError("Plan preview must cover the complete edited timeline.")
         return self
 
 
@@ -189,10 +218,10 @@ class VerificationManifest(BaseModel):
 class RevisionSpec(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    schema_version: Literal["2.0", "2.1", "2.2"] = "2.0"
+    schema_version: Literal["2.0", "2.1", "2.2", "3.0"] = "2.0"
     run_id: str
     asset_id: str
-    approved_candidate: PatchCandidate
+    approved_candidate: EditCandidate | PatchCandidate
     evidence: tuple[EvidenceAnchor, ...]
     locked_elements: tuple[LockedElement, ...]
     verification_manifest: tuple[VerificationManifest, ...]
@@ -209,8 +238,10 @@ class RevisionSpec(BaseModel):
         locked_by_kind = {element.kind: element for element in self.locked_elements}
         visual_kind = "VIDEO_CONTENT" if self.schema_version != "2.0" else "CTA_OVERLAY"
         relative_audio = "maximum_peak_delta_db" in self.manifest_for("locked_audio").threshold
-        if relative_audio != (self.schema_version == "2.2"):
+        if relative_audio != (self.schema_version in {"2.2", "3.0"}):
             raise ValueError("relative audio preservation requires spec 2.2")
+        if isinstance(self.approved_candidate, EditCandidate) != (self.schema_version == "3.0"):
+            raise ValueError("Edit plans require spec 3.0.")
         if len(self.locked_elements) != 2 or set(locked_by_kind) != {visual_kind, "AUDIO"}:
             raise ValueError("RevisionSpec must freeze exactly one visual and one audio lock")
         if (
@@ -236,7 +267,7 @@ class RevisionSpec(BaseModel):
         *,
         run_id: str,
         asset_id: str,
-        candidate: PatchCandidate,
+        candidate: PatchCandidate | EditCandidate,
         evidence: list[EvidenceAnchor],
         locked_elements: list[LockedElement],
         verification_manifest: list[VerificationManifest],
@@ -244,7 +275,9 @@ class RevisionSpec(BaseModel):
     ) -> RevisionSpec:
         timestamp = approved_at or datetime.now(UTC)
         payload: dict[str, Any] = {
-            "schema_version": "2.2"
+            "schema_version": "3.0"
+            if isinstance(candidate, EditCandidate)
+            else "2.2"
             if any("maximum_peak_delta_db" in m.threshold for m in verification_manifest)
             else "2.1"
             if any(e.kind == "VIDEO_CONTENT" for e in locked_elements)
@@ -300,7 +333,9 @@ class RunSnapshot(BaseModel):
     selected_note_id: str | None = Field(default=None, max_length=64)
     feedback: ParsedFeedback | None = None
     evidence: list[EvidenceAnchor] = Field(default_factory=list)
-    candidates: list[PatchCandidate] = Field(default_factory=list)
+    candidates: list[EditCandidate | PatchCandidate] = Field(default_factory=list)
+    edit_plan: EditPlan | None = None
+    edit_warnings: list[str] = Field(default_factory=list)
     spec: RevisionSpec | None = None
     proof: VerificationProof | None = None
     generated_version_url: str | None = None
@@ -316,7 +351,14 @@ class RunSnapshot(BaseModel):
 
 class CreateRunRequest(BaseModel):
     asset_id: str
-    feedback: str = Field(min_length=8, max_length=2000)
+    feedback: str = Field(min_length=2, max_length=2000)
+    edit_plan: EditPlan | None = None
+
+    @model_validator(mode="after")
+    def feedback_length(self) -> CreateRunRequest:
+        if self.edit_plan is None and len(self.feedback) < 8:
+            raise ValueError("Describe the edit in 8–2000 characters.")
+        return self
 
 
 class ApprovalRequest(BaseModel):
@@ -325,3 +367,4 @@ class ApprovalRequest(BaseModel):
 
 class PreviewRequest(BaseModel):
     note_id: str = Field(min_length=1, max_length=64)
+    edit_plan: EditPlan | None = None

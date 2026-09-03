@@ -14,7 +14,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     REVISIONPROOF_RUNTIME_DIR=/app/runtime \
     PORT=8080
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y ffmpeg ca-certificates \
+    && apt-get install --no-install-recommends -y ffmpeg ca-certificates fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=uv /uv /uvx /bin/
 WORKDIR /app

@@ -22,6 +22,9 @@ import {
   ZoomIn,
 } from 'lucide-react'
 import { api } from './api'
+import { EditComposer, PlanReview, RequestDraft } from './EditComposer'
+import { candidateTitle, editSummary, planProblem, seconds } from './editing'
+import './editing.css'
 import { DEFAULT_FEEDBACK } from './demoFeedback'
 import { feedbackValidationMessage } from './feedbackValidation'
 import { isTerminalRunState } from './runStream'
@@ -38,6 +41,7 @@ import type {
   SafetyClassification,
   Verdict,
   TimeRange,
+  EditOperation,
 } from './types'
 
 type ProcessingPhase =
@@ -54,11 +58,11 @@ const PROCESSING_COPY: Record<ProcessingPhase, { title: string; detail: string }
   'uploading-source': { title: 'Preparing your video…', detail: 'Uploading, checking the file, and preparing your selected section for editing.' },
   interpreting: {
     title: 'Reviewing every client request…',
-    detail: 'Gemini is separating safe automatic edits from requests that need details or an editor.',
+    detail: 'Checking your edit times, text and any proposed quiet-pause cuts.',
   },
   'rendering-previews': {
-    title: 'Creating two preview options…',
-    detail: 'Creating a subtle and a stronger center punch-in of the selected scene.',
+    title: 'Creating your edited previews…',
+    detail: 'Applying the selected edits. Longer clips and multiple captions can take a moment.',
   },
   approving: {
     title: 'Freezing your approved option…',
@@ -198,14 +202,13 @@ function CandidateCard({
   onViewLarge: () => void
   busy: boolean
 }) {
-  const strength = candidate.candidate_id === 'A' ? 'Subtle' : 'Stronger'
   return (
     <article className={`candidate-card ${approved ? 'candidate-approved' : ''}`}>
       <div className="candidate-heading">
         <span className="candidate-letter">{candidate.candidate_id}</span>
         <div>
-          <h3>{strength} center punch-in</h3>
-          <p>{candidate.scale.toFixed(2)}× · {formatTime(candidate.time_range.start_seconds)}–{formatTime(candidate.time_range.end_seconds)}</p>
+          <h3>{candidateTitle(candidate)}</h3>
+          <p>{candidate.patch_type === 'PUNCH_IN' ? `${candidate.scale.toFixed(2)}× · ` : 'Full preview · '}{seconds(candidate.time_range.end_seconds - candidate.time_range.start_seconds)}</p>
         </div>
         {approved && <span className="approved-label"><Check size={15} /> Selected</span>}
       </div>
@@ -220,7 +223,7 @@ function CandidateCard({
         )}
         {!approved && (
           <button className="primary-button candidate-choice" onClick={onChoose} disabled={busy}>
-            <WandSparkles size={17} /> Choose {candidate.candidate_id} and build full video
+            <WandSparkles size={17} />{candidate.patch_type === 'EDIT_PLAN' ? `Use ${candidate.candidate_id} and verify export` : `Choose ${candidate.candidate_id} and build full video`}
           </button>
         )}
       </div>
@@ -232,7 +235,12 @@ export default function App() {
   const [assets, setAssets] = useState<DemoAsset[]>([])
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null)
   const [run, setRun] = useState<RunSnapshot | null>(null)
-  const [feedback, setFeedback] = useState(DEFAULT_FEEDBACK)
+  const [feedback, setFeedback] = useState('')
+  const [guided, setGuided] = useState(true)
+  const [operations, setOperations] = useState<EditOperation[]>([])
+  const [usedDraftText, setUsedDraftText] = useState('')
+  const [draftBusy, setDraftBusy] = useState(false)
+  const [selectedEdits, setSelectedEdits] = useState<number[]>([])
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [processing, setProcessing] = useState<ProcessingPhase | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -243,9 +251,9 @@ export default function App() {
   const sourcePlayer = useRef<HTMLVideoElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const runId = run?.run_id
-  const busy = processing !== null
-  const feedbackError = run ? null : feedbackValidationMessage(feedback)
-  const rangeError = uploadedSource && !run ? rangeValidation(selectedRange, uploadedSource.asset.duration_seconds) : null
+  const busy = processing !== null || draftBusy
+  const feedbackError = run || guided ? null : feedbackValidationMessage(feedback)
+  const rangeError = uploadedSource && !run && !guided ? rangeValidation(selectedRange, uploadedSource.asset.duration_seconds) : null
   useEffect(() => () => { if (uploadedSource) URL.revokeObjectURL(uploadedSource.asset.source_url) }, [uploadedSource])
 
   useEffect(() => {
@@ -273,6 +281,9 @@ export default function App() {
   }, [runId])
 
   const activeAsset = run?.asset ?? uploadedSource?.asset ?? assets[0]
+  const draftPlan = { source_duration: activeAsset?.duration_seconds ?? 0, operations }
+  const pendingWords = guided && feedback.trim().length > 0 && usedDraftText !== feedback
+  const editProblem = guided ? planProblem(draftPlan) ?? (pendingWords ? 'Turn your request into an edit plan and use the draft, or clear the text to use the controls alone.' : null) : null
   const executableNotes = useMemo(
     () =>
       run?.notes.filter(
@@ -286,12 +297,20 @@ export default function App() {
   )
   const currentStep = !run ? 1 : !run.candidates.length ? 2 : !run.spec ? 3 : 4
 
+  const focusSection = processing || !run ? null : run.proof ? '.result-section' : run.candidates.length ? '.compare-section' : run.edit_plan ? '.plan-review' : '.request-section'
+  useEffect(() => {
+    if (!focusSection) return
+    const frame = requestAnimationFrame(() => document.querySelector(focusSection)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    return () => cancelAnimationFrame(frame)
+  }, [focusSection])
+
   async function action(phase: ProcessingPhase, work: () => Promise<RunSnapshot>) {
     setProcessing(phase)
     setError(null)
     try {
       const next = await work()
       setRun(next)
+      if (next.edit_plan) setSelectedEdits(next.edit_plan.operations.flatMap((op, i) => next.candidates.length || !op.detected ? [i] : []))
       return next
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unexpected request failure')
@@ -303,16 +322,25 @@ export default function App() {
 
   function start() {
     if (!activeAsset || !runtime?.mutable) return
+    if (guided && editProblem) { setError(editProblem); return }
     setSelectedNoteId(null)
+    const plan = guided ? draftPlan : undefined
+    const notes = guided ? feedback.trim() || operations.map(editSummary).join('\n').slice(0, 2000) : feedback
     if (uploadedSource) {
       const problem = fileValidation(uploadedSource.file, limitsFor(runtime)) ?? rangeError
       if (problem) { setError(problem); return }
       setUploadProgress(0)
-      void action('uploading-source', () => api.uploadSource(uploadedSource.file, feedback, selectedRange, setUploadProgress))
-    } else void action('interpreting', () => api.createRun(activeAsset.asset_id, feedback))
+      const range = guided ? { start_seconds: 0, end_seconds: Math.min(6, activeAsset.duration_seconds) } : selectedRange
+      void action('uploading-source', () => api.uploadSource(uploadedSource.file, notes, range, setUploadProgress, plan))
+    } else void action('interpreting', () => api.createRun(activeAsset.asset_id, notes, plan))
   }
 
   function renderPreviews() {
+    if (run?.edit_plan) {
+      const plan = { ...run.edit_plan, operations: run.edit_plan.operations.filter((_, i) => selectedEdits.includes(i)) }
+      void action('rendering-previews', () => api.previews(run.run_id, 'edit_plan', plan))
+      return
+    }
     if (!run || !selectedNoteId) return
     void action('rendering-previews', () => api.previews(run.run_id, selectedNoteId))
   }
@@ -352,7 +380,8 @@ export default function App() {
     setRun(null)
     setSelectedNoteId(null)
     setError(null)
-    setFeedback(uploadedSource ? 'Apply a center punch-in to the selected section.' : DEFAULT_FEEDBACK)
+    setFeedback(guided ? '' : uploadedSource ? 'Apply a center punch-in to the selected section.' : DEFAULT_FEEDBACK)
+    setOperations([]); setUsedDraftText('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -362,6 +391,10 @@ export default function App() {
     setSelectedNoteId(null)
     setError(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function watchOriginal(time: number) {
+    if (activeAsset) setVideoPreview({ src: activeAsset.source_url, title: 'Original video', detail: `Original timeline · ${seconds(time)}`, startSeconds: time })
   }
 
   return (
@@ -386,10 +419,10 @@ export default function App() {
           <div>
             <span className="eyebrow">VIDEO REVISION WORKSPACE</span>
             <h1>Turn client notes into a verified video.</h1>
-            <p>Review what can be automated, choose an A/B edit, then get the full checked MP4.</p>
+            <p>Add text, time your subtitles, zoom in or cut pauses. Review the result before you deliver.</p>
           </div>
           <ol className="step-rail" aria-label="Revision workflow progress">
-            {['Source & notes', 'Review requests', 'Compare A/B', 'Build & verify'].map((label, index) => {
+            {['Choose edits', 'Review plan', 'Watch previews', 'Verify & deliver'].map((label, index) => {
               const step = index + 1
               const state = step < currentStep ? 'done' : step === currentStep ? 'active' : 'waiting'
               return (
@@ -429,16 +462,17 @@ export default function App() {
           <div className="primary-column">
             <section className="workspace-section source-section">
               <div className="section-heading">
-                <div><span className="step-number">01</span><div><h2>Source video and client notes</h2><p>Start with the exact video and the client’s original wording.</p></div></div>
+                <div><span className="step-number">01</span><div><h2>Your video, your edits</h2><p>Upload a clip or try the sample. Choose edit controls or describe your request.</p></div></div>
                 <span className={`section-state ${run && run.state !== 'FAILED' ? 'state-complete' : ''}`}>{run?.state === 'FAILED' ? 'Review interrupted' : run ? 'Reviewed' : 'Ready'}</span>
               </div>
               {!run && <SourceUpload runtime={runtime} selected={uploadedSource} disabled={busy || !runtime?.mutable} onSelect={(source) => {
                 setUploadedSource(source); setError(null)
                 setSelectedRange({ start_seconds: 0, end_seconds: source ? Math.min(6, source.asset.duration_seconds) : 6 })
-                setFeedback(source ? 'Apply a center punch-in to the selected section.' : DEFAULT_FEEDBACK)
+                setFeedback(guided ? '' : source ? 'Apply a center punch-in to the selected section.' : DEFAULT_FEEDBACK)
+                setOperations([]); setUsedDraftText('')
               }} />}
               {processing === 'uploading-source' && <div className="upload-progress" role="status"><progress value={uploadProgress} max={100} /><span>{uploadProgress < 100 ? `Uploading ${uploadProgress}%` : 'Upload complete. Preparing video and reviewing your request…'}</span></div>}
-              {run?.asset.source_kind === 'upload' && <p className="input-help">Your video · prepared at 1280×720 with aspect ratio preserved. Selected section: {run.selected_range?.start_seconds.toFixed(1)}–{run.selected_range?.end_seconds.toFixed(1)}s.</p>}
+              {run?.asset.source_kind === 'upload' && <p className="input-help">Your video · {seconds(run.asset.duration_seconds)} · prepared at 1280×720 with aspect ratio preserved.</p>}
               <div className="source-layout">
                 {activeAsset && (
                   <div className="source-video-card">
@@ -460,7 +494,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                <div className="feedback-field">
+                {guided ? <RequestDraft text={feedback} onText={setFeedback} duration={activeAsset?.duration_seconds ?? 0} disabled={Boolean(run) || processing !== null || !activeAsset || !runtime?.mutable} onBusy={setDraftBusy} onApply={plan => { setOperations(plan.operations); setUsedDraftText(feedback) }} /> : <div className="feedback-field">
                   <label htmlFor="feedback">Client feedback</label>
                   <textarea
                     id="feedback"
@@ -471,7 +505,7 @@ export default function App() {
                     aria-invalid={Boolean(feedbackError)}
                   />
                   <p className={`input-help ${feedbackError ? 'input-help-error' : ''}`} id={feedbackError ? 'feedback-help' : 'feedback-guidance'}>
-                    {feedbackError ?? 'Supported now: center punch-in only. Text, subtitles and logos must be added in a video editor. Use one request per line.'}
+                    {feedbackError ?? 'This classic scene-search demo uses center zoom only. Return to the video editor below for text, subtitles and cuts.'}
                   </p>
                   {uploadedSource && !run && <fieldset className="edit-range" disabled={busy}>
                     <legend>Choose the section to edit</legend>
@@ -488,11 +522,17 @@ export default function App() {
                       <Sparkles size={18} /> Review what can be automated
                     </button>
                   )}
-                </div>
+                </div>}
               </div>
+              {guided && !run && <>
+                <EditComposer duration={activeAsset?.duration_seconds ?? 0} operations={operations} onChange={setOperations} disabled={busy || !activeAsset || !runtime?.mutable} onSeek={watchOriginal} />
+                <div className="section-action-bar"><div><strong>{operations.length ? `${operations.length} edits in your plan` : 'Start with an edit or an example'}</strong><p>{editProblem ?? 'Next: review the exact edits and any detected quiet pauses.'}</p></div><button type="button" className="primary-button" disabled={busy || !activeAsset || !runtime?.mutable || Boolean(editProblem)} onClick={start}><Sparkles size={18} />Review edit plan</button></div>
+              </>}
+              {!run && (!uploadedSource || !guided) && <button type="button" className="classic-toggle" disabled={busy} onClick={() => { setGuided(!guided); setFeedback(guided ? DEFAULT_FEEDBACK : ''); setOperations([]); setUsedDraftText('') }}>{guided ? 'Try the original scene-search proof demo' : 'Return to the video editor'}</button>}
             </section>
 
-            {run?.notes.length ? (
+            {run?.edit_plan && <PlanReview plan={run.edit_plan} warnings={run.edit_warnings ?? []} selected={selectedEdits} onSelect={setSelectedEdits} onPreview={renderPreviews} onEdit={editRequest} onSeek={watchOriginal} disabled={busy} rendered={Boolean(run.candidates.length)} />}
+            {run?.notes.length && !run.edit_plan ? (
               <section className="workspace-section request-section">
                 <div className="section-heading">
                   <div><span className="step-number">02</span><div><h2>Choose a safe request</h2><p>Only checked requests can change the video.</p></div></div>
@@ -536,17 +576,17 @@ export default function App() {
               </section>
             ) : null}
 
-            {runtime?.intelligence_enabled && run?.feedback && (
+            {runtime?.intelligence_enabled && run?.feedback && !run.edit_plan && (
               <EditMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} />
             )}
 
             {run?.candidates.length ? (
               <section className="workspace-section compare-section">
                 <div className="section-heading">
-                  <div><span className="step-number">03</span><div><h2>Compare and choose</h2><p>Both options preserve timing and audio. Only the center crop strength changes.</p></div></div>
-                  <span className="section-state state-active">Choose A or B</span>
+                  <div><span className="step-number">03</span><div><h2>Watch and choose</h2><p>{run.edit_plan ? 'Every preview includes your selected edits from start to finish. If two styles are shown, only text size and zoom strength differ.' : 'Both options preserve timing and audio. Only the center crop strength changes.'}</p></div></div>
+                  <span className="section-state state-active">{run.candidates.length === 1 ? 'Review preview' : 'Choose A or B'}</span>
                 </div>
-                {run.evidence[0] && (
+                {run.evidence[0] && !run.edit_plan && (
                   <div className="evidence-summary">
                     <Clock3 size={20} />
                     <div><strong>{run.evidence[0].source === 'user.selected_range' ? 'Selected section' : 'Matched scene'} {formatTime(run.evidence[0].time_range.start_seconds)}–{formatTime(run.evidence[0].time_range.end_seconds)}</strong><p>{run.evidence[0].visual_summary}</p></div>
@@ -565,8 +605,8 @@ export default function App() {
                         if (!candidate.preview_url) return
                         setVideoPreview({
                           src: candidate.preview_url,
-                          title: `Option ${candidate.candidate_id} · ${candidate.scale.toFixed(2)}× punch-in`,
-                          detail: `${formatTime(candidate.time_range.start_seconds)}–${formatTime(candidate.time_range.end_seconds)} · centered crop`,
+                          title: `Option ${candidate.candidate_id} · ${candidateTitle(candidate)}`,
+                          detail: `${seconds(candidate.time_range.end_seconds - candidate.time_range.start_seconds)} · watch the edit before choosing`,
                         })
                       }}
                     />
@@ -607,7 +647,7 @@ export default function App() {
                   {run.proof.checks.map((check) => (
                     <article key={check.check_id}>
                       <div className="check-name"><strong>{check.label}</strong><span>{formatTime(check.evidence_time_range.start_seconds)}–{formatTime(check.evidence_time_range.end_seconds)}</span></div>
-                      <div className="check-metrics">
+                      <details className="check-metrics"><summary>Check details</summary>
                         <span>Measured: {JSON.stringify(check.measured)}</span>
                         <span>Required: {JSON.stringify(check.threshold)}</span>
                         {check.failure_code && <code>{check.failure_code}</code>}
@@ -617,7 +657,7 @@ export default function App() {
                             <figure><img src={check.evidence_urls[1]} alt={`${run.proof?.version_label} verification frame`} /><figcaption>REVISED</figcaption></figure>
                           </div>
                         )}
-                      </div>
+                      </details>
                       <VerdictPill verdict={check.verdict} />
                     </article>
                   ))}
@@ -630,11 +670,11 @@ export default function App() {
                     {run.delivery_approved ? 'Approved for delivery' : 'Approve for delivery'}
                   </button>
                 </div>
-                {runtime?.intelligence_enabled && <SaveApprovedMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} onSaved={() => setRun((current) => current ? { ...current, memory_saved: true } : current)} />}
+                {runtime?.intelligence_enabled && !run.edit_plan && <SaveApprovedMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} onSaved={() => setRun((current) => current ? { ...current, memory_saved: true } : current)} />}
               </section>
             )}
 
-            {run?.spec && (
+            {run?.spec && !run.edit_plan && (
               <details className="external-verification">
                 <summary><ExternalLink size={17} /> Verify a video edited somewhere else</summary>
                 <div>
@@ -673,7 +713,7 @@ export default function App() {
           </aside>
         </section>
       </main>
-      <footer><span>RevisionProof / v4</span><span>Only selected, verifiable edits run.</span></footer>
+      <footer><span>RevisionProof</span><span>Your edits. Your approval. A verified export.</span></footer>
       {videoPreview && <VideoLightbox content={videoPreview} onClose={() => setVideoPreview(null)} />}
     </div>
   )

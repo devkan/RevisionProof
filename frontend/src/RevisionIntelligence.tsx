@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, LockKeyhole, Pause, Play, RefreshCw, Save, X, ZoomIn } from 'lucide-react'
 import { api } from './api'
-import type { ChangeWindow, EditMemorySearch, RunSnapshot, RuntimeStatus, SearchEngine } from './types'
+import type { ChangeWindow, EditMemorySearch, EditPlan, RunSnapshot, RuntimeStatus, SearchEngine } from './types'
+import { sourceTimeForOutput, seconds } from './editing'
 
 function timeLabel(seconds: number) {
   return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`
@@ -36,19 +37,19 @@ export function ChangeMap({ run }: { run: RunSnapshot }) {
         </div>
         {active && <div className={`map-detail map-detail-${active.status}`} aria-live="polite">
           <div><strong>{timeLabel(active.second)}–{timeLabel(Math.min(active.second + 1, map.duration_seconds))} · {WINDOW_LABEL[active.status]}</strong>
-            <p>{active.status === 'review' ? 'The observed result differs from the approved edit, protected video content, or audio. Watch this moment.' : active.requested ? 'This moment is inside your approved punch-in. Compare the crop side by side.' : 'These samples match the expected unchanged video.'}</p></div>
+            <p>{active.status === 'review' ? 'The observed result differs from the approved edit, protected video content, or audio. Watch this moment.' : active.requested ? 'This moment contains an approved visual edit. Compare it side by side.' : 'These samples match the expected kept scenes.'}</p></div>
           <button type="button" className="secondary-button" disabled={!run.generated_version_url} onClick={() => setComparing(true)}><ZoomIn size={18} />Compare this moment</button>
         </div>}
         <details className="intelligence-technical"><summary>How this map was measured</summary><p>{map.message}</p><p>{map.source} · {map.windows.reduce((n, w) => n + w.sample_count, 0)} frame pairs · 1-second windows</p>
           {active && <dl><div><dt>Visual change</dt><dd>{(active.visual_delta * 100).toFixed(2)}%</dd></div><div><dt>Difference from expected edit</dt><dd>{(active.residual_delta * 100).toFixed(2)}%</dd></div><div><dt>Audio level difference</dt><dd>{active.audio_delta_db.toFixed(2)} dB</dd></div></dl>}
         </details>
       </>}
-      {comparing && active && run.generated_version_url && <ComparisonDialog original={run.asset.source_url} revised={run.generated_version_url} second={active.second} duration={map.duration_seconds} onClose={() => setComparing(false)} />}
+      {comparing && active && run.generated_version_url && <ComparisonDialog original={run.asset.source_url} revised={run.generated_version_url} second={active.second} duration={map.duration_seconds} plan={run.spec?.approved_candidate.patch_type === 'EDIT_PLAN' ? run.spec.approved_candidate.plan : undefined} onClose={() => setComparing(false)} />}
     </section>
   )
 }
 
-export function ComparisonDialog({ original, revised, second, duration, onClose }: { original: string; revised: string; second: number; duration: number; onClose: () => void }) {
+export function ComparisonDialog({ original, revised, second, duration, plan, onClose }: { original: string; revised: string; second: number; duration: number; plan?: EditPlan; onClose: () => void }) {
   const a = useRef<HTMLVideoElement>(null)
   const b = useRef<HTMLVideoElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
@@ -63,24 +64,40 @@ export function ComparisonDialog({ original, revised, second, duration, onClose 
     element?.showModal()
     return () => { element?.close(); document.body.style.overflow = previousOverflow; previousFocus?.focus() }
   }, [])
+  useEffect(() => {
+    if (!playing) return
+    let frame = 0
+    function sync() {
+      if (a.current && b.current) {
+        const t = b.current.currentTime
+        setPosition(t)
+        const sourceTime = sourceTimeForOutput(plan, t)
+        if (Math.abs(a.current.currentTime - sourceTime) > 0.09) a.current.currentTime = sourceTime
+      }
+      frame = requestAnimationFrame(sync)
+    }
+    frame = requestAnimationFrame(sync)
+    return () => cancelAnimationFrame(frame)
+  }, [playing, plan])
   function seek(value: number) {
     const next = Math.max(0, Math.min(duration - 0.05, value))
-    for (const video of [a.current, b.current]) if (video) { video.pause(); video.currentTime = next }
+    if (a.current) { a.current.pause(); a.current.currentTime = sourceTimeForOutput(plan, next) }
+    if (b.current) { b.current.pause(); b.current.currentTime = next }
     setPosition(next); setPlaying(false)
   }
   async function toggle() {
     setPlayError(null)
     if (playing) { a.current?.pause(); b.current?.pause(); setPlaying(false); return }
-    if (a.current && b.current) b.current.currentTime = a.current.currentTime
+    if (a.current && b.current) a.current.currentTime = sourceTimeForOutput(plan, b.current.currentTime)
     try { await Promise.all([a.current?.play(), b.current?.play()]); setPlaying(true) }
     catch { a.current?.pause(); b.current?.pause(); setPlaying(false); setPlayError('Playback could not start. Try again once both videos load.') }
   }
   return <dialog ref={dialog} className="comparison-dialog" aria-labelledby="comparison-title" onCancel={(event) => { event.preventDefault(); onClose() }} onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
     <div className="comparison-content">
       <header><div><span className="eyebrow">SIDE-BY-SIDE COMPARISON</span><h2 id="comparison-title">Original and revised · {timeLabel(position)}</h2></div><button type="button" className="secondary-button" onClick={onClose} aria-label="Close video comparison"><X size={20} /></button></header>
-      <div className="comparison-players"><figure><figcaption>Original</figcaption><video ref={a} src={original} muted playsInline preload="auto" onLoadedMetadata={() => { if (a.current) a.current.currentTime = second }} onTimeUpdate={() => { if (a.current && playing) { setPosition(a.current.currentTime); if (b.current && Math.abs(b.current.currentTime - a.current.currentTime) > 0.15) b.current.currentTime = a.current.currentTime } }} onEnded={() => { b.current?.pause(); setPlaying(false) }} /></figure><figure><figcaption>Revised</figcaption><video ref={b} src={revised} muted playsInline preload="auto" onLoadedMetadata={() => { if (b.current) b.current.currentTime = second }} /></figure></div>
+      <div className="comparison-players"><figure><figcaption>Original · {seconds(sourceTimeForOutput(plan, position))}</figcaption><video ref={a} src={original} muted playsInline preload="auto" onLoadedMetadata={() => { if (a.current) a.current.currentTime = sourceTimeForOutput(plan, second) }} /></figure><figure><figcaption>Revised · {seconds(position)}</figcaption><video ref={b} src={revised} muted playsInline preload="auto" onLoadedMetadata={() => { if (b.current) b.current.currentTime = second }} onEnded={() => { a.current?.pause(); setPlaying(false) }} /></figure></div>
       <div className="comparison-controls"><button className="secondary-button" onClick={() => seek(position - 1)} aria-label="Previous second"><ChevronLeft size={18} /></button><button className="primary-button" onClick={() => void toggle()}>{playing ? <Pause size={18} /> : <Play size={18} />}{playing ? 'Pause both' : 'Play both'}</button><button className="secondary-button" onClick={() => seek(position + 1)} aria-label="Next second"><ChevronRight size={18} /></button><label htmlFor="comparison-seek">Position</label><input id="comparison-seek" type="range" min={0} max={Math.max(0, duration - 0.05)} step={0.05} value={position} onChange={(e) => seek(Number(e.target.value))} /></div>
-      <p className="input-help">Both players are muted and synchronized. Use the full video player to review audio.</p>{playError && <p role="alert">{playError}</p>}
+      <p className="input-help">{plan ? 'The original skips deleted sections to follow the revised timeline.' : 'Both players are synchronized.'} Both are muted; use the full video player to review audio.</p>{playError && <p role="alert">{playError}</p>}
     </div>
   </dialog>
 }

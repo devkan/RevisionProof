@@ -246,12 +246,16 @@ class RevisionIntelligence:
             spec_hash=snapshot.spec.spec_hash,
             analysis_id=analysis_id,
             source="mcp-clickhouse.run_query" if live else "fixture.frame_analysis",
-            duration_seconds=snapshot.asset.duration_seconds,
+            duration_seconds=(
+                snapshot.spec.approved_candidate.plan.output_duration
+                if snapshot.spec.schema_version == "3.0"
+                else snapshot.asset.duration_seconds
+            ),
             message="The change map is unavailable. Use the video players and locked checks below.",
         )
         try:
             pairs = measure_frame_pairs(
-                source, candidate, snapshot.spec, snapshot.asset.duration_seconds, executor
+                source, candidate, snapshot.spec, result.duration_seconds, executor
             )
             if live:
                 at = datetime.now(UTC)
@@ -306,6 +310,11 @@ class RevisionIntelligence:
         return result
 
     def save(self, snapshot: RunSnapshot, token: str | None) -> MemorySaveResult:
+        if snapshot.spec is not None and snapshot.spec.schema_version == "3.0":
+            raise ValueError(
+                "The reusable edit library currently supports center zoom proofs. "
+                "Multi-edit plans cannot be saved to it yet."
+            )
         if not self.settings.intelligence_enabled:
             raise ValueError("Approved memory is disabled")
         live = self.settings.mode is ExecutionMode.LIVE

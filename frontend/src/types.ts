@@ -90,10 +90,10 @@ export interface DemoAsset {
 export interface ParsedFeedback {
   raw_text: string
   intent: string
-  patch_type: 'PUNCH_IN'
+  patch_type: 'PUNCH_IN' | 'EDIT_PLAN'
   target_phrase: string
   rationale: string
-  interpreter_source: 'fixture.interpreter' | 'google.vertex.gemini' | 'local.range_rules'
+  interpreter_source: 'fixture.interpreter' | 'google.vertex.gemini' | 'local.range_rules' | 'user.structured'
 }
 
 export interface RevisionNote {
@@ -116,7 +116,7 @@ export interface EvidenceAnchor {
   source: 'fixture.segment_index' | 'mcp-clickhouse.run_query' | 'user.selected_range'
 }
 
-export interface PatchCandidate {
+export interface ZoomCandidate {
   candidate_id: 'A' | 'B'
   patch_type: 'PUNCH_IN'
   scale: 1.05 | 1.12
@@ -124,8 +124,30 @@ export interface PatchCandidate {
   preview_url?: string
 }
 
+export interface EditOperation {
+  kind: 'zoom' | 'text' | 'subtitle' | 'cut' | 'remove_silence'
+  start: number
+  end: number
+  text: string
+  position: 'top' | 'center' | 'bottom' | 'bottom_right'
+  threshold_db: number
+  min_silence: number
+  detected: boolean
+}
+export interface EditPlan { source_duration: number; operations: EditOperation[] }
+export interface EditInterpretation { plan: EditPlan; warnings: string[]; source: string }
+export interface EditCandidate {
+  candidate_id: 'A' | 'B'
+  patch_type: 'EDIT_PLAN'
+  time_range: TimeRange
+  preview_url: string
+  plan: EditPlan
+  reference_sha256: string
+}
+export type PatchCandidate = ZoomCandidate | EditCandidate
+
 export interface RevisionSpec {
-  schema_version: '2.0' | '2.1' | '2.2'
+  schema_version: '2.0' | '2.1' | '2.2' | '3.0'
   run_id: string
   asset_id: string
   approved_candidate: PatchCandidate
@@ -185,6 +207,8 @@ export interface RunSnapshot {
   feedback?: ParsedFeedback
   evidence: EvidenceAnchor[]
   candidates: PatchCandidate[]
+  edit_plan?: EditPlan
+  edit_warnings?: string[]
   spec?: RevisionSpec
   proof?: VerificationProof
   generated_version_url?: string
