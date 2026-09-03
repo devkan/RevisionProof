@@ -330,6 +330,7 @@ class VertexGeminiInterpreter:
             vertexai=True,
             project=self.settings.google_cloud_project,
             location=self.settings.google_cloud_location,
+            http_options={"timeout": self.settings.gemini_timeout_seconds * 1000},
         )
         try:
             response = client.models.embed_content(
@@ -409,6 +410,56 @@ class ClickHouseWriter:
                 "revision_specs",
                 [row],
                 column_names=["run_id", "spec_hash", "canonical_json", "approved_at"],
+            )
+        finally:
+            client.close()
+
+    def insert_frame_pairs(self, rows: list[list[Any]]) -> None:
+        client = self._client()
+        try:
+            client.insert(
+                "revision_frame_pairs",
+                rows,
+                column_names=[
+                    "workspace_id",
+                    "run_id",
+                    "version_label",
+                    "spec_hash",
+                    "analysis_id",
+                    "sample_ms",
+                    "visual_delta",
+                    "residual_delta",
+                    "cta_delta",
+                    "audio_delta_db",
+                    "requested",
+                    "measured_at",
+                ],
+            )
+        finally:
+            client.close()
+
+    def insert_approved_edit(self, row: list[Any]) -> None:
+        client = self._client()
+        try:
+            # QBit is materialized server-side: clients only send a normal Float32 array.
+            client.insert(
+                "approved_edits",
+                [row],
+                column_names=[
+                    "workspace_id",
+                    "memory_id",
+                    "run_id",
+                    "spec_hash",
+                    "intent",
+                    "target_phrase",
+                    "candidate_id",
+                    "scale",
+                    "duration_seconds",
+                    "embedding_model",
+                    "embedding",
+                    "proof_json",
+                    "approved_at",
+                ],
             )
         finally:
             client.close()

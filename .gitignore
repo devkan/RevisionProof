@@ -17,6 +17,7 @@ frontend/vite.config.js
 frontend/vite.config.d.ts
 .DS_Store
 .gstack/
+backups/
 infra/gcp/foundation.env
 infra/gcp/live.env
 revisionproof-deploy-*.zip

@@ -34,6 +34,8 @@ from revisionproof.contracts import (
 )
 from revisionproof.evidence.fixture import FixtureEvidenceLocator, FixtureInterpreter
 from revisionproof.ids import new_ulid
+from revisionproof.intelligence.models import EditMemorySearch, MemorySaveResult, SearchEngine
+from revisionproof.intelligence.service import RevisionIntelligence
 from revisionproof.media.executor import MediaExecutor
 from revisionproof.media.preview import generate_full_revision, generate_preview
 from revisionproof.media.probe import probe_media, validate_hackathon_media
@@ -72,6 +74,7 @@ class RevisionProofService:
         self.verifier = DeterministicVerifier(self.executor)
         self.fixture_interpreter = FixtureInterpreter()
         self.fixture_locator = FixtureEvidenceLocator()
+        self.intelligence = RevisionIntelligence(settings)
         self._media_slot = threading.Lock()
         self._create_idempotency_locks: dict[str, asyncio.Lock] = {}
         self._create_idempotency_waiters: dict[str, int] = {}
@@ -100,6 +103,7 @@ class RevisionProofService:
                 return
             try:
                 self._baseline_proofs.pop(run_id, None)
+                self.intelligence.forget_run(run_id)
                 await asyncio.to_thread(self._cleanup_evicted_run, run_id)
             except OSError:
                 self._evicted_run_ids.put(run_id)
@@ -250,6 +254,10 @@ class RevisionProofService:
                     RunState.EVIDENCE_ANCHORED,
                     "Evidence anchored by fixture segment index",
                 )
+                if self.settings.intelligence_enabled:
+                    snapshot.edit_memory = await asyncio.to_thread(
+                        self.intelligence.search, snapshot, self.settings.memory_search_engine
+                    )
                 self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
                 return snapshot
             if self.settings.mode is ExecutionMode.LIVE:
@@ -365,6 +373,10 @@ class RevisionProofService:
             RunState.EVIDENCE_ANCHORED,
             "Evidence selected through mcp-clickhouse.run_query",
         )
+        if self.settings.intelligence_enabled:
+            snapshot.edit_memory = await asyncio.to_thread(
+                self.intelligence.search, snapshot, self.settings.memory_search_engine
+            )
 
     def generate_previews(
         self,
@@ -860,6 +872,8 @@ class RevisionProofService:
             info = probe_media(staging_destination, self.executor)
             validate_hackathon_media(info, max_duration_seconds=self.settings.max_duration_seconds)
             snapshot.generated_version_url = None
+            snapshot.change_map = None
+            snapshot.memory_saved = False
             self._transition(snapshot, RunState.VERSION_UPLOADED, f"{version_label} uploaded")
             self._transition(snapshot, RunState.VERIFYING, "Deterministic verification started")
             snapshot.proof = None
@@ -872,6 +886,26 @@ class RevisionProofService:
             self._attach_cta_evidence(snapshot, staging_destination, version_label)
             if self.settings.mode is ExecutionMode.LIVE:
                 self._persist_live_verification(snapshot, staging_destination, version_label)
+            if self.settings.intelligence_enabled:
+                self.repository.append_event(
+                    run_id, RunState.VERIFYING, "Building the full-video Change Map"
+                )
+                snapshot.change_map = self.intelligence.build_map(
+                    snapshot,
+                    self.repository.source_path(run_id),
+                    staging_destination,
+                    self.executor,
+                )
+                self.repository.append_event(
+                    run_id,
+                    RunState.VERIFYING,
+                    "Change Map aggregated through mcp-clickhouse.run_query"
+                    if snapshot.change_map.status == "ready"
+                    and self.settings.mode is ExecutionMode.LIVE
+                    else "Change Map sampled locally"
+                    if snapshot.change_map.status == "ready"
+                    else "Change Map unavailable; no full-video difference claim was made",
+                )
             staging_destination.replace(destination)
             self.repository.set_version_path(run_id, destination)
             try:
@@ -950,3 +984,23 @@ class RevisionProofService:
                 f"{run_id}:delivery-approval", key, fingerprint, run_id
             )
             return snapshot
+
+    def search_memory(self, run_id: str, engine: SearchEngine) -> EditMemorySearch:
+        with self.repository.locked(run_id):
+            snapshot = self.repository.get(run_id)
+            result = self.intelligence.search(snapshot, engine)
+            snapshot.edit_memory = result
+            return result
+
+    def save_memory(self, run_id: str, token: str | None = None) -> MemorySaveResult:
+        self._assert_mutable_mode()
+        with self.repository.locked(run_id):
+            snapshot = self.repository.get(run_id)
+            result = self.intelligence.save(snapshot, token)
+            if result.status == "saved":
+                self.repository.append_event(
+                    run_id,
+                    snapshot.state,
+                    "Verified and human-approved edit saved to workspace memory",
+                )
+            return result

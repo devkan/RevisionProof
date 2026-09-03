@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,6 +28,14 @@ class Settings(BaseSettings):
     max_in_memory_runs: int = Field(default=64, ge=1, le=256)
     max_new_runs_per_minute: int = Field(default=12, ge=1, le=60)
     max_verification_attempts_per_run: int = Field(default=6, ge=1, le=20)
+    intelligence_enabled: bool = False
+    memory_workspace: str = Field(
+        default="revisionproof-demo", pattern=r"^[a-z0-9][a-z0-9_-]{2,63}$"
+    )
+    memory_search_engine: Literal["exact", "hnsw", "qbit"] = "hnsw"
+    memory_hnsw_min_rows: int = Field(default=1000, ge=1)
+    memory_qbit_precision: int = Field(default=16, ge=12, le=32)
+    memory_write_token: str | None = Field(default=None, min_length=32, repr=False)
 
     gemini_model: str = "gemini-3.5-flash-lite"
     embedding_model: str = "text-embedding-005"

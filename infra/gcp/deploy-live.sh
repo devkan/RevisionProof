@@ -13,6 +13,11 @@ source "${ENV_FILE}"
 foundation_clickhouse_host="${CLICKHOUSE_HOST:-}"
 # shellcheck source=/dev/null
 source "${LIVE_ENV_FILE}"
+intelligence_enabled="${REVISIONPROOF_INTELLIGENCE_ENABLED:-false}"
+if [[ ! "${intelligence_enabled}" =~ ^(true|false)$ ]]; then
+  echo "REVISIONPROOF_INTELLIGENCE_ENABLED must be true or false." >&2
+  exit 2
+fi
 
 if [[ "${GCLOUD_ACCOUNT:-}" != "secureis@gmail.com" ]] \
   || [[ "${CONFIRM_PROJECT}" != "${PROJECT_ID}" ]]; then
@@ -46,7 +51,7 @@ gcloud builds submit \
   --project="${PROJECT_ID}" \
   --config=cloudbuild.yaml \
   --gcs-source-staging-dir="gs://${GCS_BUCKET}/cloud-build-source" \
-  --substitutions="_CONFIRM_LIVE=YES,_REGION=${REGION},_SERVICE=${SERVICE_NAME},_REPOSITORY=${ARTIFACT_REPOSITORY},_GCS_BUCKET=${GCS_BUCKET},_CLICKHOUSE_HOST=${CLICKHOUSE_HOST},_VERTEX_LOCATION=global,_GEMINI_MODEL=gemini-3.5-flash-lite,_WRITER_SECRET_VERSION=${CLICKHOUSE_WRITER_SECRET_VERSION},_MCP_SECRET_VERSION=${CLICKHOUSE_MCP_SECRET_VERSION}" \
+  --substitutions="_CONFIRM_LIVE=YES,_REGION=${REGION},_SERVICE=${SERVICE_NAME},_REPOSITORY=${ARTIFACT_REPOSITORY},_GCS_BUCKET=${GCS_BUCKET},_CLICKHOUSE_HOST=${CLICKHOUSE_HOST},_VERTEX_LOCATION=global,_GEMINI_MODEL=gemini-3.5-flash-lite,_WRITER_SECRET_VERSION=${CLICKHOUSE_WRITER_SECRET_VERSION},_MCP_SECRET_VERSION=${CLICKHOUSE_MCP_SECRET_VERSION},_INTELLIGENCE_ENABLED=${intelligence_enabled}" \
   .
 
 gcloud run services describe "${SERVICE_NAME}" \

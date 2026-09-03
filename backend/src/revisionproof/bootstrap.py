@@ -183,7 +183,11 @@ def user_provisioning_commands(settings: Settings) -> list[tuple[str, dict[str, 
 
 
 def _apply_sql_files(admin: Any, repo_root: Path) -> None:
-    for relative_path in ("infra/clickhouse/schema.sql", "infra/clickhouse/roles.sql"):
+    for relative_path in (
+        "infra/clickhouse/schema.sql",
+        "infra/clickhouse/roles.sql",
+        "infra/clickhouse/intelligence.sql",
+    ):
         sql = (repo_root / relative_path).read_text(encoding="utf-8")
         for statement in split_sql_statements(sql):
             admin.command(statement)

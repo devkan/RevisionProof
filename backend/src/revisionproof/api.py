@@ -29,6 +29,12 @@ from revisionproof.contracts import (
     RunState,
     VerificationProof,
 )
+from revisionproof.intelligence.models import (
+    EditMemorySearch,
+    MemoryAuthorizationError,
+    MemorySaveResult,
+    SearchEngine,
+)
 from revisionproof.repository import RunCapacityBusyError, RunNotFoundError
 from revisionproof.service import RateLimitError, RevisionProofService
 
@@ -60,6 +66,8 @@ ServiceDep = Annotated[RevisionProofService, Depends(get_service)]
 
 
 def as_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, MemoryAuthorizationError):
+        return HTTPException(status_code=403, detail=str(exc))
     if isinstance(exc, RunNotFoundError):
         return HTTPException(status_code=404, detail="run not found")
     if isinstance(exc, FileNotFoundError):
@@ -89,6 +97,14 @@ def runtime_status(service: ServiceDep):
         "mutable": mode in {ExecutionMode.LIVE, ExecutionMode.FIXTURE},
         "live_ready": mode is ExecutionMode.LIVE and not service.settings.live_missing_settings,
         "missing_settings": service.settings.live_missing_settings,
+        "intelligence_enabled": service.settings.intelligence_enabled,
+        "memory_save_policy": (
+            "operator_key"
+            if mode is ExecutionMode.LIVE and service.settings.memory_write_token
+            else "local_rehearsal"
+            if mode is ExecutionMode.FIXTURE
+            else "read_only"
+        ),
         "message": (
             "Live integrations are configured; successful calls are proven per run"
             if mode is ExecutionMode.LIVE and not service.settings.live_missing_settings
@@ -307,6 +323,26 @@ def get_proof(run_id: str, service: ServiceDep):
     if snapshot.proof is None:
         raise HTTPException(status_code=404, detail="verification proof not available")
     return snapshot.proof
+
+
+@router.get("/runs/{run_id}/edit-memory", response_model=EditMemorySearch)
+def search_edit_memory(run_id: str, service: ServiceDep, engine: SearchEngine = "hnsw"):
+    try:
+        return service.search_memory(run_id, engine)
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+
+
+@router.post("/runs/{run_id}/edit-memory", response_model=MemorySaveResult)
+def save_edit_memory(
+    run_id: str,
+    service: ServiceDep,
+    workspace_key: Annotated[str | None, Header(alias="X-Workspace-Key")] = None,
+):
+    try:
+        return service.save_memory(run_id, workspace_key)
+    except Exception as exc:
+        raise as_http_error(exc) from exc
 
 
 @router.post("/runs/{run_id}/delivery-approval", response_model=RunSnapshot)

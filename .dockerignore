@@ -1,6 +1,10 @@
 .git
 .github
 .env
+.gstack
+backups
+infra/gcp/foundation.env
+infra/gcp/live.env
 backend/.venv
 backend/.uv-cache
 frontend/node_modules

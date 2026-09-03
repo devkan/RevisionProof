@@ -8,6 +8,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from revisionproof.intelligence.models import EditMemorySearch, RevisionChangeMap
+
 
 class ExecutionMode(StrEnum):
     LIVE = "LIVE"
@@ -286,6 +288,9 @@ class RunSnapshot(BaseModel):
     spec: RevisionSpec | None = None
     proof: VerificationProof | None = None
     generated_version_url: str | None = None
+    change_map: RevisionChangeMap | None = None
+    edit_memory: EditMemorySearch | None = None
+    memory_saved: bool = False
     delivery_approved: bool = False
     retryable: bool = False
     events: list[RunEvent] = Field(default_factory=list)

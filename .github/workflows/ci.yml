@@ -61,7 +61,7 @@ jobs:
           python-version: "3.12"
       - name: Install backend with LIVE adapters
         run: uv sync --project backend --frozen --extra dev --extra live
-      - name: Start isolated ClickHouse 25.6
+      - name: Start isolated ClickHouse 26.2
         run: |
           docker compose -p revisionproof up -d clickhouse
           for attempt in $(seq 1 30); do
@@ -83,6 +83,8 @@ jobs:
         run: backend/.venv/bin/python scripts/verify_local_clickhouse.py
       - name: Verify official mcp-clickhouse boundary
         run: backend/.venv/bin/python scripts/verify_local_mcp.py
+      - name: Verify real HNSW, QBit, and retry-safe Change Map aggregation
+        run: backend/.venv/bin/python scripts/verify_intelligence_clickhouse.py --port 8123
       - name: Show ClickHouse logs after failure
         if: failure()
         run: docker compose -p revisionproof logs clickhouse
