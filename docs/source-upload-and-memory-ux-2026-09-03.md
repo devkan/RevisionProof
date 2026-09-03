@@ -1,6 +1,6 @@
 # 원본 영상 업로드와 승인 기록 UX
 
-Date: 2026-09-03. Scope: implementation, deployment and gstack verification. **소스 `d767649`가 LIVE `revisionproof-staging-00016-j4q`로 배포됐다.** [배포와 LIVE 검증 기록](deployment-2026-09-03-source-upload.md)을 참고한다. 기존 ClickHouse 설정과 승인 기록 읽기 전용 정책은 유지한다.
+Date: 2026-09-03. Scope: implementation, deployment and gstack verification. **현재 소스 `1c12046`가 LIVE `revisionproof-staging-00017-cnr`로 배포됐다.** [KANAPP 영상 오류 수정과 배포 기록](kanapp-demo-fix-2026-09-03.md)을 먼저 읽는다. 원래 업로드 기능의 [배포와 LIVE 검증 기록](deployment-2026-09-03-source-upload.md)은 이전 릴리스의 증거다. 기존 ClickHouse 설정과 승인 기록 읽기 전용 정책은 유지한다.
 
 ## 사용 방법
 
@@ -10,7 +10,7 @@ Date: 2026-09-03. Scope: implementation, deployment and gstack verification. **�
 4. `Review what can be automated` → 실행할 요청 체크 → A/B 미리보기 생성 → A 또는 B 선택.
 5. 선택한 확대를 원본 전체 길이에 반영한 MP4를 자동 생성하고 검증한다. 전체 재생/다운로드 후 최종 납품 승인은 별도로 한다.
 
-현재 자동 수정은 중앙 확대 A=1.05배, B=1.12배다. 자막, 장면 교체, 컷 삭제 등은 편집자에게 맡길 요청으로 남는다. 새 영상의 대사/장면을 자동 인식해서 위치를 찾아주는 기능은 추가하지 않았다. **업로드 영상의 수정 위치는 사용자가 선택한다.** LIVE는 Gemini로 요청을 분류하고, 로컬 FIXTURE는 `local.range_rules`로 표시되는 제한된 규칙을 사용한다. 샘플의 대사나 검색 결과를 다른 영상의 근거로 재사용하지 않는다.
+현재 자동 수정은 중앙 확대 A=1.05배, B=1.12배다. 문구·자막·로고 삽입, 장면 교체, 컷 삭제 등은 편집자에게 맡길 요청으로 남는다. `확대하면서 문구 삽입`처럼 지원하지 않는 편집을 포함한 복합 요청은 전체를 보류하며 확대만 몰래 실행하지 않는다. `Edit request`로 영상·구간·원래 문장을 유지한 채 요청을 고칠 수 있다. 새 영상의 대사/장면을 자동 인식해서 위치를 찾아주는 기능은 추가하지 않았다. **업로드 영상의 수정 위치는 사용자가 선택한다.** LIVE는 Gemini로 요청을 분류하고, 로컬 FIXTURE는 `local.range_rules`로 표시되는 제한된 규칙을 사용한다. 샘플의 대사나 검색 결과를 다른 영상의 근거로 재사용하지 않는다.
 
 ## 제한과 경고
 
@@ -34,11 +34,11 @@ Date: 2026-09-03. Scope: implementation, deployment and gstack verification. **�
 - 비어 있을 때 서버도 `actual_engine: "none"`을 반환한다. 0건 확인만 했는데 EXACT 벡터 검색을 수행한 것처럼 보이던 표시를 바로잡았다.
 - 기록이 있을 때는 추천 사례와 접힌 고급 검색 정보를 제공한다. 기록은 A/B 값을 변경하거나 자동 선택하지 않는다.
 
-## LIVE 검증 결과
+## 이전 업로드 릴리스의 LIVE 검증 결과
 
 새 LIVE run `01M1K3CSTV2R01X4VF3CHNFWK5`에서 별도 12초 세로 영상 업로드 → 2–8초 선택 → Gemini 해석 → A/B → B 전체 영상 생성 → **READY / 3 PASS**를 확인했다. 근거는 `user.selected_range`, 변경 지도는 공식 ClickHouse MCP에서 조회한 12개 구간 / 24개 샘플이며 review flag가 없다. 최종 납품 승인과 기록 저장은 false다. 빈 승인 기록은 `actual_engine=none`이며 읽기 전용 안내를 표시한다. 25 MiB / 61초 경고도 LIVE에서 확인했다. 세부 증거는 배포 기록에 있다.
 
-## 로컬 검증 결과
+## 이전 업로드 릴리스의 로컬 검증 결과
 
 - 백엔드 전체 회귀: **288 passed**. 이후 추가한 업로드 재시도/표시 보완을 포함한 업로드 및 intelligence 집중 검증: **70 passed**.
 - 배포 준비 시 최종 백엔드 전체 회귀: **292 passed in 101.74s** (소수점 길이 회귀 포함), 프런트엔드 **19 passed**, Ruff check/format, ESLint, TypeScript/Vite build 및 `git diff --check` 통과.
@@ -60,6 +60,6 @@ Ignored evidence: `.gstack/source-upload-browser-proof-20260903.json`, `.gstack/
 
 `POST /api/runs/upload` → 실제 바이트/해시 검사 → FFprobe/FFmpeg 작업본 준비 → 사용자가 선택한 구간과 수정 요청 결합 → 기존 A/B·전체 생성 파이프라인으로 연결했다. 별도 `/source-video`는 해당 run의 작업본을 제공한다.
 
-업로드는 spec `2.1`에서 영상 전체 `VIDEO_CONTENT` 잠금을 사용한다. 승인 구간은 예상 확대 프레임과, 나머지는 준비된 원본과 비교한다. 기존 샘플의 24–29초 CTA 검사를 다른 영상에 강제로 적용하지 않는다. ClickHouse 호환을 위해 내부 check ID `locked_cta`는 유지하며 사용자 표시만 전체 영상 검사로 바꾼다. 비교는 초당 2프레임, 소리는 레벨 검사로서 모든 프레임/파형의 완전 동일성을 보장하지 않는다.
+새 업로드는 spec `2.2`에서 영상 전체 `VIDEO_CONTENT` 잠금을 사용한다. 승인 구간은 예상 확대 프레임과, 나머지는 준비된 원본과 비교한다. 소리는 준비된 원본 대비 RMS 차이 3 dB 이하, peak 차이 절댓값 0.1 dB 이하로 검사한다. 원본 AAC 자체의 양수 decoded peak를 변경으로 오판하지 않는다. 이미 고정된 `2.0`/`2.1` spec의 절대 peak 한도와 해시는 유지한다. 기존 샘플의 24–29초 CTA 검사를 다른 영상에 강제로 적용하지 않는다. ClickHouse 호환을 위해 내부 check ID `locked_cta`는 유지하며 사용자 표시만 전체 영상 검사로 바꾼다. 비교는 초당 2프레임, 소리는 레벨 검사로서 모든 프레임/파형의 완전 동일성을 보장하지 않는다.
 
 원본 작업본과 run 상태는 현재 프로세스의 로컬 runtime에 속한다. 이번 변경에 영구 원본 보관, 재시작 복구, 사용자별 인증, 자동 음성/장면 인덱싱은 포함하지 않는다. 커밋/푸시와 LIVE 배포는 완료했다. 승인 기록 저장을 활성화하려면 별도 운영자 키 설정이 필요하다.

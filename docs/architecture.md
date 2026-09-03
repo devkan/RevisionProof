@@ -4,7 +4,7 @@
 
 RevisionProof is a revision approval firewall. It does not expose a timeline editor, arbitrary effects, XML/EDL export, collaboration, billing, or 4K output in the hackathon build. The only generated patch is a centered `PUNCH_IN` at 1.05x or 1.12x for a 4–8 second evidence range. Original uploads accept MP4/MOV/WebM up to 24 MiB and 4–60 seconds; FFmpeg prepares an aspect-preserving 1280×720, 30 fps H.264/AAC working copy. A silent input receives a silent AAC track.
 
-The source-upload and optional-memory UX changes are deployed as of 2026-09-03 in revision `revisionproof-staging-00016-j4q`. See [implementation and usage](source-upload-and-memory-ux-2026-09-03.md) and [deployment evidence](deployment-2026-09-03-source-upload.md).
+The source-upload and optional-memory UX changes, including the KANAPP audio and request-recovery fixes, are deployed as of 2026-09-03 in revision `revisionproof-staging-00017-cnr` (source `1c12046`). See [implementation and usage](source-upload-and-memory-ux-2026-09-03.md) and [current deployment evidence](kanapp-demo-fix-2026-09-03.md).
 
 ## Runtime
 
@@ -39,7 +39,9 @@ The primary path is server-owned: selecting A or B renders and verifies the comp
 
 For an uploaded original, the user explicitly selects the target time range. LIVE Gemini classifies the feedback with that range as context; local FIXTURE uses conservative `local.range_rules`. The evidence source is `user.selected_range`, with no inferred transcript. This route does not query or reuse the bundled sample's segment index. The normalized upload becomes the source of A/B generation, full-video rendering, comparisons, and verification; full duration is preserved.
 
-Uploaded originals freeze spec version `2.1` with a `VIDEO_CONTENT` lock covering the whole timeline and full frame. At two samples per second, verification compares the revised frame against the expected punch-in inside the approved range and the prepared original outside it. The audio check covers the actual duration. Legacy spec `2.0` retains its sample CTA contract. Both use the existing wire check ID `locked_cta` for compatibility with ClickHouse's three-check schema; version 2.1 displays it as “Full video follows the approved edit.” This is sampled similarity verification, not an every-frame or audio-waveform identity guarantee.
+New uploaded originals freeze spec version `2.2` with a `VIDEO_CONTENT` lock covering the whole timeline and full frame. At two samples per second, verification compares the revised frame against the expected punch-in inside the approved range and the prepared original outside it. The audio check covers the actual duration: RMS delta must be at most 3 dB and absolute peak delta from the prepared original at most 0.1 dB. This preserves the source baseline even when decoded AAC peaks already exceed 0 dBFS. Existing `2.0`/`2.1` specs retain their frozen absolute peak ceilings; `2.0` also retains its sample CTA contract. All versions use the existing wire check ID `locked_cta` for compatibility with ClickHouse's three-check schema; uploaded-video specs display it as “Full video follows the approved edit.” This is sampled similarity verification, not an every-frame or audio-waveform identity guarantee.
+
+Text, caption and logo insertion remain unsupported. Compound requests containing these edits are held as whole manual notes rather than partially executed. `Edit request` preserves the selected local file, range and wording while returning to an editable form; submitting again creates a new review. Uploaded labels are copied verbatim from the source note, with timing grounded in the user's explicit selection.
 
 ## Trust boundaries
 
