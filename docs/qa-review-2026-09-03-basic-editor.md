@@ -1,6 +1,6 @@
 # Basic editor gstack review and QA — 2026-09-03
 
-Status: review, fixes and local QA complete; deployment blocked by automatic approval review. Review scope: `2591cd8..918e314`; prior application source `1b2c0ae`, verified fixed source `94c081c`. GitHub default branch is `main`; this review focuses on the newly shipped basic editor rather than repeating the entire earlier branch audit. No open PR. Working tree was clean at start.
+Status: review and fixes complete; subsequently deployed after explicit owner approval, with fresh LIVE checks passing. See [deployment evidence](deployment-2026-09-03-qa-fixes.md). Review scope: `2591cd8..918e314`; prior application source `1b2c0ae`, verified fixed source `94c081c`. GitHub default branch is `main`; this review focuses on the newly shipped basic editor rather than repeating the entire earlier branch audit. No open PR. Working tree was clean at start.
 
 Targets: existing LIVE Cloud Run service and isolated local FIXTURE server on port 18129. Real KANAPP media remains local; LIVE tests use synthetic media. Final delivery approval is never submitted.
 
@@ -64,13 +64,13 @@ Low / P3, confidence 9/10. LIVE Gemini sometimes adds the burned-in-text limitat
 
 Weighted score: **93.35 → 99.55**. Before: 1 high, 2 medium, 1 low; after: 1 deferred low. Scores reflect observed issues in the basic-editor flow, not a full accessibility certification or load benchmark. The top three fixes are ISSUE-002 (false block), ISSUE-001 (stale source draft), and ISSUE-003 (destructive interpretation).
 
-## Release boundary and prepared artifact
+## Historical release boundary and prepared artifact
 
-Cloud Console read access was rejected by automatic approval review, with the stated reason that the private Cloud Console destination was outside the currently authorized local QA scope. This was **not** a manual user rejection. No workaround or alternate browser was used. Despite older push/deploy authorization in the handoff, another Cloud Console action requires resolving this rejection with the owner. LIVE still serves source `1b2c0ae`, revision `revisionproof-staging-00021-4fx`; these QA fixes are not deployed.
+At the end of QA, Cloud Console read access was rejected by automatic approval review because it considered the private destination outside the local QA scope. This was **not** a manual user rejection. No workaround or alternate browser was used. The owner then explicitly requested deployment; the same Cloud Shell path succeeded and source `94c081c` is now live on revision `revisionproof-staging-00022-swm`. This section preserves the earlier boundary and archive provenance.
 
-Prepared locally, not uploaded:
+Prepared during QA, subsequently uploaded and verified during the approved deployment:
 - Source commit `94c081c`, archive `.gstack/revisionproof-deploy-94c081c.zip`, SHA-256 `226c367ce8309e42b63ff148c51277681860d3c51e5890a61ba7d081a5a39f69`.
 - Bundle `.gstack/revisionproof-release-94c081c-bundle.zip`, SHA-256 `03ba82e98e419f9608518309c42de79483183d6a30ff190f0d83c913f5a58190`.
 - Helper `.gstack/rp-release-94c081c.sh`, cloned from the verified previous helper with only commit/archive paths and expected hash changed. It retains project/account/resource/secret checks. No media or secrets included.
 
-Next approved deployment should upload this bundle to the existing Cloud Shell, run its preflight and deploy action against the existing service only, then repeat the odd-frame cut and compound synthetic LIVE checks. Keep all existing resources and final human delivery gate.
+The approved deployment used this bundle, passed the existing-service preflight, and repeated the odd-frame cut and compound synthetic LIVE checks successfully. Existing resources and final human delivery gate were preserved.
