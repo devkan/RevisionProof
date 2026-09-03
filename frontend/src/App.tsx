@@ -494,7 +494,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                {guided ? <RequestDraft text={feedback} onText={setFeedback} duration={activeAsset?.duration_seconds ?? 0} disabled={Boolean(run) || processing !== null || !activeAsset || !runtime?.mutable} onBusy={setDraftBusy} onApply={plan => { setOperations(plan.operations); setUsedDraftText(feedback) }} /> : <div className="feedback-field">
+                {guided ? <RequestDraft key={activeAsset?.source_url} text={feedback} onText={setFeedback} duration={activeAsset?.duration_seconds ?? 0} disabled={Boolean(run) || processing !== null || !activeAsset || !runtime?.mutable} onBusy={setDraftBusy} onApply={plan => { setOperations(plan.operations); setUsedDraftText(feedback) }} /> : <div className="feedback-field">
                   <label htmlFor="feedback">Client feedback</label>
                   <textarea
                     id="feedback"
