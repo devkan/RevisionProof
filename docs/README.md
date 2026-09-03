@@ -1,5 +1,7 @@
 # RevisionProof docs
 
+- [KANAPP 실제 영상 BLOCKED·요청 해석 오류 수정](kanapp-demo-fix-2026-09-03.md)
+
 - [원본 업로드 GitHub 푸시·Cloud Run 배포·LIVE 검증](deployment-2026-09-03-source-upload.md)
 - [원본 영상 업로드와 승인 기록 UX — 사용법, 제한, 검증](source-upload-and-memory-ux-2026-09-03.md)
 - [새 창에서 이어가기 — 현재 상태, 다음 작업, 승인 경계](handoff-2026-09-03.md)

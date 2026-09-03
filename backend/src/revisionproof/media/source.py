@@ -132,6 +132,48 @@ def prepare_source(
     return prepared
 
 
+def unsupported_edit_reason(text: str) -> str | None:
+    """Only remove automation eligibility; never infer an executable partial edit."""
+    lower = text.casefold()
+    if any(
+        word in lower
+        for word in (
+            "subtitle",
+            "caption",
+            "overlay",
+            "watermark",
+            "logo",
+            "text",
+            "title",
+            "문구",
+            "텍스트",
+            "자막",
+            "로고",
+            "워터마크",
+            "타이틀",
+        )
+    ):
+        return (
+            "Text, captions and logos cannot be added in this version. "
+            "Edit your request to ask only for a center punch-in, "
+            "or add the text in a video editor."
+        )
+    if any(
+        word in lower
+        for word in (
+            "b-roll",
+            "remove",
+            "cut",
+            "speed",
+            "삭제",
+            "속도",
+            "색상",
+        )
+    ):
+        return "This edit needs a video editor. This version only creates a center punch-in."
+    return None
+
+
 def interpret_selected_range(text: str) -> list[RevisionNote]:
     """Conservative local rehearsal rules; never claim speech or visual understanding."""
     notes = []
@@ -139,28 +181,15 @@ def interpret_selected_range(text: str) -> list[RevisionNote]:
         raw = re.sub(r"^\s*(?:[-*]|\d+[.)])\s*", "", line).strip()
         lower = raw.casefold()
         supported = any(word in lower for word in ("punch", "zoom in", "확대", "줌인", "줌 인"))
-        other = any(
-            word in lower
-            for word in (
-                "b-roll",
-                "subtitle",
-                "caption",
-                "remove",
-                "cut",
-                "speed",
-                "자막",
-                "삭제",
-                "속도",
-                "색상",
-            )
-        )
+        other = unsupported_edit_reason(raw)
         notes.append(
             RevisionNote(
                 note_id=f"note_{index:02d}",
                 raw_text=raw,
                 intent="Apply a center punch-in to your selected section."
                 if supported and not other
-                else "This request needs an editor or a more specific supported instruction.",
+                else other
+                or "This request needs an editor or a more specific supported instruction.",
                 classification=SafetyClassification.AUTO_PREVIEWABLE
                 if supported and not other
                 else SafetyClassification.MANUAL_CREATIVE,

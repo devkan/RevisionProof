@@ -119,3 +119,22 @@ def test_auto_previewable_note_requires_confident_target() -> None:
             confidence=0.6,
             rationale="The target is not certain",
         )
+
+
+@pytest.mark.parametrize("peak_delta", [-0.1, 0.11, float("nan"), float("inf")])
+def test_peak_preservation_tolerance_cannot_disable_audio_check(peak_delta) -> None:
+    with pytest.raises(ValidationError, match="peak preservation tolerance"):
+        VerificationManifest(
+            check_id="locked_audio",
+            time_range=TimeRange(start_seconds=0, end_seconds=4),
+            threshold={"maximum_rms_delta_db": 3, "maximum_peak_delta_db": peak_delta},
+        )
+
+
+def test_legacy_peak_ceiling_still_rejects_positive_values() -> None:
+    with pytest.raises(ValidationError, match="at or below 0"):
+        VerificationManifest(
+            check_id="locked_audio",
+            time_range=TimeRange(start_seconds=0, end_seconds=4),
+            threshold={"maximum_rms_delta_db": 3, "maximum_peak_dbfs": 1.01},
+        )

@@ -690,7 +690,11 @@ class RevisionProofService:
                     time_range=audio_range,
                     threshold={
                         "maximum_rms_delta_db": AUDIO_RMS_TOLERANCE_DB,
-                        "maximum_peak_dbfs": 0.0 if uploaded else AUDIO_PEAK_LIMIT_DBFS,
+                        **(
+                            {"maximum_peak_delta_db": 0.1}
+                            if uploaded
+                            else {"maximum_peak_dbfs": AUDIO_PEAK_LIMIT_DBFS}
+                        ),
                     },
                 ),
             ],

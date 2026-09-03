@@ -356,6 +356,14 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  function editRequest() {
+    if (busy) return
+    setRun(null)
+    setSelectedNoteId(null)
+    setError(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -404,6 +412,7 @@ export default function App() {
         {run?.state === 'FAILED' && run.retryable && !processing && (
           <div className="recovery-banner">
             <div><strong>Your original feedback is preserved.</strong><p>{run.error ?? 'The live request failed closed.'}</p></div>
+            <button className="secondary-button" onClick={editRequest}>Edit request</button>
             <button className="secondary-button" onClick={() => void action('retrying', () => api.retryRun(run.run_id))}>
               Retry review
             </button>
@@ -421,7 +430,7 @@ export default function App() {
             <section className="workspace-section source-section">
               <div className="section-heading">
                 <div><span className="step-number">01</span><div><h2>Source video and client notes</h2><p>Start with the exact video and the client’s original wording.</p></div></div>
-                <span className={`section-state ${run ? 'state-complete' : ''}`}>{run ? 'Reviewed' : 'Ready'}</span>
+                <span className={`section-state ${run && run.state !== 'FAILED' ? 'state-complete' : ''}`}>{run?.state === 'FAILED' ? 'Review interrupted' : run ? 'Reviewed' : 'Ready'}</span>
               </div>
               {!run && <SourceUpload runtime={runtime} selected={uploadedSource} disabled={busy || !runtime?.mutable} onSelect={(source) => {
                 setUploadedSource(source); setError(null)
@@ -462,7 +471,7 @@ export default function App() {
                     aria-invalid={Boolean(feedbackError)}
                   />
                   <p className={`input-help ${feedbackError ? 'input-help-error' : ''}`} id={feedbackError ? 'feedback-help' : 'feedback-guidance'}>
-                    {feedbackError ?? 'One request per line works best. RevisionProof will never silently execute an unsupported request.'}
+                    {feedbackError ?? 'Supported now: center punch-in only. Text, subtitles and logos must be added in a video editor. Use one request per line.'}
                   </p>
                   {uploadedSource && !run && <fieldset className="edit-range" disabled={busy}>
                     <legend>Choose the section to edit</legend>
@@ -497,7 +506,7 @@ export default function App() {
                 {unsupportedCount > 0 && (
                   <div className="partial-plan-callout">
                     <ShieldAlert size={20} />
-                    <div><strong>Partial execution is explicit.</strong><p>RevisionProof will apply only the request you select below. The other {unsupportedCount} request{unsupportedCount === 1 ? '' : 's'} will remain unchanged.</p></div>
+                    <div><strong>{executableNotes.length ? 'Partial execution is explicit.' : 'This request cannot be automated yet.'}</strong><p>{executableNotes.length ? `RevisionProof will apply only the request you select below. The other ${unsupportedCount} request${unsupportedCount === 1 ? '' : 's'} will remain unchanged.` : 'This version creates center punch-ins. Edit your request to ask only for a zoom, or use a video editor for text, captions and other changes.'}</p></div>
                   </div>
                 )}
                 <div className="request-list">
@@ -517,10 +526,11 @@ export default function App() {
                 </div>
                 {!run.candidates.length && run.state !== 'FAILED' && (
                   <div className="section-action-bar">
-                    <div><strong>{selectedNoteId ? '1 request selected' : 'Select one ready request'}</strong><p>This demo applies one deterministic edit per proof.</p></div>
-                    <button className="primary-button" onClick={renderPreviews} disabled={busy || !selectedNoteId}>
+                    <div><strong>{executableNotes.length ? selectedNoteId ? '1 request selected' : 'Select one ready request' : 'Update the request to continue'}</strong><p>{executableNotes.length ? 'This demo applies one deterministic edit per proof.' : 'Your video, selected section and original wording will be kept.'}</p></div>
+                    <button className="secondary-button" onClick={editRequest} disabled={busy}>Edit request</button>
+                    {executableNotes.length > 0 && <button className="primary-button" onClick={renderPreviews} disabled={busy || !selectedNoteId}>
                       <Film size={18} /> Create A/B previews
-                    </button>
+                    </button>}
                   </div>
                 )}
               </section>
@@ -576,7 +586,7 @@ export default function App() {
               <section className={`result-section result-${run.proof.publish_allowed ? 'ready' : 'blocked'}`}>
                 <div className="result-heading">
                   <div className="result-icon">{run.proof.publish_allowed ? <CheckCircle2 size={28} /> : <ShieldAlert size={28} />}</div>
-                  <div><span>04 · FULL VIDEO VERIFICATION</span><h2>{run.proof.publish_allowed ? 'Your revised video is ready.' : 'The revised video is blocked.'}</h2><p>{run.proof.publish_allowed ? 'The selected edit was applied and every locked element still passes.' : 'At least one locked requirement changed. Delivery stays disabled.'}</p></div>
+                  <div><span>04 · FULL VIDEO VERIFICATION</span><h2>{run.proof.publish_allowed ? 'Your revised video is ready.' : 'The revised video is blocked.'}</h2><p>{run.proof.publish_allowed ? 'The selected edit was applied and every locked element still passes.' : 'One or more checks did not pass. Review the results below; delivery stays disabled.'}</p></div>
                 </div>
 
                 {run.generated_version_url && (
@@ -643,7 +653,7 @@ export default function App() {
               <div className="trace-list">
                 {(run?.events ?? []).map((event) => (
                   <div className="trace-event" key={event.sequence}>
-                    <span className="trace-node"><Check size={13} /></span>
+                    <span className="trace-node">{event.state === 'FAILED' || event.state === 'BLOCKED' ? <AlertTriangle size={13} /> : <Check size={13} />}</span>
                     <div><strong>{event.state.replaceAll('_', ' ')}</strong><p>{event.message}</p><small>{new Date(event.occurred_at).toLocaleTimeString()}</small></div>
                   </div>
                 ))}
@@ -653,7 +663,7 @@ export default function App() {
                 <span className="micro-label">RUNTIME TRUTH</span>
                 <dl>
                   <div><dt>Mode</dt><dd>{run?.mode ?? runtime?.mode ?? 'Checking'}</dd></div>
-                  <div><dt>Interpreter</dt><dd>{run?.feedback?.interpreter_source ?? 'Not run'}</dd></div>
+                  <div><dt>Interpreter</dt><dd>{run?.feedback?.interpreter_source ?? (run?.notes.length ? run.mode === 'LIVE' ? 'google.vertex.gemini' : run.asset.source_kind === 'upload' ? 'local.range_rules' : 'fixture.interpreter' : 'Not completed')}</dd></div>
                   <div><dt>Evidence</dt><dd>{run?.evidence[0]?.source ?? 'Not queried'}</dd></div>
                   <div><dt>Verdict owner</dt><dd>OpenCV + FFmpeg</dd></div>
                 </dl>

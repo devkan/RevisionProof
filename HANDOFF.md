@@ -6,6 +6,8 @@ Branch: review/qa-hardening
 
 ## Current Status
 
+- Follow-up fixes for the owner's KANAPP demo are ready for deployment: unchanged positive-peak audio no longer falsely blocks new spec 2.2 uploads; Korean uploaded targets use the explicit user range; unsupported text requests show guidance and `Edit request`. Backend 303 / frontend 19 tests passed. Read [the KANAPP debug/release record](docs/kanapp-demo-fix-2026-09-03.md) first. Text insertion remains unimplemented. The revision below is the preceding release until rollout verification is recorded.
+
 - Original-video upload and optional approved-memory UX are pushed and deployed. Source commit: `d7676495ed7b2cf29a8ec03a9e865d9bb05f580c`. The owner explicitly approved Cloud Shell authorization, resolving the earlier approval block. Start with [the latest release and LIVE evidence](docs/deployment-2026-09-03-source-upload.md).
 - Cloud Build `41e73ed2-e824-485e-b464-e3fc166f259b` succeeded; revision `revisionproof-staging-00016-j4q` serves 100% traffic at [the LIVE site](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app). Image digest: `sha256:08a49f48e2684c0424c03fd340c7f7853f77572bf436f07fab4966dd0154938b`.
 - Branch remains `review/qa-hardening`; repository remains PRIVATE, with no PR, merge or visibility change. Post-deploy documentation is a separate commit from the deployed application source; use current Git HEAD for that documentation checkpoint.

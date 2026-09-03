@@ -153,7 +153,11 @@ class VerificationManifest(BaseModel):
             "locked_cta": {"minimum_frame_similarity", "minimum_passing_ratio"},
             "locked_audio": {"maximum_rms_delta_db", "maximum_peak_dbfs"},
         }
-        if set(self.threshold) != expected_keys[self.check_id]:
+        relative_audio = self.check_id == "locked_audio" and set(self.threshold) == {
+            "maximum_rms_delta_db",
+            "maximum_peak_delta_db",
+        }
+        if not relative_audio and set(self.threshold) != expected_keys[self.check_id]:
             raise ValueError(f"{self.check_id} threshold keys do not match the check contract")
         ratio_keys = {
             "minimum_similarity",
@@ -166,6 +170,8 @@ class VerificationManifest(BaseModel):
             raise ValueError("winner margin must be non-negative")
         if self.threshold.get("maximum_rms_delta_db", 0) < 0:
             raise ValueError("RMS tolerance must be non-negative")
+        if not 0 <= self.threshold.get("maximum_peak_delta_db", 0) <= 0.1:
+            raise ValueError("peak preservation tolerance must be between 0 and 0.1 dB")
         if self.threshold.get("maximum_peak_dbfs", 0) > 0:
             raise ValueError("peak limit must be at or below 0 dBFS")
         if self.check_id == "locked_cta":
@@ -183,7 +189,7 @@ class VerificationManifest(BaseModel):
 class RevisionSpec(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    schema_version: Literal["2.0", "2.1"] = "2.0"
+    schema_version: Literal["2.0", "2.1", "2.2"] = "2.0"
     run_id: str
     asset_id: str
     approved_candidate: PatchCandidate
@@ -201,7 +207,10 @@ class RevisionSpec(BaseModel):
         if self.manifest_for("approved_patch").time_range != self.approved_candidate.time_range:
             raise ValueError("approved patch manifest must match the approved candidate range")
         locked_by_kind = {element.kind: element for element in self.locked_elements}
-        visual_kind = "VIDEO_CONTENT" if self.schema_version == "2.1" else "CTA_OVERLAY"
+        visual_kind = "VIDEO_CONTENT" if self.schema_version != "2.0" else "CTA_OVERLAY"
+        relative_audio = "maximum_peak_delta_db" in self.manifest_for("locked_audio").threshold
+        if relative_audio != (self.schema_version == "2.2"):
+            raise ValueError("relative audio preservation requires spec 2.2")
         if len(self.locked_elements) != 2 or set(locked_by_kind) != {visual_kind, "AUDIO"}:
             raise ValueError("RevisionSpec must freeze exactly one visual and one audio lock")
         if (
@@ -235,7 +244,9 @@ class RevisionSpec(BaseModel):
     ) -> RevisionSpec:
         timestamp = approved_at or datetime.now(UTC)
         payload: dict[str, Any] = {
-            "schema_version": "2.1"
+            "schema_version": "2.2"
+            if any("maximum_peak_delta_db" in m.threshold for m in verification_manifest)
+            else "2.1"
             if any(e.kind == "VIDEO_CONTENT" for e in locked_elements)
             else "2.0",
             "run_id": run_id,

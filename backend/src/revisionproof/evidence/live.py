@@ -23,6 +23,7 @@ from revisionproof.contracts import (
     TimeRange,
 )
 from revisionproof.ids import new_ulid
+from revisionproof.media.source import unsupported_edit_reason
 from revisionproof.settings import Settings
 
 _ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
@@ -270,7 +271,11 @@ class VertexGeminiInterpreter:
                     f"{selected_range.end_seconds:.3f} seconds of their uploaded video. "
                     "That selection supplies the precise target and duration. A request for a "
                     "center punch-in or zoom into the selected section can be AUTO_PREVIEWABLE. "
-                    "Use a verbatim part of the note such as 'selected section' as target_phrase. "
+                    "For a supported note, copy a verbatim part of the original language as "
+                    "target_phrase; never translate it or insert an absent phrase. "
+                    "Text, caption, subtitle and logo insertion are unsupported, including notes "
+                    "that combine them with zoom. Classify the whole input item MANUAL_CREATIVE "
+                    "with target_phrase and clarification_question null; do not execute only part. "
                     "Do not infer speech, scenes or demo metadata; no video analysis was performed."
                     if selected_range
                     else ""
@@ -305,13 +310,26 @@ class VertexGeminiInterpreter:
         if not final_text:
             raise RuntimeError("Google ADK returned no interpretation")
         data = InterpretationOutput.model_validate_json(final_text)
-        notes = [
-            RevisionNote(
-                note_id=f"note_{index:02d}",
-                **note.model_dump(),
-            )
-            for index, note in enumerate(data.notes, start=1)
-        ]
+        notes = []
+        for index, note in enumerate(data.notes, start=1):
+            values = note.model_dump()
+            if selected_range is not None:
+                reason = unsupported_edit_reason(note.raw_text)
+                if reason:
+                    values.update(
+                        classification=SafetyClassification.MANUAL_CREATIVE,
+                        intent=reason,
+                        rationale=reason,
+                        target_phrase=None,
+                        clarification_question=None,
+                    )
+                elif note.classification is SafetyClassification.MANUAL_CREATIVE:
+                    values.update(target_phrase=None, clarification_question=None)
+                else:
+                    # Uploaded timing comes from the explicit user range, not phrase search.
+                    # Retain a source-language label; exact note coverage is still checked below.
+                    values["target_phrase"] = note.raw_text[:200]
+            notes.append(RevisionNote(note_id=f"note_{index:02d}", **values))
         validate_interpretation_grounding(raw_text, notes)
         return notes
 

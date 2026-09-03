@@ -31,6 +31,12 @@ AUDIO_PEAK_LIMIT_DBFS = -1.0
 CTA_ROI = (840, 570, 340, 90)
 
 
+def _audio_peak_passes(threshold: dict[str, float], source: float, candidate: float) -> bool:
+    if "maximum_peak_delta_db" in threshold:
+        return abs(candidate - source) <= threshold["maximum_peak_delta_db"] + 1e-9
+    return candidate <= threshold["maximum_peak_dbfs"]
+
+
 class DeterministicVerifier:
     def __init__(self, executor: MediaExecutor) -> None:
         self.executor = executor
@@ -184,14 +190,15 @@ class DeterministicVerifier:
             executor=self.executor,
         )
         delta = abs(candidate_rms - source_rms)
-        passed = (
-            delta <= manifest.threshold["maximum_rms_delta_db"]
-            and candidate_peak <= manifest.threshold["maximum_peak_dbfs"]
+        passed = delta <= manifest.threshold["maximum_rms_delta_db"] and _audio_peak_passes(
+            manifest.threshold, source_peak, candidate_peak
         )
         verdict = Verdict.PASS if passed else Verdict.FAIL
         return VerificationCheck(
             check_id="locked_audio",
-            label="Locked audio level is unchanged",
+            label="Audio levels match the original"
+            if "maximum_peak_delta_db" in manifest.threshold
+            else "Locked audio level is unchanged",
             verdict=verdict,
             failure_code=None if passed else "LOCKED_AUDIO_CHANGED",
             measured={
@@ -200,6 +207,7 @@ class DeterministicVerifier:
                 "candidate_rms_dbfs": round(candidate_rms, 2),
                 "rms_delta_db": round(delta, 2),
                 "candidate_peak_dbfs": round(candidate_peak, 2),
+                "peak_delta_db": round(abs(candidate_peak - source_peak), 2),
             },
             threshold=manifest.threshold,
             evidence_time_range=manifest.time_range,
@@ -284,7 +292,7 @@ def apply_mcp_feature_diff(
     audio = checks["locked_audio"]
     audio_manifest = spec.manifest_for("locked_audio")
     source_rms, candidate_rms = values["audio_rms_dbfs"]
-    _, candidate_peak = values["audio_peak_dbfs"]
+    source_peak, candidate_peak = values["audio_peak_dbfs"]
     audio_delta = abs(candidate_rms - source_rms)
     audio.measured.update(
         {
@@ -292,12 +300,13 @@ def apply_mcp_feature_diff(
             "mcp_candidate_rms_dbfs": candidate_rms,
             "mcp_rms_delta_db": audio_delta,
             "mcp_candidate_peak_dbfs": candidate_peak,
+            "mcp_source_peak_dbfs": source_peak,
+            "mcp_peak_delta_db": abs(candidate_peak - source_peak),
         }
     )
-    audio_passed = (
-        audio_delta <= audio_manifest.threshold["maximum_rms_delta_db"]
-        and candidate_peak <= audio_manifest.threshold["maximum_peak_dbfs"]
-    )
+    audio_passed = audio_delta <= audio_manifest.threshold[
+        "maximum_rms_delta_db"
+    ] and _audio_peak_passes(audio_manifest.threshold, source_peak, candidate_peak)
     audio.verdict = Verdict.PASS if audio_passed else Verdict.FAIL
     audio.failure_code = None if audio_passed else "LOCKED_AUDIO_CHANGED"
 

@@ -125,7 +125,7 @@ export interface PatchCandidate {
 }
 
 export interface RevisionSpec {
-  schema_version: '2.0' | '2.1'
+  schema_version: '2.0' | '2.1' | '2.2'
   run_id: string
   asset_id: string
   approved_candidate: PatchCandidate

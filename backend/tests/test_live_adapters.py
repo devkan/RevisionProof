@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from revisionproof.contracts import ParsedFeedback, SafetyClassification
+from revisionproof.contracts import ParsedFeedback, SafetyClassification, TimeRange
 from revisionproof.evidence.live import (
     GcsObjectStore,
     LiveEvidenceLocator,
@@ -155,8 +155,18 @@ def test_vertex_adk_model_pins_vertex_project_without_global_env(monkeypatch) ->
 
 
 @pytest.mark.asyncio
-async def test_vertex_interpretation_closes_runner_and_both_clients(monkeypatch) -> None:
+@pytest.mark.parametrize("uploaded,compound", [(False, False), (True, False), (True, True)])
+async def test_vertex_interpretation_closes_runner_and_both_clients(
+    monkeypatch, uploaded, compound
+) -> None:
     closed = {"runner": False, "async_client": False, "sync_client": False}
+    raw_text = (
+        "4–10초를 확대하면서 ‘AI, made practical.’ 문구를 하단에 표시"
+        if compound
+        else "선택한 구간을 중앙 기준으로 확대해 주세요."
+        if uploaded
+        else 'When the presenter says "RevisionProof," push in slightly.'
+    )
 
     class FakeAsyncClient:
         async def aclose(self) -> None:
@@ -185,11 +195,11 @@ async def test_vertex_interpretation_closes_runner_and_both_clients(monkeypatch)
             payload = {
                 "notes": [
                     {
-                        "raw_text": 'When the presenter says "RevisionProof," push in slightly.',
+                        "raw_text": raw_text,
                         "intent": "Apply a short center punch-in",
                         "classification": "AUTO_PREVIEWABLE",
                         "confidence": 0.94,
-                        "target_phrase": "RevisionProof",
+                        "target_phrase": "selected section" if uploaded else "RevisionProof",
                         "rationale": "The phrase and supported edit are precise.",
                     }
                 ]
@@ -207,9 +217,19 @@ async def test_vertex_interpretation_closes_runner_and_both_clients(monkeypatch)
 
     notes = await VertexGeminiInterpreter(
         Settings(google_cloud_project="revisionproof-test")
-    ).interpret_many('When the presenter says "RevisionProof," push in slightly.')
+    ).interpret_many(
+        raw_text, selected_range=TimeRange(start_seconds=4, end_seconds=10) if uploaded else None
+    )
 
-    assert notes[0].target_phrase == "RevisionProof"
+    assert notes[0].raw_text == raw_text
+    if compound:
+        assert notes[0].classification == SafetyClassification.MANUAL_CREATIVE
+        assert notes[0].target_phrase is None
+    elif uploaded:
+        assert notes[0].target_phrase in raw_text
+        assert notes[0].classification == SafetyClassification.AUTO_PREVIEWABLE
+    else:
+        assert notes[0].target_phrase == "RevisionProof"
     assert closed == {"runner": True, "async_client": True, "sync_client": True}
 
 

@@ -35,6 +35,7 @@ def uploaded_clips(tmp_path_factory):
         ("fractional-short", "320x180", 30, 4.01, True),
         ("fractional-long", "320x180", 30, 6.01, True),
         ("fractional-control", "320x180", 30, 4.04, True),
+        ("high-peak", "320x180", 30, 4, True),
     ):
         clip = folder / f"{name}.mp4"
         args = [
@@ -59,6 +60,8 @@ def uploaded_clips(tmp_path_factory):
         ]
         if audio:
             args += ["-c:a", "aac"]
+        if name == "high-peak":
+            args += ["-af", "volume=20dB"]
         args += [str(clip)]
         executor.run(args, expected_output=clip)
         clips.append(clip)
@@ -76,6 +79,90 @@ def app_client(tmp_path):
     app.add_middleware(UploadBodyLimit, max_file_bytes=settings.max_upload_bytes)
     app.include_router(router)
     return TestClient(app), service
+
+
+@pytest.mark.parametrize(
+    "feedback",
+    [
+        "4–10초를 확대하면서 ‘AI, made practical.’ 문구를 하단에 표시",
+        "Zoom in and add the text 'KANAPP' at the bottom.",
+        "선택 구간을 확대하고 로고를 넣어주세요.",
+    ],
+)
+def test_mixed_text_request_never_silently_executes_only_the_zoom(feedback):
+    notes = interpret_selected_range(feedback)
+    assert len(notes) == 1
+    assert notes[0].raw_text == feedback
+    assert notes[0].classification == "MANUAL_CREATIVE"
+    assert notes[0].target_phrase is None
+    assert "cannot be added" in notes[0].intent
+
+
+def test_high_peak_original_passes_unchanged_but_new_audio_gain_fails(tmp_path, uploaded_clips):
+    from revisionproof.verification.service import apply_mcp_feature_diff
+
+    client, service = app_client(tmp_path)
+    content = uploaded_clips[-1].read_bytes()
+    response = client.post(
+        "/api/runs/upload",
+        data={"feedback": "선택한 구간을 확대해 주세요", "start_seconds": 0, "end_seconds": 4},
+        files={"file": ("high-peak.mp4", content, "video/mp4")},
+        headers={
+            "Idempotency-Key": "high-peak",
+            "X-Content-SHA256": hashlib.sha256(content).hexdigest(),
+        },
+    )
+    run = response.json()
+    assert response.status_code == 201, run
+    service.generate_previews(run["run_id"], selected_note_id=run["notes"][0]["note_id"])
+    service.approve(run["run_id"], ApprovalRequest(candidate_id="B"))
+    result = service.render_approved_version(run["run_id"])
+    audio = result.proof.checks[2]
+    assert audio.measured["source_peak_dbfs"] > 0  # Existing decoded AAC overshoot.
+    assert audio.measured["rms_delta_db"] == 0
+    assert result.state == "READY", result.proof.model_dump_json()
+    assert result.spec.schema_version == "2.2"
+    assert audio.measured["peak_delta_db"] == 0
+    rows = [
+        {"feature_name": name, "baseline_value": baseline, "current_value": current}
+        for name, baseline, current in (
+            ("patch_similarity", 1, 0.99),
+            ("patch_passing_ratio", 1, 1),
+            ("patch_winner_margin", 0.01, 0.01),
+            ("cta_passing_ratio", 1, 1),
+            ("audio_rms_dbfs", -12, -12),
+            ("audio_peak_dbfs", 1.01, 1.01),
+        )
+    ]
+    apply_mcp_feature_diff(result.proof, result.spec, rows)
+    assert result.proof.publish_allowed
+    rows[-1]["current_value"] = 2.01
+    apply_mcp_feature_diff(result.proof, result.spec, rows)
+    assert not result.proof.publish_allowed
+    assert result.proof.checks[2].failure_code == "LOCKED_AUDIO_CHANGED"
+
+    louder = tmp_path / "louder.mp4"
+    service.executor.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(service.repository.version_path(run["run_id"])),
+            "-c:v",
+            "copy",
+            "-af",
+            "volume=1dB",
+            "-c:a",
+            "aac",
+            str(louder),
+        ],
+        expected_output=louder,
+    )
+    check = service.verifier._locked_audio(
+        service.repository.source_path(run["run_id"]), louder, result.spec
+    )
+    assert check.verdict == "FAIL"
+    assert check.measured["rms_delta_db"] < 3
 
 
 @pytest.mark.parametrize(
@@ -130,7 +217,7 @@ def test_upload_to_full_video_uses_selected_source_and_preserves_timing(
     source_id = run["run_id"]
     service.generate_previews(source_id, selected_note_id=run["notes"][0]["note_id"])
     approved = service.approve(source_id, ApprovalRequest(candidate_id="B"))
-    assert approved.spec.schema_version == "2.1"
+    assert approved.spec.schema_version == "2.2"
     assert (
         approved.spec.manifest_for("locked_audio").time_range.end_seconds
         == run["asset"]["duration_seconds"]
