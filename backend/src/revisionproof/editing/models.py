@@ -12,7 +12,9 @@ class EditOperation(BaseModel):
 
     kind: Literal["zoom", "text", "subtitle", "cut", "remove_silence"]
     start: float = Field(ge=0, le=60, allow_inf_nan=False)
-    end: float = Field(gt=0, le=60.05, allow_inf_nan=False)
+    # Vertex response_schema does not support exclusiveMinimum. The duration
+    # validator below still requires end >= start + 0.09 (and start >= 0).
+    end: float = Field(ge=0, le=60.05, allow_inf_nan=False)
     text: str = Field(default="", max_length=160)
     position: Literal["top", "center", "bottom", "bottom_right"] = "bottom"
     threshold_db: float = Field(default=-40, ge=-60, le=-20, allow_inf_nan=False)

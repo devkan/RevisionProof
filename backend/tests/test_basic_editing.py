@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -9,7 +10,7 @@ from pydantic import ValidationError
 
 from revisionproof.api import get_service, router
 from revisionproof.contracts import ApprovalRequest, ExecutionMode, RevisionSpec, TimeRange
-from revisionproof.editing.interpret import interpret_local
+from revisionproof.editing.interpret import EditDraftOutput, interpret_local
 from revisionproof.editing.models import EditOperation, EditPlan, InterpretEditRequest
 from revisionproof.editing.render import render_plan, resolve_plan
 from revisionproof.editing.verify import file_hash
@@ -19,6 +20,16 @@ from revisionproof.repository import InMemoryRunRepository
 from revisionproof.service import RevisionProofService
 from revisionproof.settings import Settings
 from revisionproof.verification.metrics import apply_punch_in, normalized_similarity, read_frame
+
+
+def test_live_edit_draft_schema_converts_with_installed_vertex_sdk():
+    from google.genai import _transformers
+
+    # Exercise the real SDK conversion that happens before the Vertex request.
+    schema = _transformers.t_schema(SimpleNamespace(vertexai=True), EditDraftOutput)
+    assert schema.properties["operations"].items.properties["end"].maximum == 60.05
+    with pytest.raises(ValidationError):
+        EditOperation(kind="zoom", start=0, end=0)
 
 
 @pytest.mark.parametrize("index", [0, 1, 2])

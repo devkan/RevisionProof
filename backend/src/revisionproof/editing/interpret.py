@@ -15,6 +15,11 @@ from revisionproof.editing.models import (
 )
 
 
+class EditDraftOutput(BaseModel):
+    operations: list[EditOperation] = Field(max_length=24)
+    warnings: list[str] = Field(default_factory=list, max_length=10)
+
+
 def interpret_local(request: InterpretEditRequest) -> EditInterpretation:
     operations, warnings = [], []
     for line in request.text.splitlines():
@@ -122,15 +127,11 @@ async def interpret_live(request: InterpretEditRequest, settings) -> EditInterpr
     from revisionproof.evidence.live import VertexGeminiInterpreter
     from revisionproof.ids import new_ulid
 
-    class Output(BaseModel):
-        operations: list[EditOperation] = Field(max_length=24)
-        warnings: list[str] = Field(default_factory=list, max_length=10)
-
     model = VertexGeminiInterpreter(settings)._adk_model()
     agent = LlmAgent(
         name="basic_edit_draft",
         model=model,
-        output_schema=Output,
+        output_schema=EditDraftOutput,
         instruction=(
             "Create an editable video plan, never execute or approve it. Supported kinds: "
             "zoom (center crop), text (literal title), subtitle (literal timed cue), "
@@ -168,7 +169,7 @@ async def interpret_live(request: InterpretEditRequest, settings) -> EditInterpr
             ):
                 if event.is_final_response() and event.content:
                     final = "".join(part.text or "" for part in event.content.parts or [])
-        output = Output.model_validate_json(final)
+        output = EditDraftOutput.model_validate_json(final)
         if any(
             (op.text and op.text not in request.text) or op.detected for op in output.operations
         ):
