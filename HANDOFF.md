@@ -6,12 +6,14 @@ Branch: review/qa-hardening
 
 ## Current Status
 
+- Latest gstack review/QA is complete locally. Fixed stale drafts after source changes, false BLOCKED after frame-aligned cuts, and local caption-removal requests incorrectly suggesting footage cuts. Verified source `94c081c`: backend 330 passed / 124.10s, frontend 22, Ruff/ESLint/TypeScript/build pass. Local browser cut regression and five-operation workflow are READY / 3 PASS; see [the review report](docs/qa-review-2026-09-03-basic-editor.md) for before/after evidence and prepared release bundle.
+- These QA fixes are **not deployed**. Automatic approval review denied even reading the Cloud Console browser origin, saying it was outside this turn's local QA scope. Do not bypass this rejection. Finish only unaffected work, report the exact rejection, and resolve owner approval before another Cloud Console action. LIVE remains `1b2c0ae` / `revisionproof-staging-00021-4fx`. Earlier authorization below does not mean this new rejection can be ignored.
 - The owner authorized and implementation now includes center zoom, literal text, timed subtitle cues, exact cuts and reviewed silence removal. The default UI has selectable examples, editable cards, explicit draft review, preserved-input adjustment and mapped comparisons. Read [the current guide](docs/basic-editing-guide-2026-09-03.md) and [engineering review](docs/basic-editing-plan-2026-09-03.md).
 - New EDIT_PLAN spec 3.0 freezes original-time operations and a full-preview SHA-256. Export is a byte-identical copy. Legacy 2.x JSON/hash behavior remains compatible. All audio channels must be quiet; proposed cuts require user selection.
 - Actual KANAPP compound request passed locally: run `01M1KD2G84K7G3CCT5RAG0WS89`, B, READY / 3 PASS, zero map flags. Text is visibly present at 6 seconds. Synthetic subtitles + manual/silence cuts run `01M1KDAT3C4Z43KQJTYB8ZSW3J` passed, 10s -> 7.766667s; revised 3s maps to original 5.233333s.
 - Final source `1b2c0aec4208359c5d764c527af5c41d59c91f67` is pushed and deployed. Build `2467c268-f0f9-4090-9c88-7dd71f454f53` SUCCESS; revision `revisionproof-staging-00021-4fx` serves 100%, image `sha256:9fc57bc421bbbd42476f6eb0d2082a3facf94a4770cca8d679fb8935f6e60f0a`. Final gates: backend 322 passed / 113.75s, frontend 22, Ruff / ESLint / TypeScript / production build passed. Read the guide's LIVE debugging record before changing the provider schema: Gemini receives only five draft fields, while strict runtime validation and silence settings stay server-owned.
 - Final LIVE gstack run `01M1KHABHY8YWTZ7RQVPK3MF9Q` used an actual Gemini Korean draft and synthetic upload, completed five edits, 10s -> 7.766667s, READY / 3 PASS, official MCP map 8 windows / 16 samples / zero flags. Download matched the selected preview byte-for-byte; Korean/English video frames and mapped comparison were inspected. The original one-line request separately returned two exact edits from `google.vertex.gemini` with no warnings. Final delivery approval remains false. Intermediate manual-control run `01M1KF3DM9VATJK3GTFVPVFA6S` is separate earlier evidence.
-- Branch/repo remain `review/qa-hardening` / PRIVATE. No PR, merge or visibility change. Push and existing-service Cloud Shell deployment were already authorized; no repeat approval is needed.
+- Branch/repo remain `review/qa-hardening` / PRIVATE. No PR, merge or visibility change. Older push and existing-service deployment authorization remains context, but the latest explicit automatic Cloud Console rejection above must be resolved before deployment.
 - Earlier automatic review rejected retransmission of `demo_movie_kanapp.mp4` to LIVE without explicit file-and-destination approval. Keep it local and use non-sensitive synthetic media for LIVE QA. Never auto-approve final delivery or seed Cloud memory.
 
 ## Previous Release Context
@@ -26,6 +28,7 @@ Branch: review/qa-hardening
 
 ## Relevant Docs
 
+- [Latest gstack review and QA fixes](docs/qa-review-2026-09-03-basic-editor.md) — read first; 3 fixes verified locally, prepared release, automatic Cloud Console rejection.
 - [Basic editing guide and release evidence](docs/basic-editing-guide-2026-09-03.md) — current work; read first.
 - [gstack engineering review](docs/basic-editing-plan-2026-09-03.md) — scope and design decisions.
 
@@ -42,7 +45,7 @@ Branch: review/qa-hardening
 
 ## Remaining Work
 
-The requested basic editor, push, deployment and LIVE verification are complete. The owner can use the current guide's examples for the demo and explicitly approve their own final delivery. Private memory keys, automatic transcription, burned-in text replacement, general effects and durable job recovery remain separate future scope.
+The previous basic-editor release remains live. Latest review fixes are complete and verified locally; deployment awaits resolution of the automatic approval rejection. Prepared source/bundle and exact target are in the latest QA report. One low-priority generic LIVE caption warning is deferred. Private memory keys, automatic transcription, burned-in text replacement, general effects and durable job recovery remain separate future scope.
 
 ## Watchouts
 
@@ -57,4 +60,4 @@ The requested basic editor, push, deployment and LIVE verification are complete.
 
 ## Suggested Next Action
 
-Use [the current LIVE editor](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=1b2c0ae) and the [basic editing guide](docs/basic-editing-guide-2026-09-03.md) for the demo. Local gstack QA used port 18128 and `.gstack/basic-editor-browser/`; recheck process state after an interruption. Existing deployment resources and secret versions must be preserved.
+Resolve approval for the existing Cloud Console/Cloud Run deployment, then use the prepared `94c081c` source bundle and repeat synthetic LIVE verification. Local current QA server uses port 18129 and `.gstack/qa-review-runtime/`; process 17188 at review completion (recheck after interruption). [LIVE](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=1b2c0ae) still has the previous code. Preserve deployment resources and secret versions.

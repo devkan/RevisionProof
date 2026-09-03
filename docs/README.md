@@ -1,5 +1,6 @@
 # RevisionProof docs
 
+- [기본 편집 gstack 리뷰·QA — 오류 3건 수정, 330/22 테스트, 배포 승인 차단](qa-review-2026-09-03-basic-editor.md)
 - [기본 영상 편집 — 사용법, 요청 예시, 최종 LIVE 배포·검증 (revision 00021)](basic-editing-guide-2026-09-03.md)
 - [기본 편집 확장 gstack 설계·검토](basic-editing-plan-2026-09-03.md)
 
