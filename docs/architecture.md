@@ -71,7 +71,7 @@ version verification failure → FAILED → retry upload from the frozen approve
 
 ## API
 
-The OpenAPI contract is available at `/docs`. Core routes include `/api/runtime` (including upload limits), `/api/demo-assets`, `/api/runs`, `/api/runs/upload`, and run-scoped `/source-video`, resumable `/events`, `/previews`, `/approvals`, `/automatic-version`, `/generated-video`, `/spec`, the secondary `/versions` upload, `/proof`, and `/delivery-approval`. Cloud Run-safe health and readiness routes are `/health` and `/ready`; the legacy `z`-suffixed aliases remain for local compatibility only because Cloud Run reserves some paths ending in `z`.
+The OpenAPI contract is available at `/docs`. Core routes include `/api/runtime` (including upload limits), `/api/demo-assets`, `/api/edit-plans/interpret`, `/api/runs`, `/api/runs/upload`, and run-scoped `/source-video`, resumable `/events`, `/previews`, `/approvals`, `/automatic-version`, `/generated-video`, `/spec`, the secondary `/versions` upload, `/proof`, and `/delivery-approval`. Cloud Run-safe health and readiness routes are `/health` and `/ready`; the legacy `z`-suffixed aliases remain for local compatibility only because Cloud Run reserves some paths ending in `z`.
 
 ## Hackathon durability boundary
 

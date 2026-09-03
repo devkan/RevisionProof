@@ -9,7 +9,8 @@ Branch: review/qa-hardening
 - The owner authorized and implementation now includes center zoom, literal text, timed subtitle cues, exact cuts and reviewed silence removal. The default UI has selectable examples, editable cards, explicit draft review, preserved-input adjustment and mapped comparisons. Read [the current guide](docs/basic-editing-guide-2026-09-03.md) and [engineering review](docs/basic-editing-plan-2026-09-03.md).
 - New EDIT_PLAN spec 3.0 freezes original-time operations and a full-preview SHA-256. Export is a byte-identical copy. Legacy 2.x JSON/hash behavior remains compatible. All audio channels must be quiet; proposed cuts require user selection.
 - Actual KANAPP compound request passed locally: run `01M1KD2G84K7G3CCT5RAG0WS89`, B, READY / 3 PASS, zero map flags. Text is visibly present at 6 seconds. Synthetic subtitles + manual/silence cuts run `01M1KDAT3C4Z43KQJTYB8ZSW3J` passed, 10s -> 7.766667s; revised 3s maps to original 5.233333s.
-- Final regression and deployment of the expansion are in progress at this checkpoint. Current LIVE remains `revisionproof-staging-00017-cnr`, source `1c1204620382244fc817ce4f8f457f6867dc57cc`, build `95808615-6694-4d67-ad58-c04097cbf46a`, image `sha256:ad118dc715b9bdbbb4489ce523581f3ccbbc1efcbd93c26b67edf02b9869a5c2`. This preceding release does not have the new editor. Update after rollout.
+- Final source `1b2c0aec4208359c5d764c527af5c41d59c91f67` is pushed and deployed. Build `2467c268-f0f9-4090-9c88-7dd71f454f53` SUCCESS; revision `revisionproof-staging-00021-4fx` serves 100%, image `sha256:9fc57bc421bbbd42476f6eb0d2082a3facf94a4770cca8d679fb8935f6e60f0a`. Final gates: backend 322 passed / 113.75s, frontend 22, Ruff / ESLint / TypeScript / production build passed. Read the guide's LIVE debugging record before changing the provider schema: Gemini receives only five draft fields, while strict runtime validation and silence settings stay server-owned.
+- Final LIVE gstack run `01M1KHABHY8YWTZ7RQVPK3MF9Q` used an actual Gemini Korean draft and synthetic upload, completed five edits, 10s -> 7.766667s, READY / 3 PASS, official MCP map 8 windows / 16 samples / zero flags. Download matched the selected preview byte-for-byte; Korean/English video frames and mapped comparison were inspected. The original one-line request separately returned two exact edits from `google.vertex.gemini` with no warnings. Final delivery approval remains false. Intermediate manual-control run `01M1KF3DM9VATJK3GTFVPVFA6S` is separate earlier evidence.
 - Branch/repo remain `review/qa-hardening` / PRIVATE. No PR, merge or visibility change. Push and existing-service Cloud Shell deployment were already authorized; no repeat approval is needed.
 - Earlier automatic review rejected retransmission of `demo_movie_kanapp.mp4` to LIVE without explicit file-and-destination approval. Keep it local and use non-sensitive synthetic media for LIVE QA. Never auto-approve final delivery or seed Cloud memory.
 
@@ -41,10 +42,7 @@ Branch: review/qa-hardening
 
 ## Remaining Work
 
-1. Finish final test/lint gates, commit and push the basic editor.
-2. Deploy the SHA-verified committed archive with the existing Cloud Build workflow; no ClickHouse migration is needed.
-3. Verify fresh LIVE drafting, English/Korean text, captions/cuts, MCP verdict/map and browser playback using synthetic media. Record source/build/revision/run IDs in the current guide and this handoff.
-4. Leave final human delivery approval false. Private memory keys, auto-transcription, original burned-in text replacement and general video effects remain separate work.
+The requested basic editor, push, deployment and LIVE verification are complete. The owner can use the current guide's examples for the demo and explicitly approve their own final delivery. Private memory keys, automatic transcription, burned-in text replacement, general effects and durable job recovery remain separate future scope.
 
 ## Watchouts
 
@@ -59,4 +57,4 @@ Branch: review/qa-hardening
 
 ## Suggested Next Action
 
-Finish the release steps above. Local gstack QA uses port 18128 and `.gstack/basic-editor-browser/`; recheck process state after an interruption. The [basic editing guide](docs/basic-editing-guide-2026-09-03.md) has user instructions and current evidence. Existing deployment resources and secret versions must be preserved.
+Use [the current LIVE editor](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=1b2c0ae) and the [basic editing guide](docs/basic-editing-guide-2026-09-03.md) for the demo. Local gstack QA used port 18128 and `.gstack/basic-editor-browser/`; recheck process state after an interruption. Existing deployment resources and secret versions must be preserved.

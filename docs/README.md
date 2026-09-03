@@ -1,6 +1,6 @@
 # RevisionProof docs
 
-- [기본 영상 편집 — 사용법, 요청 예시, 검증·배포](basic-editing-guide-2026-09-03.md)
+- [기본 영상 편집 — 사용법, 요청 예시, 최종 LIVE 배포·검증 (revision 00021)](basic-editing-guide-2026-09-03.md)
 - [기본 편집 확장 gstack 설계·검토](basic-editing-plan-2026-09-03.md)
 
 - [KANAPP 실제 영상 BLOCKED·요청 해석 오류 수정](kanapp-demo-fix-2026-09-03.md)
