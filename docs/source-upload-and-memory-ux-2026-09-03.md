@@ -1,6 +1,6 @@
 # 원본 영상 업로드와 승인 기록 UX
 
-Date: 2026-09-03. Scope: local implementation and gstack verification. **아직 LIVE에 배포하지 않았다.** 기존 배포 `revisionproof-staging-00015-h6b`, ClickHouse 설정, 승인 기록 저장 정책은 변경하지 않았다.
+Date: 2026-09-03. Scope: implementation and gstack verification. **GitHub 푸시 완료(`d767649`), LIVE 배포는 Cloud Shell 권한 승인 대기다.** [배포 준비 기록](deployment-2026-09-03-source-upload.md)을 참고한다. 기존 배포 `revisionproof-staging-00015-h6b`, ClickHouse 설정, 승인 기록 저장 정책은 변경하지 않았다.
 
 ## 사용 방법
 
@@ -58,4 +58,4 @@ Ignored evidence: `.gstack/source-upload-browser-proof-20260903.json`, `.gstack/
 
 업로드는 spec `2.1`에서 영상 전체 `VIDEO_CONTENT` 잠금을 사용한다. 승인 구간은 예상 확대 프레임과, 나머지는 준비된 원본과 비교한다. 기존 샘플의 24–29초 CTA 검사를 다른 영상에 강제로 적용하지 않는다. ClickHouse 호환을 위해 내부 check ID `locked_cta`는 유지하며 사용자 표시만 전체 영상 검사로 바꾼다. 비교는 초당 2프레임, 소리는 레벨 검사로서 모든 프레임/파형의 완전 동일성을 보장하지 않는다.
 
-원본 작업본과 run 상태는 현재 프로세스의 로컬 runtime에 속한다. 이번 변경에 영구 원본 보관, 재시작 복구, 사용자별 인증, 자동 음성/장면 인덱싱은 포함하지 않는다. 다음 운영 단계는 이 변경의 별도 커밋/푸시/배포 및 LIVE 업로드 경로 점검이다.
+원본 작업본과 run 상태는 현재 프로세스의 로컬 runtime에 속한다. 이번 변경에 영구 원본 보관, 재시작 복구, 사용자별 인증, 자동 음성/장면 인덱싱은 포함하지 않는다. 커밋/푸시는 완료했고, 다음 운영 단계는 권한 승인 후 배포 및 LIVE 업로드 경로 점검이다.

@@ -6,13 +6,13 @@ Branch: review/qa-hardening
 
 ## Current Status
 
-- New local implementation: original-video upload and optional approved-memory UX are complete and locally verified. Read [the upload/UX guide](docs/source-upload-and-memory-ux-2026-09-03.md) first for this work. It is not committed, pushed, or deployed yet; the deployed release below remains unchanged.
+- Original-video upload and optional approved-memory UX are committed and pushed as `d7676495ed7b2cf29a8ec03a9e865d9bb05f580c`, remote SHA verified. Deployment is waiting for explicit Cloud Shell authorization after automatic approval review rejected the Authorize click. Read [release preparation and exact next steps](docs/deployment-2026-09-03-source-upload.md) first; the deployed release below remains unchanged.
 - GitHub push, additive ClickHouse migration, GCP deployment and fresh LIVE QA completed in the preceding release operation. Start with [the new-window guide](docs/handoff-2026-09-03.md).
 - Deployed source: `c5652b1`; build `85ae9052-5b5b-43aa-a2bd-5c3004e913ee`; revision `revisionproof-staging-00015-h6b`, 100% traffic at [the LIVE site](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app).
 - GitHub checkpoint including release docs: `c7ea2261e38242e0038f7d7f0a533a6da155f376`, pushed and remote-verified in the preceding operation. Repository remains PRIVATE; no PR, merge or publication.
 - LIVE run `01M1JQSKYVTS5EFNJ6KBEYACHS` generated the complete Option B video, reached READY with three PASS checks, and persisted 60 frame samples / 30 map windows. Final delivery approval is false.
 - Approved Edit Memory is read-only in public LIVE until separate owner-key setup. Cloud HNSW/QBit schema exists; actual vector/index execution was verified on a populated isolated server, not on the empty Cloud library.
-- The earlier handoff was docs-only; the subsequent upload/UX task changes code locally. Cloud/runtime release evidence above remains historical. Preserve both the earlier uncommitted documentation and the new implementation.
+- The earlier handoff docs and subsequent upload/UX implementation are now included in the pushed source commit. Cloud/runtime release evidence above remains historical; the new code is not deployed yet.
 
 ## Completed This Session
 
@@ -22,10 +22,11 @@ Branch: review/qa-hardening
 - Added a new-window guide covering product behavior, code ownership, exact deployment targets, completed work, approval-gated next steps and preserved resources.
 - Indexed the guide and recorded the final pushed documentation checkpoint in the release record.
 - Reconfirmed local HEAD/tracking ref at `c7ea226`, initially clean worktree, and RevisionProof-only Docker status. The FIXTURE demo is running at `http://127.0.0.1:18125`; two intelligence DB test containers remain stopped.
-- Current handoff and upload implementation edits are local and uncommitted. Preserve them in the next window. No additional commit, push, deploy, paid LIVE run, credential change or cleanup was performed for these requests.
+- Commit/push succeeded and a SHA-256-verified committed-source ZIP is prepared. No Cloud Build submission, deploy, paid LIVE run, credential change or cleanup was performed in the current attempt; Cloud Shell authorization remains pending.
 
 ## Relevant Docs
 
+- [Source upload release preparation](docs/deployment-2026-09-03-source-upload.md) — pushed source SHA, final 292/19 tests, archive hash, automatic approval block and exact next deployment steps.
 - [Original upload and memory UX](docs/source-upload-and-memory-ux-2026-09-03.md) — current local implementation, Korean usage guide, limits, verification and deployment boundary.
 - [New-window guide](docs/handoff-2026-09-03.md) — read first; Korean summary, next actions and a copy/paste continuation prompt.
 - [Deployment and LIVE evidence](docs/deployment-2026-09-03-clickhouse-intelligence.md) — build/image/run IDs, Cloud grants, resource inventory and rollback.
@@ -37,7 +38,7 @@ Branch: review/qa-hardening
 
 ## Remaining Work
 
-1. The preceding release is complete. The subsequent source-upload/UX implementation remains local; commit/push/deploy and a fresh LIVE upload check are the next release steps when requested.
+1. The owner requested deployment and source push is complete. Obtain the explicit Cloud Shell Authorize confirmation described in the release preparation note, then upload the prepared archive, build/deploy and verify a fresh LIVE upload. Do not bypass the automatic approval rejection using indirect credentials or execution.
 2. If the owner wants LIVE memory saves, obtain separate credential-setup approval; first ensure the deployment preserves a pinned memory secret alongside existing ClickHouse bindings, then configure the private operator token and validate an explicitly human-approved save/retrieval.
 3. Continue owner testing and update the demo script for checkbox selection, automatic full-video generation, Change Map and the actual memory activation state.
 4. Before submission, recheck official rules/tool eligibility, obtain publication/landing approvals, perform clean-clone and operator-led recording checks, and decide ClickHouse trial-expiry hosting/export.
@@ -55,4 +56,4 @@ Branch: review/qa-hardening
 
 ## Suggested Next Action
 
-Read the upload/UX guide, preserve all local edits, and continue the owner's next request. If a release is requested, ship the upload/UX change and verify a fresh LIVE upload; no new ClickHouse migration is needed for the retained check IDs. Private approved-memory saves remain a separate credential setup. Do not repeat the earlier migration by default.
+Continue the authorized upload/UX deployment after the pending Cloud Shell permission is explicitly approved. Read the release preparation note and verify existing Cloud configuration before submitting the committed archive. No new ClickHouse migration is needed for the retained check IDs. Private approved-memory saves remain a separate credential setup.
