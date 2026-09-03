@@ -11,6 +11,14 @@ The hackathon path is deliberately narrow:
 5. FFmpeg and OpenCV automatically verify the requested patch, locked CTA, and audio continuity. A passing result is available to watch and download.
 6. A separate human `Approve for delivery` gate remains required. Uploading an externally edited MP4 is available only as a secondary verification path.
 
+## Revision intelligence
+
+With `REVISIONPROOF_INTELLIGENCE_ENABLED=true`, the full-video result includes a sampled **Revision Change Map**. Select a one-second window to compare synchronized, enlarged original/revised players. The map uses two samples per second, not an every-frame guarantee; it does not replace the frozen verification checks.
+
+**Approved Edit Memory** finds similar, previously verified and human-approved edits. Suggestions never auto-select an option. LIVE retrieval uses the official ClickHouse MCP and supports exact, verified HNSW, and QBit search. Small libraries explicitly use exact search. The public deployment is read-only unless an owner configures a private save key. Local FIXTURE memory is process-local and labelled accordingly.
+
+ClickHouse 26.2+ is required. Existing installations must run the additive migration before enabling the feature. See the [intelligence runbook](docs/clickhouse-intelligence-runbook.md) for setup, private saving, trial-expiry export, restore, and rollback. The extension is enabled on the LIVE demo; its migration, deployment and persisted evidence are in the [2026-09-03 release record](docs/deployment-2026-09-03-clickhouse-intelligence.md).
+
 ## Local quick start
 
 Prerequisites: Python 3.12, Node 22+, uv, and FFmpeg/FFprobe.
@@ -28,7 +36,7 @@ Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits 
 
 ## Deployed LIVE demo
 
-The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. The exact current revision, build, image digest, and verification run are recorded in the dated deployment inventory and QA reports. Automatic-render run `01M1H4MDB7NQBDFQF1YNNFM0EB` used `google.vertex.gemini` and `mcp-clickhouse.run_query`, generated the selected Option B across the complete source, and reached `READY` with three PASS checks. Historical delivery-approved run `01M0Z3338TYVHWHK4FZRGADTKZ` remains evidence for the earlier external-upload path.
+The billed GCP demo is available at `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app`. Revision `revisionproof-staging-00015-h6b` serves the intelligence extension. LIVE run `01M1JQSKYVTS5EFNJ6KBEYACHS` used `google.vertex.gemini` and `mcp-clickhouse.run_query`, generated Option B across the complete source, and reached `READY` with three PASS checks and a 30-window Change Map backed by 60 persisted frame pairs. Final delivery approval was not granted. The exact build/image, migration and browser QA are in the release record linked above. Historical delivery-approved run `01M0Z3338TYVHWHK4FZRGADTKZ` remains evidence for the earlier external-upload path.
 
 `/ready` deliberately reports that integrations are configured, not that every future call will succeed. Treat a run as LIVE evidence only when its raw JSON shows the live source labels and the matching ClickHouse rows exist. The verified final run is `READY` and received its separate human delivery approval (`delivery_approved=true`) on 2026-08-26.
 

@@ -39,7 +39,7 @@ The primary path is server-owned: selecting A or B renders and verifies the comp
 
 - Gemini may turn natural language into structured intent. It never returns a verification verdict.
 - The fixture interpreter and segment index use explicit `fixture.*` source names.
-- Live ClickHouse reads use only the `search_segments` and `version_feature_diff` views through the official MCP tool.
+- Live ClickHouse reads use only approved views through the official MCP tool: `search_segments`, `version_feature_diff`, and (when the intelligence extension is enabled) `revision_change_map`, `approved_edit_memory`, and `approved_edit_neighbors`.
 - ClickHouse writes use a separate insert-only credential.
 - ClickHouse provisioning records exactly one deployment sentinel containing the dedicated GCP project ID and ClickHouse Cloud host. Bootstrap, cloud migration, and cleanup refuse a mismatch.
 - Human approval is the only operation that creates a `RevisionSpec`; Pydantic freezes it and canonical content is SHA-256-addressed.
@@ -49,7 +49,17 @@ The primary path is server-owned: selecting A or B renders and verifies the comp
 - `Approve for Delivery` is a separate human action and is accepted only for a current `READY` proof.
 - Mutation routes accept bounded `Idempotency-Key` headers and reject reuse with a different request fingerprint. Version uploads additionally require a browser-computed `X-Content-SHA256`; the server hashes the received stream and binds the idempotency fingerprint to that verified digest. Idempotency records share the process-local durability boundary below.
 
-## State machine
+## Optional ClickHouse intelligence
+
+Decoded source/revised frames (2 samples/second) and one-second audio levels enter append-only `revision_frame_pairs`. A security-definer materialized view populates `revision_change_windows` (`AggregatingMergeTree`). `uniqExactState(sample_ms)` and max aggregates make duplicate retries insensitive to repeated samples. The MCP-only `revision_change_map` view merges states across parts. Python labels each second requested/unchanged/review, and the UI opens synchronized video comparison. Diagnostics cannot alter frozen spec thresholds or the existing verdict.
+
+Only an all-PASS proof with explicit final delivery approval and a matching, available Change Map without review flags can be saved. An additional private workspace key gates LIVE saves. Saved intent, safe crop parameters, model-tagged normalized 768D embedding, spec hash and proof are append-only; media URLs are excluded. The human approval event remains a separate audit fact. The public library is not a multi-tenant authorization system and must contain non-sensitive, licensed demo edits only.
+
+Memory reads are exact L2, HNSW, or `L2DistanceTransposed` against materialized `QBit(Float32, 768)`. The HNSW route uses a parameterized definer view containing the distance ordering and fixed limit; ClickHouse 26.2 did not optimize the same search through an ordinary definer view. `EXPLAIN indexes=1` must name `approved_edit_hnsw` before the response reports actual HNSW. No index selection or a small collection means explicit exact fallback. Match IDs are deduplicated, similarity below 0.55 is discarded in LIVE, and the top three references never auto-approve an edit.
+
+Export/restore includes source extension tables, not aggregate-state serialization. QBit and the materialized view rebuild during restore. Stop writes during the export/restore maintenance window. Existing workspace data is never overwritten by the restore tool. See [the runbook](clickhouse-intelligence-runbook.md).
+
+## State machine (unchanged)
 
 ```text
 INDEXED → NOTES_PARSED → EVIDENCE_ANCHORED → PREVIEWS_READY

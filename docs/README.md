@@ -1,5 +1,9 @@
 # RevisionProof docs
 
+- [ClickHouse intelligence GitHub push and Cloud rollout — 2026-09-03](deployment-2026-09-03-clickhouse-intelligence.md)
+- [ClickHouse intelligence implementation and rollout plan — 2026-09-03](clickhouse-intelligence-plan-2026-09-03.md)
+- [Change Map, approved memory, backup, and migration runbook](clickhouse-intelligence-runbook.md)
+- [ClickHouse intelligence QA and resource inventory — 2026-09-03](qa-report-2026-09-03-clickhouse-intelligence.md)
 - [Automatic full-video workflow, UI redesign, deployment, and gstack QA — 2026-09-02](qa-report-2026-09-02-automatic-full-video-ui.md)
 - [Visual demo asset upgrade and gstack QA — 2026-09-02](qa-report-2026-09-02-visual-demo-asset.md)
 - [ClickHouse MCP recovery deployment and gstack QA — 2026-09-02](qa-report-2026-09-02-mcp-recovery.md)
