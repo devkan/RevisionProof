@@ -60,6 +60,19 @@ def interpret_local(request: InterpretEditRequest) -> EditInterpretation:
             continue
         lower = command.lower()
         if re.search(
+            r"\b(?:remove|delete|erase|replace|change)\s+"
+            r"(?:(?:the|existing|original|burned.in|old|on.screen)\s+)*"
+            r"(?:text|captions?|subtitles?)\b|"
+            r"(?:문구|텍스트|자막)(?:를|을|은|는)?\s*(?:내용\s*)?"
+            r"(?:삭제|제거|지워|지우|없애|교체|바꿔|변경)",
+            lower,
+        ):
+            warnings.append(
+                "Removing or replacing text already in the video is not supported. "
+                "Use Add text for a new overlay, or Cut a section to delete picture and audio."
+            )
+            continue
+        if re.search(
             r"인물|사람|배경|로고|logo|object|person|background|b.roll|속도|speed|색보정|music|음악|transcrib|음성.*자막|자동.*자막",
             lower,
         ):
