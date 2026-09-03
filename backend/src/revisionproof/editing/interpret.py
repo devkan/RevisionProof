@@ -28,7 +28,11 @@ class EditDraftOutput(BaseModel):
             result = {key: value for key, value in schema.items() if key in allowed}
             for key in ("properties", "$defs"):
                 if key in result:
-                    result[key] = {name: wire_schema(value) for name, value in result[key].items()}
+                    result[key] = {
+                        name: wire_schema(value)
+                        for name, value in result[key].items()
+                        if name not in {"threshold_db", "min_silence", "detected"}
+                    }
             if "properties" in result:
                 result["required"] = list(result["properties"])
             if "items" in result:
@@ -156,7 +160,11 @@ async def interpret_live(request: InterpretEditRequest, settings) -> EditInterpr
             "cut (remove an exact source interval), remove_silence (propose quiet audio "
             "intervals for human selection). All times are ORIGINAL seconds. "
             "Copy display text verbatim. Do not translate, invent words, transcribe speech, "
-            "claim scene analysis or infer scenes. For multiple subtitle cues create separate "
+            "claim scene analysis or infer scenes. "
+            "For zoom, cut and remove_silence, text must be an empty string and position bottom. "
+            "Quiet-pause detection uses -40 dB and a 0.7 second minimum; these are adjustable "
+            "in the edit controls. Do not output audio thresholds or detection status. "
+            "For multiple subtitle cues create separate "
             "operations. Default caption position bottom unless specified. Zoom+text is two "
             "operations. Never approximate unsupported requests: background/object/logo removal, "
             "footage generation, speed/music changes or automatic transcription. Include a "

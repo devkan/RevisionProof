@@ -29,10 +29,19 @@ def test_live_edit_draft_schema_converts_with_installed_vertex_sdk():
     schema = _transformers.t_schema(SimpleNamespace(vertexai=True), EditDraftOutput)
     operation_schema = schema.properties["operations"].items
     assert operation_schema.properties["end"].type == "NUMBER"
+    assert set(operation_schema.properties) == {"kind", "start", "end", "text", "position"}
     assert set(operation_schema.required) == set(operation_schema.properties)
     wire = schema.model_dump_json(exclude_none=True)
     for unsupported in ("additional_properties", "default", "maximum", "max_items"):
         assert f'"{unsupported}"' not in wire
+    silence = EditDraftOutput.model_validate(
+        {
+            "operations": [
+                {"kind": "remove_silence", "start": 0, "end": 10, "text": "", "position": "bottom"}
+            ]
+        }
+    ).operations[0]
+    assert (silence.threshold_db, silence.min_silence, silence.detected) == (-40, 0.7, False)
     # Simplifying the provider schema must never weaken runtime validation.
     for bad in (
         {"kind": "zoom", "start": 0, "end": 0},
