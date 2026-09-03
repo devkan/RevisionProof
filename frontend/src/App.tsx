@@ -26,6 +26,7 @@ import { DEFAULT_FEEDBACK } from './demoFeedback'
 import { feedbackValidationMessage } from './feedbackValidation'
 import { isTerminalRunState } from './runStream'
 import { VideoLightbox, type VideoLightboxContent } from './VideoLightbox'
+import { ChangeMap, EditMemory, SaveApprovedMemory } from './RevisionIntelligence'
 import type {
   DemoAsset,
   PatchCandidate,
@@ -60,7 +61,7 @@ const PROCESSING_COPY: Record<ProcessingPhase, { title: string; detail: string }
   },
   'building-video': {
     title: 'Building and checking the full video…',
-    detail: 'The selected punch-in is being applied to the 30-second source, then all three checks run automatically.',
+    detail: 'Applying the selected edit, checking locked elements, and mapping changes across the video.',
   },
   'verifying-upload': {
     title: 'Checking the external edit…',
@@ -490,6 +491,10 @@ export default function App() {
               </section>
             ) : null}
 
+            {runtime?.intelligence_enabled && run?.feedback && (
+              <EditMemory key={run.run_id} run={run} disabled={busy} />
+            )}
+
             {run?.candidates.length ? (
               <section className="workspace-section compare-section">
                 <div className="section-heading">
@@ -551,6 +556,8 @@ export default function App() {
                   </div>
                 )}
 
+                <ChangeMap key={run.change_map?.analysis_id} run={run} />
+
                 <div className="check-list">
                   {run.proof.checks.map((check) => (
                     <article key={check.check_id}>
@@ -578,6 +585,7 @@ export default function App() {
                     {run.delivery_approved ? 'Approved for delivery' : 'Approve for delivery'}
                   </button>
                 </div>
+                {runtime?.intelligence_enabled && <SaveApprovedMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} onSaved={() => setRun((current) => current ? { ...current, memory_saved: true } : current)} />}
               </section>
             )}
 
@@ -620,7 +628,7 @@ export default function App() {
           </aside>
         </section>
       </main>
-      <footer><span>RevisionProof / v3</span><span>Only selected, verifiable edits run.</span></footer>
+      <footer><span>RevisionProof / v4</span><span>Only selected, verifiable edits run.</span></footer>
       {videoPreview && <VideoLightbox content={videoPreview} onClose={() => setVideoPreview(null)} />}
     </div>
   )

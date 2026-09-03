@@ -20,6 +20,54 @@ export interface RuntimeStatus {
   live_ready: boolean
   missing_settings: string[]
   message: string
+  intelligence_enabled?: boolean
+  memory_save_policy?: 'operator_key' | 'read_only' | 'local_rehearsal'
+}
+
+export type SearchEngine = 'exact' | 'hnsw' | 'qbit'
+export interface ChangeWindow {
+  second: number
+  sample_count: number
+  visual_delta: number
+  residual_delta: number
+  cta_delta: number
+  audio_delta_db: number
+  requested: boolean
+  status: 'requested' | 'unchanged' | 'review'
+}
+export interface RevisionChangeMap {
+  status: 'ready' | 'unavailable'
+  version_label: string
+  spec_hash: string
+  analysis_id: string
+  source: string
+  sample_fps: number
+  duration_seconds: number
+  windows: ChangeWindow[]
+  message: string
+}
+export interface ApprovedEditMatch {
+  memory_id: string
+  intent: string
+  target_phrase: string
+  candidate_id: 'A' | 'B'
+  scale: 1.05 | 1.12
+  duration_seconds: number
+  similarity: number
+  approved_at: string
+  spec_hash: string
+}
+export interface EditMemorySearch {
+  status: 'ready' | 'empty' | 'unavailable' | 'disabled'
+  requested_engine: SearchEngine
+  actual_engine: SearchEngine | 'fixture' | 'unavailable'
+  source: string
+  collection_size: number
+  elapsed_ms: number
+  precision_bits: number | null
+  index_verified: boolean
+  matches: ApprovedEditMatch[]
+  message: string
 }
 
 export interface TimeRange {
@@ -137,6 +185,9 @@ export interface RunSnapshot {
   spec?: RevisionSpec
   proof?: VerificationProof
   generated_version_url?: string
+  change_map?: RevisionChangeMap
+  edit_memory?: EditMemorySearch
+  memory_saved?: boolean
   delivery_approved: boolean
   retryable: boolean
   events: RunEvent[]

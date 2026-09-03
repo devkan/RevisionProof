@@ -7,6 +7,22 @@ describe('demo version API', () => {
     vi.unstubAllGlobals()
   })
 
+  it('sends the selected memory engine', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}'))
+    vi.stubGlobal('fetch', fetchMock)
+    await api.searchMemory('run-1', 'qbit')
+    expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-1/edit-memory?engine=qbit', undefined)
+  })
+
+  it('sends the private workspace key only in the save header', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}'))
+    vi.stubGlobal('fetch', fetchMock)
+    await api.saveMemory('run-1', 'private-test-key')
+    expect(fetchMock).toHaveBeenCalledWith('/api/runs/run-1/edit-memory', {
+      method: 'POST', headers: { 'X-Workspace-Key': 'private-test-key' },
+    })
+  })
+
   it('uses the server-owned candidate-aware fixture endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ run_id: 'run-1' }), {

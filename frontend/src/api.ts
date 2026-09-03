@@ -1,4 +1,4 @@
-import type { DemoAsset, RunSnapshot, RuntimeStatus } from './types'
+import type { DemoAsset, EditMemorySearch, RunSnapshot, RuntimeStatus, SearchEngine } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -24,6 +24,13 @@ async function blobSha256(blob: Blob): Promise<string> {
 export const api = {
   runtime: () => request<RuntimeStatus>('/api/runtime'),
   assets: () => request<DemoAsset[]>('/api/demo-assets'),
+  searchMemory: (runId: string, engine: SearchEngine) =>
+    request<EditMemorySearch>(`/api/runs/${runId}/edit-memory?engine=${engine}`),
+  saveMemory: (runId: string, workspaceKey: string) =>
+    request<{ memory_id: string; status: string }>(`/api/runs/${runId}/edit-memory`, {
+      method: 'POST',
+      headers: workspaceKey ? { 'X-Workspace-Key': workspaceKey } : {},
+    }),
   createRun: (assetId: string, feedback: string) =>
     request<RunSnapshot>('/api/runs', {
       method: 'POST',
