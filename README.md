@@ -4,18 +4,20 @@ RevisionProof is a deterministic approval firewall for video revisions. It conve
 
 The hackathon path is deliberately narrow:
 
-1. Index a 720p demo video and classify every client request as ready to automate, needing details, or needing an editor.
+1. Upload an original MP4/MOV/WebM (up to 24 MiB, 4–60 seconds), or use the indexed sample. For an upload, choose the 4–8 second section to edit; the app prepares a 720p working copy while preserving aspect ratio.
 2. Present the result as a checklist. Only the explicitly selected, evidence-grounded punch-in may execute; the other requests remain unchanged.
 3. Generate two constrained 4–8 second punch-in previews (1.05x and 1.12x).
-4. Choosing A or B freezes an immutable, SHA-256-addressed spec and applies that option to the full 30-second source.
-5. FFmpeg and OpenCV automatically verify the requested patch, locked CTA, and audio continuity. A passing result is available to watch and download.
+4. Choosing A or B freezes an immutable, SHA-256-addressed spec and applies that option to the complete source, preserving its duration.
+5. FFmpeg and OpenCV verify the requested patch, protected video content, and audio levels. Uploaded originals use sampled full-video checks; the bundled sample retains its specific CTA check. A passing result is available to watch and download.
 6. A separate human `Approve for delivery` gate remains required. Uploading an externally edited MP4 is available only as a secondary verification path.
 
 ## Revision intelligence
 
 With `REVISIONPROOF_INTELLIGENCE_ENABLED=true`, the full-video result includes a sampled **Revision Change Map**. Select a one-second window to compare synchronized, enlarged original/revised players. The map uses two samples per second, not an every-frame guarantee; it does not replace the frozen verification checks.
 
-**Approved Edit Memory** finds similar, previously verified and human-approved edits. Suggestions never auto-select an option. LIVE retrieval uses the official ClickHouse MCP and supports exact, verified HNSW, and QBit search. Small libraries explicitly use exact search. The public deployment is read-only unless an owner configures a private save key. Local FIXTURE memory is process-local and labelled accordingly.
+**Past approved edits** is a collapsed, optional reference area. It searches only when opened, so it does not delay the main review flow. It finds similar, previously verified and human-approved edits; suggestions never auto-select an option. An empty library explains why nothing is available and hides search-engine controls. LIVE retrieval uses the official ClickHouse MCP and supports exact, verified HNSW, and QBit search. Small libraries explicitly use exact search; an empty library reports that no vector engine ran. The public deployment is read-only unless an owner configures a private save key. Local FIXTURE memory is process-local and labelled accordingly.
+
+Uploaded-video timing comes from the user's selection, not automatic transcription or scene recognition. LIVE classifies the feedback with Gemini; FIXTURE uses explicitly labelled local rules. Only center punch-in is automated. See the [upload and memory UX guide](docs/source-upload-and-memory-ux-2026-09-03.md) for usage, limits, and verification. These upload/UX changes are locally verified and have not yet been deployed to the LIVE service below.
 
 ClickHouse 26.2+ is required. Existing installations must run the additive migration before enabling the feature. See the [intelligence runbook](docs/clickhouse-intelligence-runbook.md) for setup, private saving, trial-expiry export, restore, and rollback. The extension is enabled on the LIVE demo; its migration, deployment and persisted evidence are in the [2026-09-03 release record](docs/deployment-2026-09-03-clickhouse-intelligence.md).
 

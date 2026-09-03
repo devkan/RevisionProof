@@ -167,7 +167,7 @@ class RevisionIntelligence:
             return EditMemorySearch(
                 status="empty",
                 requested_engine=engine,
-                actual_engine="exact",
+                actual_engine="none",
                 source="mcp-clickhouse.run_query",
                 collection_size=0,
                 message="No approved edits yet. Count queried; no vector search ran.",

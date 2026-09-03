@@ -1,5 +1,7 @@
 # RevisionProof docs
 
+- [원본 영상 업로드와 승인 기록 UX — 사용법, 제한, 로컬 검증](source-upload-and-memory-ux-2026-09-03.md)
+- [새 창에서 이어가기 — 현재 상태, 다음 작업, 승인 경계](handoff-2026-09-03.md)
 - [ClickHouse intelligence GitHub push and Cloud rollout — 2026-09-03](deployment-2026-09-03-clickhouse-intelligence.md)
 - [ClickHouse intelligence implementation and rollout plan — 2026-09-03](clickhouse-intelligence-plan-2026-09-03.md)
 - [Change Map, approved memory, backup, and migration runbook](clickhouse-intelligence-runbook.md)

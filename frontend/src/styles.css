@@ -608,3 +608,28 @@ footer { min-height: 68px; max-width: 1440px; margin: 0 auto; padding: 0 24px; d
   *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
   .spinner { animation-duration: 1.5s; }
 }
+/* Optional references and source uploads stay subordinate to the edit workflow. */
+.source-picker { margin-bottom: 24px; padding: 18px; border: 1px dashed var(--border, #35435a); border-radius: 12px; }
+.source-picker-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.source-picker .input-help { margin: 10px 0 0; }
+.upload-warning { color: #ffc5a5; background: #372621; border: 1px solid #90634d; padding: 12px 14px; border-radius: 8px; line-height: 1.55; }
+.upload-progress { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.upload-progress progress { accent-color: #64d9ed; max-width: 100%; }
+.edit-range { min-width: 0; padding: 14px; margin: 12px 0 18px; border: 1px solid #35435a; border-radius: 10px; }
+.edit-range legend { padding: 0 6px; font-weight: 700; }
+.range-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.range-fields label { display: grid; gap: 8px; min-width: 0; font-size: 13px; }
+.range-fields input { width: 100%; min-width: 0; color: #eef3ff; background: #101827; border: 1px solid #51627f; border-radius: 7px; padding: 10px; font: inherit; }
+.edit-memory.memory-compact { padding: 0; margin: 0; border: 1px solid #29364b; border-radius: 10px; }
+.memory-compact > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 14px 18px; font-weight: 600; color: #c8d4e5; }
+.memory-compact > summary::after { content: '+'; margin-left: auto; font-size: 20px; }
+.memory-compact[open] > summary::after { content: '−'; }
+.memory-compact > summary small { display: inline-block; color: #a4b2c8; font-size: 12px; margin-left: 10px; font-weight: 400; }
+.memory-content { padding: 0 18px 18px; }
+.memory-content .memory-empty { font-size: 14px; }
+.memory-content .intelligence-technical { margin-top: 18px; }
+@media (max-width: 600px) {
+  .source-picker-actions > button { width: 100%; }
+  .memory-compact > summary small { display: block; margin: 4px 0 0; }
+  .range-fields { gap: 8px; }
+}

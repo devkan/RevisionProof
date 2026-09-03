@@ -22,6 +22,7 @@ export interface RuntimeStatus {
   message: string
   intelligence_enabled?: boolean
   memory_save_policy?: 'operator_key' | 'read_only' | 'local_rehearsal'
+  upload_limits?: { max_bytes: number; max_duration_seconds: number; min_duration_seconds: number }
 }
 
 export type SearchEngine = 'exact' | 'hnsw' | 'qbit'
@@ -60,7 +61,7 @@ export interface ApprovedEditMatch {
 export interface EditMemorySearch {
   status: 'ready' | 'empty' | 'unavailable' | 'disabled'
   requested_engine: SearchEngine
-  actual_engine: SearchEngine | 'fixture' | 'unavailable'
+  actual_engine: SearchEngine | 'fixture' | 'unavailable' | 'none'
   source: string
   collection_size: number
   elapsed_ms: number
@@ -83,6 +84,7 @@ export interface DemoAsset {
   width: number
   height: number
   codec: string
+  source_kind?: 'demo' | 'upload'
 }
 
 export interface ParsedFeedback {
@@ -91,7 +93,7 @@ export interface ParsedFeedback {
   patch_type: 'PUNCH_IN'
   target_phrase: string
   rationale: string
-  interpreter_source: 'fixture.interpreter' | 'google.vertex.gemini'
+  interpreter_source: 'fixture.interpreter' | 'google.vertex.gemini' | 'local.range_rules'
 }
 
 export interface RevisionNote {
@@ -111,7 +113,7 @@ export interface EvidenceAnchor {
   score: number
   transcript: string
   visual_summary: string
-  source: 'fixture.segment_index' | 'mcp-clickhouse.run_query'
+  source: 'fixture.segment_index' | 'mcp-clickhouse.run_query' | 'user.selected_range'
 }
 
 export interface PatchCandidate {
@@ -123,14 +125,14 @@ export interface PatchCandidate {
 }
 
 export interface RevisionSpec {
-  schema_version: '2.0'
+  schema_version: '2.0' | '2.1'
   run_id: string
   asset_id: string
   approved_candidate: PatchCandidate
   evidence: EvidenceAnchor[]
   locked_elements: Array<{
     element_id: string
-    kind: 'CTA_OVERLAY' | 'AUDIO'
+    kind: 'CTA_OVERLAY' | 'VIDEO_CONTENT' | 'AUDIO'
     time_range: TimeRange
     description: string
   }>
@@ -175,6 +177,7 @@ export interface RunEvent {
 export interface RunSnapshot {
   run_id: string
   asset: DemoAsset
+  selected_range?: TimeRange
   mode: ExecutionMode
   state: RunState
   notes: RevisionNote[]

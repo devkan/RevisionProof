@@ -194,7 +194,7 @@ def test_empty_live_collection_does_not_spend_an_embedding_request(monkeypatch) 
     monkeypatch.setattr(intelligence, "_embedding", embed)
     result = intelligence.search(ready_snapshot(), "qbit")
     assert result.status == "empty"
-    assert result.actual_engine == "exact"
+    assert result.actual_engine == "none"
     assert result.collection_size == 0
     assert len(queries) == 1
     embed.assert_not_called()
@@ -459,8 +459,8 @@ async def test_fixture_full_video_workflow_populates_map_and_human_approved_memo
         feedback='Apply a 6-second center PUNCH_IN when the presenter says "RevisionProof."',
     )
     snapshot = await service.create_run(request)
-    assert snapshot.edit_memory is not None
-    assert snapshot.edit_memory.status == "empty"
+    assert snapshot.edit_memory is None  # optional lookup no longer blocks request review
+    assert service.search_memory(snapshot.run_id, "exact").status == "empty"
     service.generate_previews(snapshot.run_id)
     service.approve(snapshot.run_id, ApprovalRequest(candidate_id="B"))
     snapshot = service.render_approved_version(snapshot.run_id)
@@ -481,7 +481,9 @@ async def test_fixture_full_video_workflow_populates_map_and_human_approved_memo
     assert snapshot.memory_saved
     assert service.save_memory(snapshot.run_id).status == "already_saved"
     later = await service.create_run(request)
-    assert later.edit_memory is not None and later.edit_memory.status == "ready"
+    assert later.edit_memory is None
+    assert service.search_memory(later.run_id, "exact").status == "ready"
+    assert later.edit_memory is not None
     assert later.edit_memory.matches[0].memory_id == result.memory_id
     assert later.spec is None
     assert not later.delivery_approved

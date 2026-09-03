@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from revisionproof import __version__
 from revisionproof.api import router
 from revisionproof.contracts import ExecutionMode
+from revisionproof.media.upload_limit import UploadBodyLimit
 from revisionproof.repository import InMemoryRunRepository
 from revisionproof.service import RevisionProofService
 from revisionproof.settings import get_settings
@@ -35,6 +36,7 @@ app = FastAPI(
 app.include_router(router)
 
 settings = get_settings()
+app.add_middleware(UploadBodyLimit, max_file_bytes=settings.max_upload_bytes)
 settings.runtime_dir.mkdir(parents=True, exist_ok=True)
 
 PUBLIC_MEDIA_PATTERNS = (

@@ -41,15 +41,16 @@ describe('revision intelligence presentation', () => {
     expect(html).toContain('type="range"')
     expect(html).toContain('Play both')
   })
-  it('labels the actual exact fallback rather than claiming HNSW', () => {
+  it('keeps an empty read-only library optional and hides unusable search controls', () => {
     const run = { ...base, edit_memory: { status: 'empty' as const, requested_engine: 'hnsw' as const,
-      actual_engine: 'exact' as const, source: 'mcp-clickhouse.run_query' as const,
+      actual_engine: 'none' as const, source: 'mcp-clickhouse.run_query' as const,
       collection_size: 0, elapsed_ms: 5, index_verified: false, precision_bits: null, matches: [], message: 'Small library' } }
-    const html = renderToStaticMarkup(<EditMemory run={run} disabled={false} />)
-    expect(html).toContain('Actually used')
-    expect(html).toContain('EXACT')
+    const html = renderToStaticMarkup(<EditMemory run={run} runtime={{ memory_save_policy: 'read_only' } as RuntimeStatus} disabled={false} />)
+    expect(html).toContain('Optional reference')
+    expect(html).not.toContain('<select')
     expect(html).not.toContain('index verified')
-    expect(html).toContain('Your approved edit library starts here.')
+    expect(html).toContain('No saved edits yet.')
+    expect(html).toContain('Saving past edits is turned off')
   })
   it('does not expose public save actions for a read-only deployment', () => {
     const runtime = { memory_save_policy: 'read_only' } as RuntimeStatus

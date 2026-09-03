@@ -6,11 +6,13 @@ import json
 import logging
 import re
 import shutil
+import tempfile
 import threading
 from collections import deque
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from queue import Empty, SimpleQueue
 from time import monotonic
 from typing import BinaryIO
@@ -19,6 +21,8 @@ from revisionproof.assets import DEMO_ASSET_ID, require_demo_asset
 from revisionproof.contracts import (
     ApprovalRequest,
     CreateRunRequest,
+    DemoAsset,
+    EvidenceAnchor,
     ExecutionMode,
     LockedElement,
     ParsedFeedback,
@@ -39,6 +43,12 @@ from revisionproof.intelligence.service import RevisionIntelligence
 from revisionproof.media.executor import MediaExecutor
 from revisionproof.media.preview import generate_full_revision, generate_preview
 from revisionproof.media.probe import probe_media, validate_hackathon_media
+from revisionproof.media.source import (
+    SourceUploadError,
+    copy_source,
+    interpret_selected_range,
+    prepare_source,
+)
 from revisionproof.repository import InMemoryRunRepository
 from revisionproof.settings import Settings
 from revisionproof.state_machine import assert_transition
@@ -209,6 +219,139 @@ class RevisionProofService:
                 return await self._create_run_once(request, key, fingerprint)
         return await self._create_run_once(request, key, fingerprint)
 
+    async def create_uploaded_run(
+        self,
+        *,
+        stream: BinaryIO,
+        size: int,
+        filename: str,
+        feedback: str,
+        selected_range: TimeRange,
+        content_sha256: str,
+        idempotency_key: str | None,
+    ) -> RunSnapshot:
+        self._assert_mutable_mode()
+        key = self._validate_idempotency_key(idempotency_key)
+        if not key:
+            raise SourceUploadError("An upload request identifier is required.")
+        if size <= 0 or size > self.settings.max_upload_bytes:
+            raise SourceUploadError(
+                f"Video is too large or empty. Maximum: {self.settings.max_upload_mib} MiB.", 413
+            )
+        if not 8 <= len(feedback) <= 2000:
+            raise SourceUploadError("Describe the edit in 8–2000 characters.")
+        self.settings.runtime_dir.mkdir(parents=True, exist_ok=True)
+        async with self._create_idempotency_lock("source:" + key):
+            with tempfile.TemporaryDirectory(
+                prefix="source-upload-", dir=self.settings.runtime_dir
+            ) as temporary:
+                incoming = Path(temporary) / "incoming.video"
+                with self._exclusive_media_pipeline():
+                    digest = await asyncio.to_thread(
+                        copy_source,
+                        stream,
+                        incoming,
+                        self.settings.max_upload_bytes,
+                        content_sha256,
+                    )
+                    fingerprint = self._fingerprint(
+                        json.dumps([digest, feedback, selected_range.model_dump()], sort_keys=True)
+                    )
+                    replay = self.repository.recall_idempotent("upload_source", key, fingerprint)
+                    if replay is not None:
+                        return replay
+                    self._record_new_run()
+                    prepared = Path(temporary) / "source.mp4"
+                    info = await asyncio.to_thread(
+                        prepare_source,
+                        incoming,
+                        prepared,
+                        selected_range,
+                        self.settings,
+                        self.executor,
+                    )
+                run_id = new_ulid()
+                source_path = self.settings.runtime_dir / "runs" / run_id / "source" / "source.mp4"
+                title = filename.replace("\\", "/").split("/")[-1]
+                title = "".join(c for c in title if c.isprintable())[:160] or "Uploaded video"
+                snapshot = RunSnapshot(
+                    run_id=run_id,
+                    mode=self.settings.mode,
+                    state=RunState.INDEXED,
+                    selected_range=selected_range,
+                    source_feedback=feedback,
+                    asset=DemoAsset(
+                        asset_id=run_id,
+                        title=title,
+                        source_kind="upload",
+                        source_url=f"/api/runs/{run_id}/source-video",
+                        duration_seconds=info.duration_seconds,
+                        width=info.width,
+                        height=info.height,
+                        codec="h264/aac",
+                    ),
+                )
+                self.repository.create(snapshot, source_path, active=True)
+                try:
+                    source_path.parent.mkdir(parents=True, exist_ok=True)
+                    prepared.replace(source_path)
+                    await self._cleanup_pending_evictions()
+                    await self._interpret_uploaded(snapshot, feedback)
+                except Exception:
+                    logger.exception("Uploaded video review failed for %s", run_id)
+                    snapshot.error = (
+                        "Video review failed. Your uploaded video and notes are "
+                        "preserved; retry review."
+                    )
+                    self._transition(
+                        snapshot, RunState.FAILED, "Uploaded video review failed closed"
+                    )
+                finally:
+                    self.repository.release_active(run_id)
+                self.repository.remember_idempotent("upload_source", key, fingerprint, run_id)
+                return snapshot
+
+    async def _interpret_uploaded(self, snapshot: RunSnapshot, feedback: str) -> None:
+        selected = snapshot.selected_range
+        if selected is None:
+            raise ValueError("Uploaded videos require an explicit selected section")
+        if self.settings.mode is ExecutionMode.LIVE:
+            from revisionproof.evidence.live import VertexGeminiInterpreter
+
+            if self.settings.live_missing_settings:
+                raise RuntimeError("LIVE integrations are not configured")
+            snapshot.notes = await VertexGeminiInterpreter(self.settings).interpret_many(
+                feedback, selected_range=selected
+            )
+            source = "google.vertex.gemini"
+        else:
+            snapshot.notes = interpret_selected_range(feedback)
+            source = "local.range_rules"
+        snapshot.feedback = self._feedback_from_notes(snapshot, source)
+        self._transition(
+            snapshot,
+            RunState.NOTES_PARSED,
+            "Requests reviewed for your uploaded video; timing is selected by you",
+        )
+        if snapshot.feedback is None:
+            return
+        snapshot.evidence = [
+            EvidenceAnchor(
+                segment_id=f"selected_{snapshot.run_id}",
+                time_range=selected,
+                score=1,
+                transcript="",
+                visual_summary=(
+                    "User-selected section of the uploaded video. "
+                    "No speech transcription or scene recognition is claimed."
+                ),
+                source="user.selected_range",
+            )
+        ]
+        self._transition(
+            snapshot, RunState.EVIDENCE_ANCHORED, "Your selected section is ready for A/B previews"
+        )
+
     async def _create_run_once(
         self, request: CreateRunRequest, key: str | None, fingerprint: str
     ) -> RunSnapshot:
@@ -254,10 +397,6 @@ class RevisionProofService:
                     RunState.EVIDENCE_ANCHORED,
                     "Evidence anchored by fixture segment index",
                 )
-                if self.settings.intelligence_enabled:
-                    snapshot.edit_memory = await asyncio.to_thread(
-                        self.intelligence.search, snapshot, self.settings.memory_search_engine
-                    )
                 self.repository.remember_idempotent("create_run", key, fingerprint, snapshot.run_id)
                 return snapshot
             if self.settings.mode is ExecutionMode.LIVE:
@@ -286,7 +425,10 @@ class RevisionProofService:
         self, run_id: str, idempotency_key: str | None = None
     ) -> RunSnapshot:
         self._assert_mutable_mode()
-        if self.settings.mode is not ExecutionMode.LIVE:
+        if (
+            self.settings.mode is not ExecutionMode.LIVE
+            and self.repository.get(run_id).asset.source_kind != "upload"
+        ):
             raise ValueError("interpretation retry is only available in LIVE mode")
         key = self._validate_idempotency_key(idempotency_key)
         lock_key = f"retry:{run_id}"
@@ -313,7 +455,10 @@ class RevisionProofService:
                 snapshot.error = None
                 self._transition(snapshot, RunState.INDEXED, "Retrying preserved source feedback")
                 try:
-                    await self._run_live_interpretation(snapshot, snapshot.source_feedback)
+                    if snapshot.asset.source_kind == "upload":
+                        await self._interpret_uploaded(snapshot, snapshot.source_feedback)
+                    else:
+                        await self._run_live_interpretation(snapshot, snapshot.source_feedback)
                 except Exception:
                     logger.exception("LIVE interpretation retry failed for run %s", snapshot.run_id)
                     snapshot.error = "Live interpretation or evidence lookup failed"
@@ -373,10 +518,6 @@ class RevisionProofService:
             RunState.EVIDENCE_ANCHORED,
             "Evidence selected through mcp-clickhouse.run_query",
         )
-        if self.settings.intelligence_enabled:
-            snapshot.edit_memory = await asyncio.to_thread(
-                self.intelligence.search, snapshot, self.settings.memory_search_engine
-            )
 
     def generate_previews(
         self,
@@ -491,6 +632,15 @@ class RevisionProofService:
         )
         if candidate is None:
             raise ValueError("candidate does not exist")
+        uploaded = snapshot.asset.source_kind == "upload"
+        visual_range = (
+            TimeRange(start_seconds=0, end_seconds=snapshot.asset.duration_seconds)
+            if uploaded
+            else TimeRange(start_seconds=24, end_seconds=29)
+        )
+        audio_range = TimeRange(
+            start_seconds=0, end_seconds=snapshot.asset.duration_seconds if uploaded else 30
+        )
         frozen_spec = RevisionSpec.freeze(
             run_id=run_id,
             asset_id=snapshot.asset.asset_id,
@@ -498,17 +648,21 @@ class RevisionProofService:
             evidence=snapshot.evidence,
             locked_elements=[
                 LockedElement(
-                    element_id="cta_end_card",
-                    kind="CTA_OVERLAY",
-                    time_range=TimeRange(start_seconds=24, end_seconds=29),
-                    description="Bottom-right publish CTA remains visible for the end card.",
+                    element_id="original_video" if uploaded else "cta_end_card",
+                    kind="VIDEO_CONTENT" if uploaded else "CTA_OVERLAY",
+                    time_range=visual_range,
+                    description="Follow the approved edit and preserve other sampled video moments."
+                    if uploaded
+                    else "Bottom-right publish CTA remains visible for the end card.",
                 ),
                 LockedElement(
                     element_id="master_audio",
                     kind="AUDIO",
-                    time_range=TimeRange(start_seconds=0, end_seconds=30),
+                    time_range=audio_range,
                     description=(
-                        "Master audio RMS may vary by at most 3 dB and peak stays below -1 dBFS."
+                        "Preserve original audio levels across the complete video."
+                        if uploaded
+                        else "Audio RMS may vary by at most 3 dB; peak stays below -1 dBFS."
                     ),
                 ),
             ],
@@ -524,19 +678,19 @@ class RevisionProofService:
                 ),
                 VerificationManifest(
                     check_id="locked_cta",
-                    time_range=TimeRange(start_seconds=24, end_seconds=29),
-                    roi=CTA_ROI,
+                    time_range=visual_range,
+                    roi=(0, 0, 1280, 720) if uploaded else CTA_ROI,
                     threshold={
                         "minimum_frame_similarity": CTA_SIMILARITY_THRESHOLD,
-                        "minimum_passing_ratio": CTA_REQUIRED_RATIO,
+                        "minimum_passing_ratio": 1.0 if uploaded else CTA_REQUIRED_RATIO,
                     },
                 ),
                 VerificationManifest(
                     check_id="locked_audio",
-                    time_range=TimeRange(start_seconds=0, end_seconds=30),
+                    time_range=audio_range,
                     threshold={
                         "maximum_rms_delta_db": AUDIO_RMS_TOLERANCE_DB,
-                        "maximum_peak_dbfs": AUDIO_PEAK_LIMIT_DBFS,
+                        "maximum_peak_dbfs": 0.0 if uploaded else AUDIO_PEAK_LIMIT_DBFS,
                     },
                 ),
             ],
@@ -804,6 +958,8 @@ class RevisionProofService:
         if self.settings.mode is not ExecutionMode.FIXTURE:
             raise ValueError("demo versions are only available in FIXTURE mode")
         snapshot = self.repository.get(run_id)
+        if snapshot.asset.source_kind == "upload":
+            raise ValueError("Sample revisions cannot be used with an uploaded original")
         if snapshot.spec is None:
             raise ValueError("immutable spec is missing")
         fixture_names = {
@@ -871,6 +1027,8 @@ class RevisionProofService:
                 shutil.copyfileobj(stream, output)
             info = probe_media(staging_destination, self.executor)
             validate_hackathon_media(info, max_duration_seconds=self.settings.max_duration_seconds)
+            if abs(info.duration_seconds - snapshot.asset.duration_seconds) > 0.15:
+                raise ValueError("Revised video must preserve the full original duration")
             snapshot.generated_version_url = None
             snapshot.change_map = None
             snapshot.memory_saved = False

@@ -228,7 +228,9 @@ class VertexGeminiInterpreter:
 
         return RevisionProofGemini(model=self.settings.gemini_model)
 
-    async def interpret_many(self, raw_text: str) -> list[RevisionNote]:
+    async def interpret_many(
+        self, raw_text: str, selected_range: TimeRange | None = None
+    ) -> list[RevisionNote]:
         try:
             from google.adk.agents import LlmAgent
             from google.adk.runners import InMemoryRunner
@@ -263,6 +265,16 @@ class VertexGeminiInterpreter:
                 "each note's raw_text verbatim, excluding only a leading list marker. Never merge, "
                 "duplicate, or invent notes. A target_phrase must be a verbatim substring of that "
                 "same note."
+                + (
+                    f" The user explicitly selected {selected_range.start_seconds:.3f} to "
+                    f"{selected_range.end_seconds:.3f} seconds of their uploaded video. "
+                    "That selection supplies the precise target and duration. A request for a "
+                    "center punch-in or zoom into the selected section can be AUTO_PREVIEWABLE. "
+                    "Use a verbatim part of the note such as 'selected section' as target_phrase. "
+                    "Do not infer speech, scenes or demo metadata; no video analysis was performed."
+                    if selected_range
+                    else ""
+                )
             ),
             output_schema=InterpretationOutput,
         )

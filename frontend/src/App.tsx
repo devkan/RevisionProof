@@ -27,6 +27,8 @@ import { feedbackValidationMessage } from './feedbackValidation'
 import { isTerminalRunState } from './runStream'
 import { VideoLightbox, type VideoLightboxContent } from './VideoLightbox'
 import { ChangeMap, EditMemory, SaveApprovedMemory } from './RevisionIntelligence'
+import { SourceUpload, type UploadedSource } from './SourceUpload'
+import { fileValidation, limitsFor, rangeValidation } from './uploadValidation'
 import type {
   DemoAsset,
   PatchCandidate,
@@ -35,6 +37,7 @@ import type {
   RuntimeStatus,
   SafetyClassification,
   Verdict,
+  TimeRange,
 } from './types'
 
 type ProcessingPhase =
@@ -45,19 +48,21 @@ type ProcessingPhase =
   | 'verifying-upload'
   | 'delivery-approval'
   | 'retrying'
+  | 'uploading-source'
 
 const PROCESSING_COPY: Record<ProcessingPhase, { title: string; detail: string }> = {
+  'uploading-source': { title: 'Preparing your video…', detail: 'Uploading, checking the file, and preparing your selected section for editing.' },
   interpreting: {
     title: 'Reviewing every client request…',
     detail: 'Gemini is separating safe automatic edits from requests that need details or an editor.',
   },
   'rendering-previews': {
     title: 'Creating two preview options…',
-    detail: 'ClickHouse evidence anchors the scene, then FFmpeg renders the 1.05× and 1.12× options.',
+    detail: 'Creating a subtle and a stronger center punch-in of the selected scene.',
   },
   approving: {
     title: 'Freezing your approved option…',
-    detail: 'RevisionProof is locking the selected edit, CTA, and audio requirements into one spec.',
+    detail: 'Saving your selected edit and the video and audio checks it must pass.',
   },
   'building-video': {
     title: 'Building and checking the full video…',
@@ -232,10 +237,16 @@ export default function App() {
   const [processing, setProcessing] = useState<ProcessingPhase | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<VideoLightboxContent | null>(null)
+  const [uploadedSource, setUploadedSource] = useState<UploadedSource | null>(null)
+  const [selectedRange, setSelectedRange] = useState<TimeRange>({ start_seconds: 0, end_seconds: 6 })
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const sourcePlayer = useRef<HTMLVideoElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const runId = run?.run_id
   const busy = processing !== null
   const feedbackError = run ? null : feedbackValidationMessage(feedback)
+  const rangeError = uploadedSource && !run ? rangeValidation(selectedRange, uploadedSource.asset.duration_seconds) : null
+  useEffect(() => () => { if (uploadedSource) URL.revokeObjectURL(uploadedSource.asset.source_url) }, [uploadedSource])
 
   useEffect(() => {
     Promise.all([api.assets(), api.runtime()])
@@ -261,7 +272,7 @@ export default function App() {
     return () => stream.close()
   }, [runId])
 
-  const activeAsset = run?.asset ?? assets[0]
+  const activeAsset = run?.asset ?? uploadedSource?.asset ?? assets[0]
   const executableNotes = useMemo(
     () =>
       run?.notes.filter(
@@ -293,7 +304,12 @@ export default function App() {
   function start() {
     if (!activeAsset || !runtime?.mutable) return
     setSelectedNoteId(null)
-    void action('interpreting', () => api.createRun(activeAsset.asset_id, feedback))
+    if (uploadedSource) {
+      const problem = fileValidation(uploadedSource.file, limitsFor(runtime)) ?? rangeError
+      if (problem) { setError(problem); return }
+      setUploadProgress(0)
+      void action('uploading-source', () => api.uploadSource(uploadedSource.file, feedback, selectedRange, setUploadProgress))
+    } else void action('interpreting', () => api.createRun(activeAsset.asset_id, feedback))
   }
 
   function renderPreviews() {
@@ -324,8 +340,10 @@ export default function App() {
 
   function uploadManual(file?: File) {
     if (!run || !file) return
+    const problem = fileValidation(file, limitsFor(runtime))
+    if (problem) { setError(problem); return }
     void action('verifying-upload', () =>
-      api.uploadVersion(run.run_id, file.name.replace(/\.mp4$/i, ''), file),
+      api.uploadVersion(run.run_id, `external-${Date.now()}`, file),
     )
   }
 
@@ -334,7 +352,7 @@ export default function App() {
     setRun(null)
     setSelectedNoteId(null)
     setError(null)
-    setFeedback(DEFAULT_FEEDBACK)
+    setFeedback(uploadedSource ? 'Apply a center punch-in to the selected section.' : DEFAULT_FEEDBACK)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -405,10 +423,17 @@ export default function App() {
                 <div><span className="step-number">01</span><div><h2>Source video and client notes</h2><p>Start with the exact video and the client’s original wording.</p></div></div>
                 <span className={`section-state ${run ? 'state-complete' : ''}`}>{run ? 'Reviewed' : 'Ready'}</span>
               </div>
+              {!run && <SourceUpload runtime={runtime} selected={uploadedSource} disabled={busy || !runtime?.mutable} onSelect={(source) => {
+                setUploadedSource(source); setError(null)
+                setSelectedRange({ start_seconds: 0, end_seconds: source ? Math.min(6, source.asset.duration_seconds) : 6 })
+                setFeedback(source ? 'Apply a center punch-in to the selected section.' : DEFAULT_FEEDBACK)
+              }} />}
+              {processing === 'uploading-source' && <div className="upload-progress" role="status"><progress value={uploadProgress} max={100} /><span>{uploadProgress < 100 ? `Uploading ${uploadProgress}%` : 'Upload complete. Preparing video and reviewing your request…'}</span></div>}
+              {run?.asset.source_kind === 'upload' && <p className="input-help">Your video · prepared at 1280×720 with aspect ratio preserved. Selected section: {run.selected_range?.start_seconds.toFixed(1)}–{run.selected_range?.end_seconds.toFixed(1)}s.</p>}
               <div className="source-layout">
                 {activeAsset && (
                   <div className="source-video-card">
-                    <video src={activeAsset.source_url} controls muted playsInline preload="metadata" />
+                    <video ref={sourcePlayer} src={activeAsset.source_url} controls muted playsInline preload="metadata" />
                     <div className="source-video-meta">
                       <div><strong>{activeAsset.title}</strong><span>{activeAsset.width}×{activeAsset.height} · {activeAsset.duration_seconds}s · {activeAsset.codec}</span></div>
                       <button
@@ -439,8 +464,18 @@ export default function App() {
                   <p className={`input-help ${feedbackError ? 'input-help-error' : ''}`} id={feedbackError ? 'feedback-help' : 'feedback-guidance'}>
                     {feedbackError ?? 'One request per line works best. RevisionProof will never silently execute an unsupported request.'}
                   </p>
+                  {uploadedSource && !run && <fieldset className="edit-range" disabled={busy}>
+                    <legend>Choose the section to edit</legend>
+                    <p className="input-help">Watch your video, then select 4–8 seconds for a center punch-in. Other edits remain for an editor.</p>
+                    <div className="range-fields"><label>Start (seconds)<input type="number" min={0} max={activeAsset?.duration_seconds} step="0.1" value={Number.isFinite(selectedRange.start_seconds) ? selectedRange.start_seconds : ''} onChange={(event) => setSelectedRange((range) => ({ ...range, start_seconds: event.target.valueAsNumber }))} /></label><label>End (seconds)<input type="number" min={4} max={activeAsset?.duration_seconds} step="0.1" value={Number.isFinite(selectedRange.end_seconds) ? selectedRange.end_seconds : ''} onChange={(event) => setSelectedRange((range) => ({ ...range, end_seconds: event.target.valueAsNumber }))} /></label></div>
+                    <button type="button" className="secondary-button" onClick={() => {
+                      const start = Math.max(0, Math.min(Math.round((sourcePlayer.current?.currentTime ?? 0) * 10) / 10, uploadedSource.asset.duration_seconds - 4))
+                      setSelectedRange({ start_seconds: start, end_seconds: Math.min(start + 6, uploadedSource.asset.duration_seconds) })
+                    }}>Start at current playback position</button>
+                    {rangeError ? <p className="upload-warning" role="alert">{rangeError}</p> : <p className="input-help">{selectedRange.start_seconds.toFixed(1)}–{selectedRange.end_seconds.toFixed(1)}s · {(selectedRange.end_seconds - selectedRange.start_seconds).toFixed(1)} seconds selected</p>}
+                  </fieldset>}
                   {!run && (
-                    <button className="primary-button" onClick={start} disabled={busy || !activeAsset || !runtime?.mutable || Boolean(feedbackError)}>
+                    <button className="primary-button" onClick={start} disabled={busy || !activeAsset || !runtime?.mutable || Boolean(feedbackError) || Boolean(rangeError)}>
                       <Sparkles size={18} /> Review what can be automated
                     </button>
                   )}
@@ -492,7 +527,7 @@ export default function App() {
             ) : null}
 
             {runtime?.intelligence_enabled && run?.feedback && (
-              <EditMemory key={run.run_id} run={run} disabled={busy} />
+              <EditMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} />
             )}
 
             {run?.candidates.length ? (
@@ -504,8 +539,8 @@ export default function App() {
                 {run.evidence[0] && (
                   <div className="evidence-summary">
                     <Clock3 size={20} />
-                    <div><strong>Matched scene {formatTime(run.evidence[0].time_range.start_seconds)}–{formatTime(run.evidence[0].time_range.end_seconds)}</strong><p>{run.evidence[0].visual_summary}</p></div>
-                    <span>{Math.round(run.evidence[0].score * 100)}% match</span>
+                    <div><strong>{run.evidence[0].source === 'user.selected_range' ? 'Selected section' : 'Matched scene'} {formatTime(run.evidence[0].time_range.start_seconds)}–{formatTime(run.evidence[0].time_range.end_seconds)}</strong><p>{run.evidence[0].visual_summary}</p></div>
+                    <span>{run.evidence[0].source === 'user.selected_range' ? 'Selected by you' : `${Math.round(run.evidence[0].score * 100)}% match`}</span>
                   </div>
                 )}
                 <div className="candidate-grid">
@@ -568,8 +603,8 @@ export default function App() {
                         {check.failure_code && <code>{check.failure_code}</code>}
                         {check.evidence_urls.length === 2 && (
                           <div className="evidence-frames">
-                            <figure><img src={check.evidence_urls[0]} alt="Approved baseline CTA evidence" /><figcaption>ORIGINAL</figcaption></figure>
-                            <figure><img src={check.evidence_urls[1]} alt={`${run.proof?.version_label} CTA evidence`} /><figcaption>REVISED</figcaption></figure>
+                            <figure><img src={check.evidence_urls[0]} alt="Original video verification frame" /><figcaption>ORIGINAL</figcaption></figure>
+                            <figure><img src={check.evidence_urls[1]} alt={`${run.proof?.version_label} verification frame`} /><figcaption>REVISED</figcaption></figure>
                           </div>
                         )}
                       </div>

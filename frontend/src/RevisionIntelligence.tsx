@@ -36,7 +36,7 @@ export function ChangeMap({ run }: { run: RunSnapshot }) {
         </div>
         {active && <div className={`map-detail map-detail-${active.status}`} aria-live="polite">
           <div><strong>{timeLabel(active.second)}–{timeLabel(Math.min(active.second + 1, map.duration_seconds))} · {WINDOW_LABEL[active.status]}</strong>
-            <p>{active.status === 'review' ? 'The observed result differs from the expected edit, CTA, or audio. Watch this moment.' : active.requested ? 'This moment is inside your approved punch-in. Compare the crop side by side.' : 'These samples match the expected unchanged video.'}</p></div>
+            <p>{active.status === 'review' ? 'The observed result differs from the approved edit, protected video content, or audio. Watch this moment.' : active.requested ? 'This moment is inside your approved punch-in. Compare the crop side by side.' : 'These samples match the expected unchanged video.'}</p></div>
           <button type="button" className="secondary-button" disabled={!run.generated_version_url} onClick={() => setComparing(true)}><ZoomIn size={18} />Compare this moment</button>
         </div>}
         <details className="intelligence-technical"><summary>How this map was measured</summary><p>{map.message}</p><p>{map.source} · {map.windows.reduce((n, w) => n + w.sample_count, 0)} frame pairs · 1-second windows</p>
@@ -85,7 +85,7 @@ export function ComparisonDialog({ original, revised, second, duration, onClose 
   </dialog>
 }
 
-export function EditMemory({ run, disabled }: { run: RunSnapshot; disabled: boolean }) {
+export function EditMemory({ run, disabled, runtime }: { run: RunSnapshot; disabled: boolean; runtime?: RuntimeStatus }) {
   // Follow newer server snapshots until the user explicitly reruns the search.
   const [searchResult, setResult] = useState<EditMemorySearch | undefined>()
   const result = searchResult ?? run.edit_memory
@@ -98,16 +98,21 @@ export function EditMemory({ run, disabled }: { run: RunSnapshot; disabled: bool
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Search unavailable') }
     finally { setLoading(false) }
   }
-  return <section className="edit-memory" aria-labelledby="edit-memory-title" aria-busy={loading}>
-    <div className="intelligence-heading"><div><span className="eyebrow">APPROVED EDIT MEMORY</span><h3 id="edit-memory-title">Start from a decision that worked.</h3></div><BookOpen size={23} aria-hidden="true" /></div>
+  const readOnly = runtime?.memory_save_policy === 'read_only'
+  return <details className="edit-memory memory-compact" aria-busy={loading} onToggle={(event) => { if (event.currentTarget.open && !result && !loading) void search() }}>
+    <summary><BookOpen size={18} aria-hidden="true" /><span>Past approved edits <small>Optional reference{result?.matches.length ? ` · ${result.matches.length} found` : ''}</small></span></summary>
+    <div className="memory-content">
+    <p className="input-help">See what worked for a similar request before choosing A or B. Your current edit is always reviewed separately.</p>
     {loading && <div className="inline-processing" role="status"><span className="spinner" />Finding similar approved edits…</div>}
     {error && <p className="intelligence-notice" role="alert">{error}</p>}
-    {!loading && (!result || result.status === 'empty') && <div className="memory-empty"><p><strong>{result?.collection_size ? 'No close match yet.' : 'Your approved edit library starts here.'}</strong></p><p>After reviewing and approving a result, save it to reuse that decision next time.</p></div>}
+    {!loading && result?.status === 'empty' && <div className="memory-empty"><p><strong>{result.collection_size ? 'No similar approved edits yet.' : 'No saved edits yet.'}</strong></p><p>{readOnly ? 'Saving past edits is turned off in this public demo. Continue with your new A/B previews.' : 'After checking the full video, approve delivery and choose “Save approved edit”. That choice can help with your next request.'}</p></div>}
     {!loading && result?.status === 'unavailable' && <p className="intelligence-notice" role="status">{result.message}</p>}
     {!loading && result?.matches.map((match) => <article className="memory-match" key={match.memory_id}><div><span className="memory-verified"><CheckCircle2 size={16} />Verified + human approved</span><h4>{match.intent}</h4><p>“{match.target_phrase}” · {match.duration_seconds}s center punch-in</p></div><div className="memory-recommendation"><strong>Option {match.candidate_id}</strong><span>{match.scale.toFixed(2)}× crop</span><small>Similarity {match.similarity.toFixed(3)}</small></div></article>)}
     {result?.matches.length ? <p className="input-help">A reference, not an automatic choice. Compare fresh A/B previews before selecting.</p> : null}
-    <details className="intelligence-technical"><summary>Search engine and evidence</summary><div className="memory-search-controls"><label htmlFor="memory-engine">Search mode</label><select id="memory-engine" value={engine} onChange={(event) => setEngine(event.target.value as SearchEngine)} disabled={loading || disabled}><option value="hnsw">Fast indexed search · HNSW</option><option value="exact">Exact comparison</option><option value="qbit">Adjustable precision · QBit</option></select><button className="secondary-button" onClick={() => void search()} disabled={loading || disabled}><RefreshCw size={16} />{loading ? 'Searching…' : 'Run search'}</button></div>{result && <><p>{result.message}</p><dl><div><dt>Actually used</dt><dd>{result.actual_engine.toUpperCase()}{result.index_verified ? ' · index verified' : ''}</dd></div><div><dt>Approved edits</dt><dd>{result.collection_size}</dd></div><div><dt>Request time</dt><dd>{(result.elapsed_ms / 1000).toFixed(2)}s</dd></div>{result.precision_bits && <div><dt>QBit precision</dt><dd>{result.precision_bits}/32 bits</dd></div>}</dl><p className="input-help">{result.source} · Similarity is not a confidence percentage. Time includes connection and embedding work.</p></>}</details>
-  </section>
+    {(error || result?.status === 'unavailable') && <button className="secondary-button" disabled={loading || disabled} onClick={() => void search()}>Retry lookup</button>}
+    {Boolean(result?.collection_size) && <details className="intelligence-technical"><summary>How references were found</summary><div className="memory-search-controls"><label htmlFor="memory-engine">Search method</label><select id="memory-engine" value={engine} onChange={(event) => setEngine(event.target.value as SearchEngine)} disabled={loading || disabled}><option value="hnsw">Fast search · HNSW</option><option value="exact">Exact comparison</option><option value="qbit">Adjustable precision · QBit</option></select><button className="secondary-button" onClick={() => void search()} disabled={loading || disabled}><RefreshCw size={16} />{loading ? 'Searching…' : 'Refresh references'}</button></div>{result && <><p>{result.message}</p><dl><div><dt>Method used</dt><dd>{result.actual_engine.toUpperCase()}{result.index_verified ? ' · index verified' : ''}</dd></div><div><dt>Saved edits</dt><dd>{result.collection_size}</dd></div></dl><p className="input-help">{result.source} · Similarity describes how closely requests match, not the chance that an edit will succeed.</p></>}</details>}
+    </div>
+  </details>
 }
 
 export function SaveApprovedMemory({ run, runtime, disabled, onSaved }: { run: RunSnapshot; runtime: RuntimeStatus; disabled: boolean; onSaved: () => void }) {

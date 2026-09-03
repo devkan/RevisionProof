@@ -71,6 +71,7 @@ def measure_frame_pairs(
     captures = [cv2.VideoCapture(str(path)) for path in (source, candidate)]
     patch = spec.approved_candidate
     cta = spec.manifest_for("locked_cta")
+    full_video = any(element.kind == "VIDEO_CONTENT" for element in spec.locked_elements)
     assert cta.roi is not None
     pairs: list[dict[str, Any]] = []
     try:
@@ -103,7 +104,8 @@ def measure_frame_pairs(
                         "sample_ms": round(t * 1000),
                         "visual_delta": 1 - normalized_similarity(original, revised),
                         "residual_delta": 1 - normalized_similarity(expected, revised),
-                        "cta_delta": 1 - roi_similarity(original, revised, cta.roi)
+                        "cta_delta": 1
+                        - roi_similarity(expected if full_video else original, revised, cta.roi)
                         if cta_active
                         else 0.0,
                         "audio_delta_db": audio_delta,

@@ -27,6 +27,7 @@ from revisionproof.contracts import (
     RevisionSpec,
     RunSnapshot,
     RunState,
+    TimeRange,
     VerificationProof,
 )
 from revisionproof.intelligence.models import (
@@ -35,6 +36,7 @@ from revisionproof.intelligence.models import (
     MemorySaveResult,
     SearchEngine,
 )
+from revisionproof.media.source import SourceUploadError
 from revisionproof.repository import RunCapacityBusyError, RunNotFoundError
 from revisionproof.service import RateLimitError, RevisionProofService
 
@@ -66,6 +68,8 @@ ServiceDep = Annotated[RevisionProofService, Depends(get_service)]
 
 
 def as_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, SourceUploadError):
+        return HTTPException(status_code=exc.status_code, detail=str(exc))
     if isinstance(exc, MemoryAuthorizationError):
         return HTTPException(status_code=403, detail=str(exc))
     if isinstance(exc, RunNotFoundError):
@@ -98,6 +102,11 @@ def runtime_status(service: ServiceDep):
         "live_ready": mode is ExecutionMode.LIVE and not service.settings.live_missing_settings,
         "missing_settings": service.settings.live_missing_settings,
         "intelligence_enabled": service.settings.intelligence_enabled,
+        "upload_limits": {
+            "max_bytes": service.settings.max_upload_bytes,
+            "max_duration_seconds": service.settings.max_duration_seconds,
+            "min_duration_seconds": 4,
+        },
         "memory_save_policy": (
             "operator_key"
             if mode is ExecutionMode.LIVE and service.settings.memory_write_token
@@ -130,6 +139,55 @@ async def create_run(
 ) -> RunSnapshot:
     try:
         return await service.create_run(payload, idempotency_key)
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+
+
+@router.post("/runs/upload", response_model=RunSnapshot, status_code=201)
+async def upload_source(
+    file: Annotated[UploadFile, File()],
+    feedback: Annotated[str, Form(min_length=8, max_length=2000)],
+    start_seconds: Annotated[float, Form(ge=0)],
+    end_seconds: Annotated[float, Form(gt=0)],
+    service: ServiceDep,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    content_sha256: Annotated[str | None, Header(alias="X-Content-SHA256")] = None,
+) -> RunSnapshot:
+    try:
+        if file.content_type not in {
+            "video/mp4",
+            "application/mp4",
+            "video/quicktime",
+            "video/webm",
+            "application/octet-stream",
+        }:
+            raise SourceUploadError("Choose an MP4, MOV, or WebM video.", 415)
+        return await service.create_uploaded_run(
+            stream=file.file,
+            size=file.size or 0,
+            filename=file.filename or "Uploaded video",
+            feedback=feedback,
+            selected_range=TimeRange(start_seconds=start_seconds, end_seconds=end_seconds),
+            content_sha256=content_sha256 or "",
+            idempotency_key=idempotency_key,
+        )
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+    finally:
+        await file.close()
+
+
+@router.get("/runs/{run_id}/source-video")
+def source_video(run_id: str, service: ServiceDep):
+    try:
+        snapshot = service.repository.get(run_id)
+        if snapshot.asset.source_kind != "upload":
+            raise ValueError("This run uses the sample video")
+        return FileResponse(
+            service.repository.source_path(run_id),
+            media_type="video/mp4",
+            headers={"Cache-Control": "private, no-store"},
+        )
     except Exception as exc:
         raise as_http_error(exc) from exc
 

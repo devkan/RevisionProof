@@ -113,17 +113,32 @@ class DeterministicVerifier:
 
     def _locked_cta(self, source: Path, candidate: Path, spec: RevisionSpec) -> VerificationCheck:
         manifest = spec.manifest_for("locked_cta")
+        full_video = any(element.kind == "VIDEO_CONTENT" for element in spec.locked_elements)
         duration = manifest.time_range.end_seconds - manifest.time_range.start_seconds
         sample_times = [
             manifest.time_range.start_seconds + duration * fraction
             for fraction in (0.1, 0.3, 0.5, 0.7, 0.9)
         ]
+        if full_video:
+            sample_times = []
+            for index in range(math.ceil(duration * 2)):
+                start, end = index * 0.5, min((index + 1) * 0.5, duration)
+                # As in Change Map, a sub-50 ms codec tail is not another video sample.
+                # Use the partial bin's midpoint, away from the last frame boundary.
+                if end - start >= 0.05:
+                    sample_times.append(manifest.time_range.start_seconds + (start + end) / 2)
         if manifest.roi is None:
             raise ValueError("locked CTA manifest is missing its ROI")
-        scores = [
-            roi_similarity(read_frame(source, second), read_frame(candidate, second), manifest.roi)
-            for second in sample_times
-        ]
+        scores = []
+        patch = spec.approved_candidate
+        for second in sample_times:
+            expected = read_frame(source, second)
+            if (
+                full_video
+                and patch.time_range.start_seconds <= second < patch.time_range.end_seconds
+            ):
+                expected = apply_punch_in(expected, patch.scale)
+            scores.append(roi_similarity(expected, read_frame(candidate, second), manifest.roi))
         passing = sum(score >= manifest.threshold["minimum_frame_similarity"] for score in scores)
         ratio = passing / len(scores)
         verdict = (
@@ -131,9 +146,15 @@ class DeterministicVerifier:
         )
         return VerificationCheck(
             check_id="locked_cta",
-            label="Locked CTA remains visible",
+            label="Full video follows the approved edit"
+            if full_video
+            else "Locked CTA remains visible",
             verdict=verdict,
-            failure_code=None if verdict is Verdict.PASS else "LOCKED_OVERLAY_MISSING",
+            failure_code=None
+            if verdict is Verdict.PASS
+            else "UNEXPECTED_VIDEO_CHANGE"
+            if full_video
+            else "LOCKED_OVERLAY_MISSING",
             measured={
                 "passing_frames": passing,
                 "sampled_frames": len(scores),
@@ -252,7 +273,13 @@ def apply_mcp_feature_diff(
     cta.measured["mcp_passing_ratio"] = cta_ratio
     cta_passed = cta_ratio >= cta_manifest.threshold["minimum_passing_ratio"]
     cta.verdict = Verdict.PASS if cta_passed else Verdict.FAIL
-    cta.failure_code = None if cta_passed else "LOCKED_OVERLAY_MISSING"
+    cta.failure_code = (
+        None
+        if cta_passed
+        else "UNEXPECTED_VIDEO_CHANGE"
+        if any(e.kind == "VIDEO_CONTENT" for e in spec.locked_elements)
+        else "LOCKED_OVERLAY_MISSING"
+    )
 
     audio = checks["locked_audio"]
     audio_manifest = spec.manifest_for("locked_audio")

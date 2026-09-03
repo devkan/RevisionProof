@@ -7,6 +7,7 @@ Owner requested GitHub push and deployment after the extension-only migration/gr
 - Backend/infrastructure commit: `c982637`.
 - UI/deployed-source commit: `c5652b1`.
 - GitHub push: confirmed `25b89a9..c5652b1` on `origin/review/qa-hardening`.
+- Release documentation checkpoint: `c7ea2261e38242e0038f7d7f0a533a6da155f376`, subsequently pushed to the same branch and verified against the remote SHA. This documentation-only commit does not change deployed source `c5652b1`. For the next session, start with [the continuity note](handoff-2026-09-03.md).
 - Fresh local gates: backend **278 PASS** (78.51 s), frontend **16 PASS**, Ruff check/format, ESLint, TypeScript/Vite production build, and `git diff --check` PASS.
 - The gstack ship checklist and independent scoped coverage/plan review found no concrete release blocker. This is not a full historical-branch landing approval or measured 100% coverage claim.
 - GitHub Actions only triggers pushes to `main` or pull requests. No hosted CI run is claimed for this branch push; local gates and Cloud Build are separate evidence.

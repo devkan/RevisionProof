@@ -49,8 +49,8 @@ class SafetyClassification(StrEnum):
 
 
 class TimeRange(BaseModel):
-    start_seconds: float = Field(ge=0)
-    end_seconds: float = Field(gt=0)
+    start_seconds: float = Field(ge=0, allow_inf_nan=False)
+    end_seconds: float = Field(gt=0, allow_inf_nan=False)
 
     @model_validator(mode="after")
     def validate_order(self) -> TimeRange:
@@ -67,6 +67,7 @@ class DemoAsset(BaseModel):
     width: int
     height: int
     codec: str
+    source_kind: Literal["demo", "upload"] = "demo"
 
 
 class EvidenceAnchor(BaseModel):
@@ -75,7 +76,7 @@ class EvidenceAnchor(BaseModel):
     score: float = Field(ge=0, le=1)
     transcript: str = Field(max_length=4000)
     visual_summary: str = Field(max_length=2000)
-    source: Literal["fixture.segment_index", "mcp-clickhouse.run_query"]
+    source: Literal["fixture.segment_index", "mcp-clickhouse.run_query", "user.selected_range"]
 
 
 class ParsedFeedback(BaseModel):
@@ -84,7 +85,7 @@ class ParsedFeedback(BaseModel):
     patch_type: PatchType = PatchType.PUNCH_IN
     target_phrase: str = Field(min_length=1, max_length=200)
     rationale: str = Field(min_length=1, max_length=1000)
-    interpreter_source: Literal["fixture.interpreter", "google.vertex.gemini"]
+    interpreter_source: Literal["fixture.interpreter", "google.vertex.gemini", "local.range_rules"]
 
 
 class RevisionNote(BaseModel):
@@ -129,7 +130,7 @@ class PatchCandidate(BaseModel):
 
 class LockedElement(BaseModel):
     element_id: str
-    kind: Literal["CTA_OVERLAY", "AUDIO"]
+    kind: Literal["CTA_OVERLAY", "VIDEO_CONTENT", "AUDIO"]
     time_range: TimeRange
     description: str
 
@@ -182,7 +183,7 @@ class VerificationManifest(BaseModel):
 class RevisionSpec(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    schema_version: Literal["2.0"] = "2.0"
+    schema_version: Literal["2.0", "2.1"] = "2.0"
     run_id: str
     asset_id: str
     approved_candidate: PatchCandidate
@@ -200,10 +201,11 @@ class RevisionSpec(BaseModel):
         if self.manifest_for("approved_patch").time_range != self.approved_candidate.time_range:
             raise ValueError("approved patch manifest must match the approved candidate range")
         locked_by_kind = {element.kind: element for element in self.locked_elements}
-        if len(self.locked_elements) != 2 or set(locked_by_kind) != {"CTA_OVERLAY", "AUDIO"}:
-            raise ValueError("RevisionSpec must freeze exactly one CTA and one audio lock")
+        visual_kind = "VIDEO_CONTENT" if self.schema_version == "2.1" else "CTA_OVERLAY"
+        if len(self.locked_elements) != 2 or set(locked_by_kind) != {visual_kind, "AUDIO"}:
+            raise ValueError("RevisionSpec must freeze exactly one visual and one audio lock")
         if (
-            self.manifest_for("locked_cta").time_range != locked_by_kind["CTA_OVERLAY"].time_range
+            self.manifest_for("locked_cta").time_range != locked_by_kind[visual_kind].time_range
             or self.manifest_for("locked_audio").time_range != locked_by_kind["AUDIO"].time_range
         ):
             raise ValueError("verification manifest ranges must match locked elements")
@@ -233,7 +235,9 @@ class RevisionSpec(BaseModel):
     ) -> RevisionSpec:
         timestamp = approved_at or datetime.now(UTC)
         payload: dict[str, Any] = {
-            "schema_version": "2.0",
+            "schema_version": "2.1"
+            if any(e.kind == "VIDEO_CONTENT" for e in locked_elements)
+            else "2.0",
             "run_id": run_id,
             "asset_id": asset_id,
             "approved_candidate": candidate.model_dump(mode="json"),
@@ -278,6 +282,7 @@ class RunEvent(BaseModel):
 class RunSnapshot(BaseModel):
     run_id: str
     asset: DemoAsset
+    selected_range: TimeRange | None = None
     mode: ExecutionMode
     state: RunState
     notes: list[RevisionNote] = Field(default_factory=list)

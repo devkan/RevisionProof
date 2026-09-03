@@ -50,7 +50,7 @@ class ApprovedEditMatch(BaseModel):
 class EditMemorySearch(BaseModel):
     status: Literal["ready", "empty", "unavailable", "disabled"]
     requested_engine: SearchEngine = "hnsw"
-    actual_engine: Literal["exact", "hnsw", "qbit", "fixture", "unavailable"]
+    actual_engine: Literal["exact", "hnsw", "qbit", "fixture", "unavailable", "none"]
     source: Literal["fixture.approved_memory", "mcp-clickhouse.run_query"]
     collection_size: int = Field(default=0, ge=0)
     elapsed_ms: float = Field(default=0, ge=0)

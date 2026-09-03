@@ -1,10 +1,10 @@
-import type { DemoAsset, EditMemorySearch, RunSnapshot, RuntimeStatus, SearchEngine } from './types'
+import type { DemoAsset, EditMemorySearch, RunSnapshot, RuntimeStatus, SearchEngine, TimeRange } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
   if (!response.ok) {
-    const payload = (await response.json().catch(() => ({}))) as { detail?: string }
-    throw new Error(payload.detail ?? `Request failed (${response.status})`)
+    const payload = (await response.json().catch(() => ({}))) as { detail?: unknown }
+    throw new Error(typeof payload.detail === 'string' ? payload.detail : `Request failed (${response.status}). Check the file and selected section, then retry.`)
   }
   return response.json() as Promise<T>
 }
@@ -24,6 +24,31 @@ async function blobSha256(blob: Blob): Promise<string> {
 export const api = {
   runtime: () => request<RuntimeStatus>('/api/runtime'),
   assets: () => request<DemoAsset[]>('/api/demo-assets'),
+  uploadSource: async (file: File, feedback: string, range: TimeRange, onProgress: (value: number) => void): Promise<RunSnapshot> => {
+    const digest = await blobSha256(file)
+    const form = new FormData()
+    form.append('file', file)
+    form.append('feedback', feedback)
+    form.append('start_seconds', String(range.start_seconds))
+    form.append('end_seconds', String(range.end_seconds))
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', '/api/runs/upload')
+      xhr.setRequestHeader('Idempotency-Key', `source:${crypto.randomUUID()}`)
+      xhr.setRequestHeader('X-Content-SHA256', digest)
+      xhr.timeout = 240000
+      xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)) }
+      xhr.onerror = () => reject(new Error('Upload connection failed. Check your connection and try again.'))
+      xhr.ontimeout = () => reject(new Error('Video preparation took too long. Try a shorter clip.'))
+      xhr.onload = () => {
+        let payload: { detail?: unknown }
+        try { payload = JSON.parse(xhr.responseText) } catch { reject(new Error(`Upload failed (${xhr.status}). Please try again.`)); return }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(payload as RunSnapshot)
+        else reject(new Error(typeof payload.detail === 'string' ? payload.detail : `Upload failed (${xhr.status}). Check the file and selected section.`))
+      }
+      xhr.send(form)
+    })
+  },
   searchMemory: (runId: string, engine: SearchEngine) =>
     request<EditMemorySearch>(`/api/runs/${runId}/edit-memory?engine=${engine}`),
   saveMemory: (runId: string, workspaceKey: string) =>
