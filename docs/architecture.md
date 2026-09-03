@@ -4,7 +4,7 @@
 
 RevisionProof is a revision approval firewall. It does not expose a timeline editor, arbitrary effects, XML/EDL export, collaboration, billing, or 4K output in the hackathon build. The only generated patch is a centered `PUNCH_IN` at 1.05x or 1.12x for a 4–8 second evidence range. Original uploads accept MP4/MOV/WebM up to 24 MiB and 4–60 seconds; FFmpeg prepares an aspect-preserving 1280×720, 30 fps H.264/AAC working copy. A silent input receives a silent AAC track.
 
-The source-upload and optional-memory UX changes described here are local implementation as of 2026-09-03; the deployed service still runs the earlier intelligence release. See [current implementation and verification](source-upload-and-memory-ux-2026-09-03.md).
+The source-upload and optional-memory UX changes are deployed as of 2026-09-03 in revision `revisionproof-staging-00016-j4q`. See [implementation and usage](source-upload-and-memory-ux-2026-09-03.md) and [deployment evidence](deployment-2026-09-03-source-upload.md).
 
 ## Runtime
 

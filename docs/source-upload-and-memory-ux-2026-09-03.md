@@ -1,6 +1,6 @@
 # 원본 영상 업로드와 승인 기록 UX
 
-Date: 2026-09-03. Scope: implementation and gstack verification. **GitHub 푸시 완료(`d767649`), LIVE 배포는 Cloud Shell 권한 승인 대기다.** [배포 준비 기록](deployment-2026-09-03-source-upload.md)을 참고한다. 기존 배포 `revisionproof-staging-00015-h6b`, ClickHouse 설정, 승인 기록 저장 정책은 변경하지 않았다.
+Date: 2026-09-03. Scope: implementation, deployment and gstack verification. **소스 `d767649`가 LIVE `revisionproof-staging-00016-j4q`로 배포됐다.** [배포와 LIVE 검증 기록](deployment-2026-09-03-source-upload.md)을 참고한다. 기존 ClickHouse 설정과 승인 기록 읽기 전용 정책은 유지한다.
 
 ## 사용 방법
 
@@ -34,7 +34,11 @@ Date: 2026-09-03. Scope: implementation and gstack verification. **GitHub 푸시
 - 비어 있을 때 서버도 `actual_engine: "none"`을 반환한다. 0건 확인만 했는데 EXACT 벡터 검색을 수행한 것처럼 보이던 표시를 바로잡았다.
 - 기록이 있을 때는 추천 사례와 접힌 고급 검색 정보를 제공한다. 기록은 A/B 값을 변경하거나 자동 선택하지 않는다.
 
-## 검증 결과
+## LIVE 검증 결과
+
+새 LIVE run `01M1K3CSTV2R01X4VF3CHNFWK5`에서 별도 12초 세로 영상 업로드 → 2–8초 선택 → Gemini 해석 → A/B → B 전체 영상 생성 → **READY / 3 PASS**를 확인했다. 근거는 `user.selected_range`, 변경 지도는 공식 ClickHouse MCP에서 조회한 12개 구간 / 24개 샘플이며 review flag가 없다. 최종 납품 승인과 기록 저장은 false다. 빈 승인 기록은 `actual_engine=none`이며 읽기 전용 안내를 표시한다. 25 MiB / 61초 경고도 LIVE에서 확인했다. 세부 증거는 배포 기록에 있다.
+
+## 로컬 검증 결과
 
 - 백엔드 전체 회귀: **288 passed**. 이후 추가한 업로드 재시도/표시 보완을 포함한 업로드 및 intelligence 집중 검증: **70 passed**.
 - 배포 준비 시 최종 백엔드 전체 회귀: **292 passed in 101.74s** (소수점 길이 회귀 포함), 프런트엔드 **19 passed**, Ruff check/format, ESLint, TypeScript/Vite build 및 `git diff --check` 통과.
@@ -48,7 +52,7 @@ Date: 2026-09-03. Scope: implementation and gstack verification. **GitHub 푸시
 - API 회귀는 무음 영상, 손상 파일, 크기/체크섬/범위 제한, 중복 요청 재사용, 원본 밖 변경 검출, 업로드 영상에 샘플 수정본 적용 거부, Gemini 실패 후 동일 원본 재시도를 포함한다. Gemini 재시도 검증은 mock이며 새 LIVE 모델 실행 증거가 아니다.
 - 푸시 전 독립 검토에서 4.01초/6.01초 영상의 AAC 패딩 때문에 마지막 프레임 조회가 실패하는 문제를 재현하고 수정했다. 전체 영상 검사는 0.5초 구간의 중앙을 샘플링하며 마지막 50ms 미만의 코덱 꼬리만 제외한다. 4.01초·6.01초·4.04초를 실제 업로드→A/B→READY 회귀에 추가했고 업로드 집중 테스트 **14 passed**를 확인했다. 본문 초당 2프레임 검사는 이러한 끝부분의 예외를 포함한다.
 
-로컬 검증 서버: `http://127.0.0.1:18126`. 기존 Docker FIXTURE `18125`와 Cloud 서비스는 그대로다. 서버 재시작 시 run 메모리가 사라지므로 위 run의 API는 재시작 후 조회되지 않을 수 있다.
+로컬 검증 당시 서버: `http://127.0.0.1:18126`. 기존 Docker FIXTURE `18125`는 변경하지 않았다. 서버 재시작 시 run 메모리가 사라지므로 위 run의 API는 재시작 후 조회되지 않을 수 있다. 이후 Cloud 배포와 새 LIVE 검증은 별도 배포 기록에 있다.
 
 Ignored evidence: `.gstack/source-upload-browser-proof-20260903.json`, `.gstack/source-upload-browser-proof-final-20260903.json`, `.gstack/source-upload-ready-final-20260903.png`, `.gstack/source-upload-mobile-final-20260903.png`, `.gstack/upload-inputs/`, `.gstack/upload-qa-runtime/`. QA 중 브라우저 캡처 도구의 renderer가 한 차례 재시작되어 이후 새 브라우저 세션에서 화면을 확인했다. 저장된 JSON과 재현 테스트를 검증 근거로 사용한다.
 
@@ -58,4 +62,4 @@ Ignored evidence: `.gstack/source-upload-browser-proof-20260903.json`, `.gstack/
 
 업로드는 spec `2.1`에서 영상 전체 `VIDEO_CONTENT` 잠금을 사용한다. 승인 구간은 예상 확대 프레임과, 나머지는 준비된 원본과 비교한다. 기존 샘플의 24–29초 CTA 검사를 다른 영상에 강제로 적용하지 않는다. ClickHouse 호환을 위해 내부 check ID `locked_cta`는 유지하며 사용자 표시만 전체 영상 검사로 바꾼다. 비교는 초당 2프레임, 소리는 레벨 검사로서 모든 프레임/파형의 완전 동일성을 보장하지 않는다.
 
-원본 작업본과 run 상태는 현재 프로세스의 로컬 runtime에 속한다. 이번 변경에 영구 원본 보관, 재시작 복구, 사용자별 인증, 자동 음성/장면 인덱싱은 포함하지 않는다. 커밋/푸시는 완료했고, 다음 운영 단계는 권한 승인 후 배포 및 LIVE 업로드 경로 점검이다.
+원본 작업본과 run 상태는 현재 프로세스의 로컬 runtime에 속한다. 이번 변경에 영구 원본 보관, 재시작 복구, 사용자별 인증, 자동 음성/장면 인덱싱은 포함하지 않는다. 커밋/푸시와 LIVE 배포는 완료했다. 승인 기록 저장을 활성화하려면 별도 운영자 키 설정이 필요하다.
