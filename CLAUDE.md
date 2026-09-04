@@ -12,4 +12,4 @@
 - Modes are `LIVE`, `FIXTURE`, `OFFLINE_REHEARSAL`, and `UNAVAILABLE`; never label fixture output as live.
 - ClickHouse reads must go through the official `mcp-clickhouse` `run_query` tool in live mode.
 - Media commands use fixed argument arrays, one process at a time, timeouts, and cleanup.
-- Keep uploads at or below 24 MiB and 60 seconds; demo output is 1280x720 H.264/AAC.
+- Keep uploaded files at or below 32,000,000 bytes (shown as 32 MB) and 60 seconds so the multipart request remains below Cloud Run's 32 MiB HTTP/1 limit; demo output is 1280x720 H.264/AAC.

@@ -30,7 +30,7 @@ def copy_source(stream: BinaryIO, destination: Path, limit: int, expected_hash: 
             total += len(chunk)
             if total > limit:
                 raise SourceUploadError(
-                    f"Video is too large. Maximum: {limit // 1048576} MiB.", 413
+                    f"Video is too large. Maximum: {limit // 1_000_000} MB.", 413
                 )
             digest.update(chunk)
             output.write(chunk)

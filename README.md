@@ -2,7 +2,7 @@
 
 RevisionProof turns video edit requests into reviewable previews and verified exports. Choose basic edits directly or use an editable natural-language draft, approve the exact result, then check it before delivery.
 
-1. Upload MP4/MOV/WebM, up to 24 MiB and 4–60 seconds, or use the sample.
+1. Upload MP4/MOV/WebM, up to 32 MB and 4–60 seconds, or use the sample.
 2. Combine center zoom, text, timed or speech-generated subtitles, interval cuts, reviewed silence removal, speed, volume, and an uploaded logo. Examples and editable cards show exactly what can run.
 3. Review original-video times and exact words. Quiet pauses become optional cut suggestions; the user selects them.
 4. Watch full A/B previews (zoom strength/text size). Cut-only plans produce one preview.

@@ -5,7 +5,8 @@ describe('original video upload limits', () => {
   it('accepts the exact byte boundary and rejects one byte over it before upload', () => {
     const file = { name: '내 영상.mp4', size: DEFAULT_UPLOAD_LIMITS.max_bytes }
     expect(fileValidation(file)).toBeNull()
-    expect(fileValidation({ ...file, size: file.size + 1 })).toContain('maximum is 24 MiB')
+    expect(file.size).toBe(32_000_000)
+    expect(fileValidation({ ...file, size: file.size + 1 })).toBe('This video is 32.1 MB. The maximum is 32 MB. Choose a smaller file.')
   })
   it('uses server limits and validates empty and unsupported files', () => {
     expect(fileValidation({ name: 'clip.MOV', size: 1024 })).toBeNull()

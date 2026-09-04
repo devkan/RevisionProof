@@ -226,7 +226,7 @@ class RevisionProofService:
                 if size <= 0 or size > self.settings.max_upload_bytes:
                     raise SourceUploadError(
                         "Video is too large or empty. "
-                        f"Maximum: {self.settings.max_upload_mib} MiB.",
+                        f"Maximum: {self.settings.max_upload_mb} MB.",
                         413,
                     )
                 source = folder / "source.video"
@@ -324,7 +324,7 @@ class RevisionProofService:
         if stream is not None:
             if size <= 0 or size > self.settings.max_upload_bytes:
                 raise SourceUploadError(
-                    f"Video is too large or empty. Maximum: {self.settings.max_upload_mib} MiB.",
+                    f"Video is too large or empty. Maximum: {self.settings.max_upload_mb} MB.",
                     413,
                 )
             with tempfile.TemporaryDirectory(
@@ -486,7 +486,7 @@ class RevisionProofService:
             raise SourceUploadError("An upload request identifier is required.")
         if size <= 0 or size > self.settings.max_upload_bytes:
             raise SourceUploadError(
-                f"Video is too large or empty. Maximum: {self.settings.max_upload_mib} MiB.", 413
+                f"Video is too large or empty. Maximum: {self.settings.max_upload_mb} MB.", 413
             )
         minimum = 2 if edit_plan is not None else 8
         if not minimum <= len(feedback) <= 2000:
@@ -1342,7 +1342,7 @@ class RevisionProofService:
             )
         if size <= 0 or size > self.settings.max_upload_bytes:
             raise ValueError(
-                f"upload must be between 1 byte and {self.settings.max_upload_mib} MiB"
+                f"upload must be between 1 byte and {self.settings.max_upload_mb} MB"
             )
 
         destination = (

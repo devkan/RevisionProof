@@ -16,7 +16,7 @@ RevisionProof now covers the common hackathon edit set in one review flow: zoom,
 | Add logo | Upload and place a logo at a corner or center | PNG/JPG/WebP, <=2 MiB, <=2048 px per side |
 | Generate subtitles from speech | Draft timed cues from the selected video's audio | LIVE only; Auto, Korean, English, or Korean+English mixed |
 
-The original video must be MP4, MOV, or WebM, 4–60 seconds, and no larger than 24 MiB. A plan can contain at most 24 selected operations. Slow motion can lengthen the result, so the editor blocks any plan that would exceed 60 seconds.
+The original video must be MP4, MOV, or WebM, 4–60 seconds, and no larger than 32 MB (32,000,000 bytes). A plan can contain at most 24 selected operations. Slow motion can lengthen the result, so the editor blocks any plan that would exceed 60 seconds.
 
 ## Use the automatic subtitles
 

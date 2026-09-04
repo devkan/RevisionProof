@@ -19,7 +19,10 @@ class Settings(BaseSettings):
 
     mode: ExecutionMode = ExecutionMode.FIXTURE
     runtime_dir: Path = Path("runtime")
-    max_upload_mib: int = Field(default=24, ge=1, le=100)
+    # Keep the complete multipart request below Cloud Run's 32 MiB HTTP/1 limit.
+    # The user-facing file limit is decimal MB, leaving room for form fields and
+    # the multipart envelope handled by UploadBodyLimit.
+    max_upload_mb: int = Field(default=32, ge=1, le=32)
     max_logo_mib: int = Field(default=2, ge=1, le=5)
     max_duration_seconds: int = Field(default=60, ge=1, le=600)
     ffmpeg_timeout_seconds: int = Field(default=90, ge=5, le=600)
@@ -58,7 +61,7 @@ class Settings(BaseSettings):
 
     @property
     def max_upload_bytes(self) -> int:
-        return self.max_upload_mib * 1024 * 1024
+        return self.max_upload_mb * 1_000_000
 
     @property
     def max_logo_bytes(self) -> int:

@@ -40,7 +40,7 @@ The deployed LIVE demo is `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app
 7. Before the separate delivery action, open raw run JSON and show `state=READY`, the live source labels, `generated_version_url`, and `delivery_approved=false`.
 8. Execute **Approve for delivery** only when the demo operator explicitly makes that final decision, then show `delivery_approved=true` and the new human approval event.
 
-The collapsed **Verify a video edited somewhere else** panel is optional. Use it only for an externally produced MP4. The accepted boundary is H.264/AAC MP4, 1280×720, up to 60 seconds, and up to 24 MiB.
+The collapsed **Verify a video edited somewhere else** panel is optional. Use it only for an externally produced MP4. The accepted boundary is H.264/AAC MP4, 1280×720, up to 60 seconds, and up to 32 MB (32,000,000 bytes).
 
 ## Three-run rehearsal
 

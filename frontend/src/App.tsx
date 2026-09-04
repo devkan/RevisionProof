@@ -31,7 +31,7 @@ import { isTerminalRunState } from './runStream'
 import { VideoLightbox, type VideoLightboxContent } from './VideoLightbox'
 import { ChangeMap, EditMemory, SaveApprovedMemory } from './RevisionIntelligence'
 import { SourceUpload, type UploadedSource } from './SourceUpload'
-import { fileValidation, limitsFor, rangeValidation } from './uploadValidation'
+import { fileValidation, formatUploadSize, limitsFor, rangeValidation } from './uploadValidation'
 import type {
   DemoAsset,
   PatchCandidate,
@@ -697,7 +697,7 @@ export default function App() {
                   <p>Use this only when an editor or another tool produced a separate full MP4. RevisionProof already builds its own result above.</p>
                   <button className="secondary-button" onClick={() => fileInput.current?.click()} disabled={busy || run.state === 'READY'}><Upload size={17} /> Choose external MP4</button>
                   <input ref={fileInput} hidden type="file" accept="video/mp4" onChange={(event) => uploadManual(event.target.files?.[0])} />
-                  <small>Limits: MP4 · H.264/AAC · 1280×720 · up to 60 seconds · up to 24 MiB.</small>
+                  <small>Limits: MP4 · H.264/AAC · 1280×720 · up to 60 seconds · up to {formatUploadSize(limitsFor(runtime).max_bytes)}.</small>
                 </div>
               </details>
             )}

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { Film, Upload } from 'lucide-react'
 import type { DemoAsset, RuntimeStatus } from './types'
-import { fileValidation, limitsFor } from './uploadValidation'
+import { fileValidation, formatUploadSize, limitsFor } from './uploadValidation'
 
 export interface UploadedSource { file: File; asset: DemoAsset }
 
@@ -47,7 +47,7 @@ export function SourceUpload({ runtime, selected, disabled, onSelect }: {
       {selected ? <button type="button" className="secondary-button" disabled={disabled || checking} onClick={() => { setError(null); onSelect(null) }}><Film size={18} />Use sample instead</button> : <span className="input-help">Or explore with the sample below.</span>}
     </div>
     <input ref={input} hidden type="file" accept=".mp4,.mov,.webm,video/mp4,video/quicktime,video/webm" aria-label="Upload original video" disabled={disabled || checking} onChange={(event) => { void choose(event.target.files?.[0]); event.target.value = '' }} />
-    <p className="input-help">MP4, MOV or WebM · up to {limits.max_bytes / 1048576} MiB · {limits.min_duration_seconds}–{limits.max_duration_seconds}s. Videos are prepared at 1280×720 with their aspect ratio preserved.</p>
+    <p className="input-help">MP4, MOV or WebM · up to {formatUploadSize(limits.max_bytes)} · {limits.min_duration_seconds}–{limits.max_duration_seconds}s. Videos are prepared at 1280×720 with their aspect ratio preserved.</p>
     {error && <p className="upload-warning" role="alert">{error}</p>}
   </div>
 }

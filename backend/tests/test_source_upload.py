@@ -310,11 +310,19 @@ async def test_live_review_retry_keeps_uploaded_source_and_selected_range(
 def test_oversize_content_length_rejected_before_multipart(tmp_path):
     client, service = app_client(tmp_path)
     response = client.post(
-        "/api/runs/upload", content=b"x", headers={"Content-Length": str(25 * 1048576)}
+        "/api/runs/upload",
+        content=b"x",
+        headers={"Content-Length": str(service.settings.max_upload_bytes + 64 * 1024 + 1)},
     )
     assert response.status_code == 413
-    assert "24 MiB" in response.json()["detail"]
+    assert "32 MB" in response.json()["detail"]
     assert not service._create_timestamps
+
+
+def test_upload_limit_leaves_room_below_cloud_run_http1_body_limit(tmp_path):
+    _, service = app_client(tmp_path)
+    assert service.settings.max_upload_bytes == 32_000_000
+    assert service.settings.max_upload_bytes + 64 * 1024 < 32 * 1024 * 1024
 
 
 def test_actual_stream_size_and_checksum_enforced(tmp_path):
