@@ -6,6 +6,8 @@ Branch: review/qa-hardening
 
 ## Current Status
 
+- A new 30-second English KANAPP promo source is ready for demo editing at `D:\Hackathon\006.Agentic Cinema Hackathon\video\kanapp_promo_english_editable_30s.mp4`; its matching overlay logo is `D:\Hackathon\006.Agentic Cinema Hackathon\video\kanapp_demo_logo.png`. The MP4 is 1280×720, 30 fps, H.264/AAC, 831,549 bytes, with six English scenes, English narration, a deliberately quieter 5–10 second section and a detected quiet interval around 15.19–18.45 seconds. Read [the English promo and three demo scenarios](docs/kanapp-english-demo-video-2026-09-04.md) first.
+- The generated media passed FFmpeg full decode and RevisionProof upload validation locally. Its storyboard was visually inspected. The MP4 has **not** yet been uploaded to LIVE or completed an A/B/full-verification run, so no LIVE success is claimed for this new asset. Generated media stays outside Git; reproducible source and scenarios are tracked in `2186575`.
 - Source-video uploads now accept up to **32,000,000 bytes (32 MB)** and are **deployed and LIVE verified**: source `08113823abbba221a9926799e9f5ae1dc0f33657`, revision `revisionproof-staging-00025-88t`, traffic 100%, all readiness conditions True. Build `98fdd1af-59ca-4300-ae39-c4cca0d334a5` SUCCESS at `2026-09-04T07:17:13.397392Z`; image `sha256:c04b1b1caae3bbd97b3d21741ee12709a468e2fbe49947411b677554d40e4ef4`. Read [the 32 MB upload release record](docs/deployment-2026-09-04-upload-32mb.md) first.
 - LIVE browser QA rejected a synthetic 32,000,001-byte file before network upload with a clear 32.1 MB warning. A synthetic exact 32,000,000-byte multipart request passed Cloud Run and reached application media validation, proving the boundary does not trigger the platform's HTTP 413 limit. `/health`, `/ready` and `/api/runtime` returned 200; runtime reports `max_bytes=32000000`.
 - Smart scene finder and recipe memory are **deployed and LIVE verified**: source `b0b00a9937cf158560f4a3fba2f3d473104b3b6c`, revision `revisionproof-staging-00024-c9p`, traffic 100%, all readiness conditions True. Build `aa63da88-9407-45e6-9659-235427e5d4a2` SUCCESS at `2026-09-04T05:51:14.595604Z`; image `sha256:03da71d487c0911359164cae0956de4e29ce7410207ab5ec65d4df3b268f2970`. Read [the smart scene and recipe memory release record](docs/smart-scene-and-recipe-memory-2026-09-04.md) first.
@@ -21,6 +23,12 @@ Branch: review/qa-hardening
 - Branch/repo remain `review/qa-hardening` / PRIVATE. No PR, merge or visibility change. Existing-service deployment and Git push are authorized; the earlier Cloud Console approval block was resolved by the user's explicit deployment request.
 - Earlier automatic review rejected retransmission of `demo_movie_kanapp.mp4` to LIVE without explicit file-and-destination approval. Keep it local and use non-sensitive synthetic media for LIVE QA. Never auto-approve final delivery or seed Cloud memory.
 
+## Completed This Session
+
+- Raised the source-video limit to 32,000,000 decimal bytes, added browser/server boundary handling and tests, pushed source `0811382`, deployed revision `revisionproof-staging-00025-88t`, and verified LIVE health, readiness, runtime configuration, a 32,000,001-byte browser rejection with no upload request, and an exact 32,000,000-byte request reaching application validation.
+- Generated the English KANAPP promo, demo logo and storyboard; added the reproducible Windows/SAPI/FFmpeg generator in `scripts/generate_kanapp_promo.py`.
+- Wrote three independent English demo paths covering smart scene search and all eight editor controls. Scenario 2 is the recommended single-run feature demo.
+
 ## Previous Release Context
 
 - Diagnosed the actual KANAPP audio false block and the LIVE Korean target-phrase error from logs, added failing regressions, then fixed them with schema 2.2 and explicit unsupported-request recovery. Current backend 303 / frontend 19 and static/build checks passed. Local actual-video proof and post-deploy synthetic-video evidence are in the new debug record.
@@ -33,6 +41,7 @@ Branch: review/qa-hardening
 
 ## Relevant Docs
 
+- [KANAPP English promo and three demo scenarios](docs/kanapp-english-demo-video-2026-09-04.md) — source paths, checksums, timeline, narration, exact edit steps, English presenter scripts and local verification boundary.
 - [32 MB upload limit LIVE release](docs/deployment-2026-09-04-upload-32mb.md) — current source/build/revision, decimal-MB rationale and browser/server boundary proof.
 - [Smart scene finder and recipe memory LIVE release](docs/smart-scene-and-recipe-memory-2026-09-04.md) — current source/build/revision, ClickHouse Cloud migration, opt-in cost UX, recipe memory and LIVE search proof.
 - [Advanced editing LIVE deployment and proof](docs/deployment-2026-09-04-advanced-editing.md) — read first; source/build/image/revision IDs, mixed-speech run, spec 3.1, and gstack evidence.
@@ -55,7 +64,9 @@ Branch: review/qa-hardening
 
 ## Remaining Work
 
-Requested 32 MB upload limit, smart scene finder, recipe memory, compact editor UI, push, deployment and fresh LIVE verification are complete. Private memory keys, burned-in text replacement, moving-object/background edits, generated scenes, voice or music generation, and durable job recovery remain separate future scope. Final delivery approval is the owner's decision.
+1. Rehearse Scenario 2 with the new English MP4 in the LIVE editor: generate English subtitles, correct `KANAPP`, `Medical Check` or `LeanCOO` if needed, select only the main quiet interval, apply 1.25× speed, +6 dB volume and the closing URL, then inspect A/B and full verification.
+2. Rehearse Scenario 1 and Scenario 3 from fresh uploads of the original MP4, then choose the strongest moments for the final recorded demo.
+3. Record the final English presentation. UI redesign is intentionally deferred; keep further code changes limited to concrete rehearsal bugs.
 
 ## Watchouts
 
@@ -65,10 +76,12 @@ Requested 32 MB upload limit, smart scene finder, recipe memory, compact editor 
 - Runs are process-local; refresh does not restore the active UI, and restart may make old run APIs unavailable. Keep Cloud Run concurrency 4 / min-max 1 unless that state model is deliberately changed.
 - The upload limit is 32,000,000 decimal bytes, leaving room for the multipart envelope under Cloud Run's 32 MiB HTTP/1 request-body ceiling. Do not reinterpret the setting as 32 MiB without changing the upload transport.
 - The bundled source is an authored storyboard/tone with seeded metadata. User uploads use explicit original-video timing; speech transcription runs only when the user selects the subtitle generator and always returns an editable draft. New exports have exact preview identity checks while the Change Map remains sampled diagnostics. Prepared videos and logo assets are process-local, not durably archived originals.
+- The new KANAPP MP4/logo are local generated files outside the Git repository. Preserve the two upload-ready files in `D:\Hackathon\006.Agentic Cinema Hackathon\video`; regenerate with `backend\.venv\Scripts\python.exe scripts\generate_kanapp_promo.py` if lost. Windows speech synthesis requires access to the installed `Microsoft Zira Desktop` voice and may fail in a restricted sandbox.
+- Start each demo scenario from the original 30-second source. Edit timings refer to the original upload; chaining one scenario's output into the next makes the documented times wrong.
 - Never auto-approve LIVE delivery or seed fake Cloud memory. Historical human-approved run `01M0Z3338TYVHWHK4FZRGADTKZ` is not approval for a new run.
 - A LIVE badge or selected HNSW/QBit option alone is not proof of successful live calls/index use. Hosted CI does not run on this branch push; previous local test and Cloud Build successes are separate evidence.
 - Secrets, archives, backups and ignored `.gstack/` evidence must not be published. New windows must reacquire browser sessions; trial end/date and Cloud state should be rechecked before operational changes.
 
 ## Suggested Next Action
 
-Use [the current LIVE editor](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=0811382) and the 32 MB/smart-scene release records for the demo; refresh old tabs. Current upload warning evidence is `runtime/qa-live-32mb-warning.png`. Preserve existing resources and secret versions; do not approve delivery on behalf of the owner.
+Open [the current LIVE editor](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=0811382), read the new KANAPP English demo guide, and run Scenario 2 from the original local MP4 without approving final delivery on behalf of the owner.

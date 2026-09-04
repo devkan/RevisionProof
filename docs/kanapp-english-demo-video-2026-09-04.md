@@ -14,6 +14,17 @@ The source is a 30-second, 1280×720, 30 fps H.264/AAC MP4 with an English voice
 
 The upload-ready MP4 SHA-256 is `ce6270bbd3eac7359d173fa34386b8f00ab1bc83c571e0c9bb27e030003d4d91`. The logo SHA-256 is `3e6bb79d8a15c39cad4bf43ab87862a99d69df53bdf001ac3493a62e5ab1e95d`.
 
+## Local verification and current boundary
+
+- `ffprobe`: exactly 30.000 seconds, 1280×720, 30 fps, H.264 video, mono 48 kHz AAC audio, 831,549 bytes.
+- Full audio/video decode with FFmpeg `-xerror`: PASS.
+- RevisionProof source validation for a 0–5 second selection: PASS.
+- Main `silencedetect` interval at −42 dB for at least 0.6 seconds: approximately 15.19–18.45 seconds.
+- Opening 0–5 second mean/peak: −20.3/−2.6 dB; deliberately quiet 5–10 second mean/peak: −28.3/−10.0 dB; designed 15.2–18.35 second pause mean/peak: −62.9/−48.7 dB.
+- The six-scene storyboard was visually inspected after generation.
+- Generation source and this guide are tracked in commit `2186575`. The MP4, logo and storyboard are generated artifacts and remain outside Git.
+- The generated MP4 has not yet been uploaded to LIVE or taken through a complete RevisionProof A/B and verification run. Do not report a LIVE result until that rehearsal is observed.
+
 ## Source timeline and narration
 
 | Time | Picture | English narration | Demo purpose |
