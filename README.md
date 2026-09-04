@@ -3,13 +3,13 @@
 RevisionProof turns video edit requests into reviewable previews and verified exports. Choose basic edits directly or use an editable natural-language draft, approve the exact result, then check it before delivery.
 
 1. Upload MP4/MOV/WebM, up to 24 MiB and 4–60 seconds, or use the sample.
-2. Combine center zoom, text, timed subtitle cues, interval cuts and reviewed silence removal. Examples and editable cards show exactly what can run.
+2. Combine center zoom, text, timed or speech-generated subtitles, interval cuts, reviewed silence removal, speed, volume, and an uploaded logo. Examples and editable cards show exactly what can run.
 3. Review original-video times and exact words. Quiet pauses become optional cut suggestions; the user selects them.
 4. Watch full A/B previews (zoom strength/text size). Cut-only plans produce one preview.
 5. Choosing a preview freezes spec 3.1 and its SHA-256. The export is an exact copy; media checks and the LIVE ClickHouse MCP feature diff verify the result.
 6. Watch the result, use `Adjust edits` if needed, then explicitly approve delivery.
 
-See the [basic editing guide and release evidence](docs/basic-editing-guide-2026-09-03.md) for Korean/English examples, current deployment status and limitations. The original scene-search punch-in proof remains an alternate demo, and its existing spec 2.x JSON/hash contracts remain supported.
+See the [advanced editing guide](docs/advanced-editing-guide-2026-09-04.md) for Korean/English examples, upload limits, current controls, and limitations. The original scene-search punch-in proof remains an alternate demo, and its existing spec 2.x JSON/hash contracts remain supported.
 
 ## Revision intelligence
 
@@ -38,7 +38,7 @@ Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits 
 
 ## Deployed LIVE demo
 
-The billed GCP demo is available at [RevisionProof LIVE](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=94c081c). Revision `revisionproof-staging-00022-swm` serves QA-fixed source `94c081c`: source changes clear old drafts, correct cuts no longer falsely BLOCK on adjacent-frame comparisons, and local caption-removal requests cannot suggest footage deletion. Fresh LIVE cut regression and compound run `01M1KSXKTCYB5NTBB2MJC5ZQ28` both reached `READY` with three PASS checks. The compound B video combines Korean subtitles, zoom, English text, a timed cut and selected silence removal; 10 seconds became 7.766667 seconds, with an official MCP map of 8 windows / 16 samples / zero review flags. Download matched the approved preview exactly; text frames and mapped playback were inspected. LIVE QA used synthetic media and final delivery approval remains false. See [latest deployment evidence](docs/deployment-2026-09-03-qa-fixes.md) and the [usage guide](docs/basic-editing-guide-2026-09-03.md). Refresh previously opened tabs. Earlier release and human-approved runs remain separate historical evidence.
+The billed GCP demo is available at [RevisionProof LIVE](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=150d367). Revision `revisionproof-staging-00023-j7p` serves source `150d36774b0acaece9aad57a4d655af3eda59c5b` with speed, volume, uploaded-logo, and Korean/English/mixed-speech subtitle controls. Fresh LIVE run `01M1N8HK13Z3R5GG8KMEEDDCYN` generated four mixed-language editable cues and combined them with 1.5x speed, -6 dB volume, and a full-video logo. B reached `READY` under spec 3.1 with all three checks `PASS`; 9.93 seconds became 8.6 seconds. Console and network checks were clean, the 390 px result had no horizontal overflow, and final delivery approval remains false. See the [advanced release evidence](docs/deployment-2026-09-04-advanced-editing.md). Refresh previously opened tabs. Earlier releases and human-approved runs remain separate historical evidence.
 
 `/ready` deliberately reports that integrations are configured, not that every future call will succeed. Treat a run as LIVE evidence only when its raw JSON shows successful integration results and the matching ClickHouse evidence. The historical 2026-08-26 run received separate human delivery approval; the new upload QA run remains unapproved for delivery.
 

@@ -60,8 +60,8 @@ Moving-object tracking, removing text already burned into footage, background re
 - A 2 MiB-plus logo is rejected in the browser before upload. A valid logo is normalized, previewed, and rendered.
 - A compound 10-second synthetic run combined 1.5× speed, −6 dB volume, and a full-video logo. B reached `READY` with all three checks `PASS`; output duration was 8.67 seconds and the rendered logo frame was inspected.
 - The run remained unapproved for final delivery. Synthetic media was used; the local KANAPP source was not uploaded for QA.
-- Code gates at this point: Ruff and frontend ESLint pass; focused backend 25/25 and frontend 23/23 pass; production frontend build succeeds. The full backend result and deployed LIVE evidence are recorded after release below.
+- Code gates: backend 336/336, focused advanced/basic/tool regressions 25/25, post-rate-limit checks 5/5, and frontend 23/23 pass. Ruff, frontend ESLint, and the production build also pass.
 
 ## Release evidence
 
-Deployment and LIVE execution evidence will be appended after the exact committed source is deployed and verified.
+Source `150d36774b0acaece9aad57a4d655af3eda59c5b` is deployed as revision `revisionproof-staging-00023-j7p` with 100% traffic. A fresh LIVE mixed Korean/English run generated four editable cues, combined them with 1.5x speed, -6 dB volume, and a full-video logo, then reached `READY` with all three checks `PASS`. Final delivery approval remains false. See the [exact deployment and LIVE gstack record](deployment-2026-09-04-advanced-editing.md).

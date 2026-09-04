@@ -1,16 +1,16 @@
 # Handoff
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 Project: RevisionProof — D:\Hackathon\006.Agentic Cinema Hackathon\RevisionProof
 Branch: review/qa-hardening
 
 ## Current Status
 
-- Latest gstack QA fixes are **deployed and LIVE verified**: source `94c081c`, revision `revisionproof-staging-00022-swm`, traffic 100%, all readiness conditions True. Build `87ee838a-ded4-4fb0-b8bc-ee8102fed3d3` SUCCESS at `2026-09-03T14:09:04.145759Z`; image `sha256:d73f1ce9e48992e9db98694bde1dd8bc6469219680708d30e2bf304bca722ad9`. Read [latest deployment evidence](docs/deployment-2026-09-03-qa-fixes.md) first.
-- Fixed stale drafts after source changes, false BLOCKED after frame-aligned cuts, and local caption-removal requests incorrectly suggesting footage cuts. Exact-source gates: backend 330 passed / 124.10s, frontend 22, Ruff/ESLint/TypeScript/build pass. The owner explicitly approved deployment after the earlier automatic Cloud Console rejection; the existing Cloud Shell was reconnected and authorized, with no bypass, resource migration or credential changes.
-- Fresh LIVE cut regression `01M1KSREVAKEE0D7E71BGQBHV4` and compound run `01M1KSXKTCYB5NTBB2MJC5ZQ28` are READY / 3 PASS with official MCP maps and zero review flags. Compound B: Korean subtitle + zoom + English lower text + timed cut + explicitly selected silence cut, 10s -> 7.766667s; map 8 windows / 16 samples. Download exactly matches preview, SHA-256 `e16ae9f9e3bc539f8b9a757174b5371c66480274567ab1db7a5eb40e381a28a3`. Text frames and mapped playback inspected; no browser console/HTTP errors. Both delivery approvals remain false.
-- The owner authorized and implementation now includes center zoom, literal text, timed subtitle cues, exact cuts and reviewed silence removal. The default UI has selectable examples, editable cards, explicit draft review, preserved-input adjustment and mapped comparisons. Read [the current guide](docs/basic-editing-guide-2026-09-03.md) and [engineering review](docs/basic-editing-plan-2026-09-03.md).
-- New EDIT_PLAN spec 3.0 freezes original-time operations and a full-preview SHA-256. Export is a byte-identical copy. Legacy 2.x JSON/hash behavior remains compatible. All audio channels must be quiet; proposed cuts require user selection.
+- Advanced editing is **deployed and LIVE verified**: source `150d36774b0acaece9aad57a4d655af3eda59c5b`, revision `revisionproof-staging-00023-j7p`, traffic 100%, all readiness conditions True. Build `fcb6b33c-7b81-421c-8d5d-21eff29cc1bf` SUCCESS at `2026-09-04T03:41:32.832473Z`; image `sha256:fc05a5676d7a68c5c6f7502902ab81bfe2b36bff3a6bd459d144c1207344826e`. Read [the advanced release record](docs/deployment-2026-09-04-advanced-editing.md) first.
+- The guided editor now has eight controls: zoom, text, timed subtitle, exact cut, reviewed quiet-pause removal, 0.5-2x speed, -60 to +12 dB volume, and bounded uploaded logos. LIVE Vertex Gemini drafts editable Korean, English, auto-detected, or mixed Korean/English subtitle cues. Spec 3.1 freezes retiming, audio changes, normalized logo ID/hash, overlays, mapped timeline, and the chosen full-preview SHA-256. Legacy 2.x and safe 3.0 contracts remain compatible.
+- Exact-source gates: backend 336 passed / 129.74s, focused regressions 25 passed / 22.77s, rate-limit checks 5 passed / 2.86s, frontend 23 passed, plus Ruff/ESLint/build. Desktop and 390 px local gstack QA passed, including valid and over-limit logos, compound previews, output frames, overflow, and console checks.
+- Fresh LIVE run `01M1N8HK13Z3R5GG8KMEEDDCYN` used synthetic Korean plus English speech. Four generated cues remained editable; two ambiguous product-name transcriptions were corrected to KANAPP. The plan combined those subtitles with 1.5x speed, -6 dB volume, and a full-video bottom-right logo. B reached READY / 3 PASS under spec 3.1; 9.93s -> 8.6s. Browser console/network and 390 px overflow checks passed. Delivery approval remains false.
+- Previous QA fixes remain present: source switches clear stale drafts, frame-aligned cuts do not falsely BLOCK, and local caption-removal requests cannot suggest footage deletion. The earlier `94c081c` release and runs are historical evidence.
 - Actual KANAPP compound request passed locally: run `01M1KD2G84K7G3CCT5RAG0WS89`, B, READY / 3 PASS, zero map flags. Text is visibly present at 6 seconds. Synthetic subtitles + manual/silence cuts run `01M1KDAT3C4Z43KQJTYB8ZSW3J` passed, 10s -> 7.766667s; revised 3s maps to original 5.233333s.
 - Previous release `1b2c0ae` / revision `00021-4fx` used build `2467c268-f0f9-4090-9c88-7dd71f454f53` and passed 322/22 tests. Its LIVE run `01M1KHABHY8YWTZ7RQVPK3MF9Q` is historical evidence, superseded by the new runs above. Read the guide's LIVE debugging record before changing the provider schema: Gemini receives only five draft fields, while strict runtime validation and silence settings stay server-owned.
 - Branch/repo remain `review/qa-hardening` / PRIVATE. No PR, merge or visibility change. Existing-service deployment and Git push are authorized; the earlier Cloud Console approval block was resolved by the user's explicit deployment request.
@@ -28,6 +28,8 @@ Branch: review/qa-hardening
 
 ## Relevant Docs
 
+- [Advanced editing LIVE deployment and proof](docs/deployment-2026-09-04-advanced-editing.md) — read first; source/build/image/revision IDs, mixed-speech run, spec 3.1, and gstack evidence.
+- [Advanced editing usage guide](docs/advanced-editing-guide-2026-09-04.md) — eight controls, subtitle workflow, limits, examples, and unsupported advanced work.
 - [Latest QA-fix deployment and LIVE evidence](docs/deployment-2026-09-03-qa-fixes.md) — read first; source/build/image/revision IDs, cut and compound runs, exact download hash.
 - [gstack review and QA fixes](docs/qa-review-2026-09-03-basic-editor.md) — 3 fixes, before/after tests and resolved historical Cloud Console rejection.
 - [Basic editing guide and release evidence](docs/basic-editing-guide-2026-09-03.md) — current work; read first.
@@ -46,7 +48,7 @@ Branch: review/qa-hardening
 
 ## Remaining Work
 
-Requested QA fixes, push, deployment and fresh LIVE verification are complete. One low-priority generic LIVE caption warning is deferred. Private memory keys, automatic transcription, burned-in text replacement, general effects and durable job recovery remain separate future scope. Final delivery approval is the owner's decision.
+Requested advanced editing, push, deployment and fresh LIVE verification are complete. Private memory keys, burned-in text replacement, moving-object/background edits, generated scenes, voice or music generation, and durable job recovery remain separate future scope. Final delivery approval is the owner's decision.
 
 ## Watchouts
 
@@ -54,11 +56,11 @@ Requested QA fixes, push, deployment and fresh LIVE verification are complete. O
 - ClickHouse host `r2uz2gfc2f.asia-northeast1.gcp.clickhouse.cloud`, service `268999c1-badb-423e-993c-ebab14b551c4`. Seven extension objects/grants are already applied; do not rerun historical bootstrap or revoke existing grants.
 - Preserve `revisionproof.segments_pre_seed_dedupe_20260826`, shared roles/definer, other projects and Docker volumes. Deletion, billing and new credentials require scoped owner authority.
 - Runs are process-local; refresh does not restore the active UI, and restart may make old run APIs unavailable. Keep Cloud Run concurrency 4 / min-max 1 unless that state model is deliberately changed.
-- The bundled source is an authored storyboard/tone with seeded metadata. User uploads instead use explicit user-selected timing and no inferred transcription. Basic editing is authorized and implemented; new exports have exact preview identity checks while the Change Map remains sampled diagnostics. Prepared uploads are process-local, not durably archived originals.
+- The bundled source is an authored storyboard/tone with seeded metadata. User uploads use explicit original-video timing; speech transcription runs only when the user selects the subtitle generator and always returns an editable draft. New exports have exact preview identity checks while the Change Map remains sampled diagnostics. Prepared videos and logo assets are process-local, not durably archived originals.
 - Never auto-approve LIVE delivery or seed fake Cloud memory. Historical human-approved run `01M0Z3338TYVHWHK4FZRGADTKZ` is not approval for a new run.
 - A LIVE badge or selected HNSW/QBit option alone is not proof of successful live calls/index use. Hosted CI does not run on this branch push; previous local test and Cloud Build successes are separate evidence.
 - Secrets, archives, backups and ignored `.gstack/` evidence must not be published. New windows must reacquire browser sessions; trial end/date and Cloud state should be rechecked before operational changes.
 
 ## Suggested Next Action
 
-Use [the current LIVE editor](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=94c081c) and the guide's examples for the demo; refresh old tabs. Latest browser evidence is under `.gstack/qa-release-94c081c/`. Local QA used port 18129 / `.gstack/qa-review-runtime/`; recheck process state before reuse. Preserve existing resources and secret versions.
+Use [the current LIVE editor](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=150d367) and the advanced guide's examples for the demo; refresh old tabs. Latest ignored browser evidence is `.gstack/advanced-live-ab-previews.png`, `.gstack/advanced-live-ready.png`, and `.gstack/advanced-live-ready-mobile.png`. Preserve existing resources and secret versions; do not approve delivery on behalf of the owner.

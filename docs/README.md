@@ -1,5 +1,6 @@
 # RevisionProof docs
 
+- [Advanced editing LIVE release — source, Cloud Run, mixed-speech gstack proof](deployment-2026-09-04-advanced-editing.md)
 - [Advanced editing — speed, volume, logo, Korean/English speech subtitles](advanced-editing-guide-2026-09-04.md)
 - [QA 수정본 LIVE 배포 완료 — revision 00022, 컷·복합 편집 검증](deployment-2026-09-03-qa-fixes.md)
 - [기본 편집 gstack 리뷰·QA — 오류 3건 수정, 330/22 테스트](qa-review-2026-09-03-basic-editor.md)
