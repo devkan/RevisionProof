@@ -13,7 +13,10 @@ DEMO_DIR = ROOT / "runtime" / "demo"
 
 WIDTH = 1280
 HEIGHT = 720
-FPS = 24
+# The edit-plan sampler and uploaded-source preparation both use a canonical
+# 30 fps timeline. Keep the bundled demo on that same contract so verification
+# never seeks past a 24 fps source by using a 30 fps frame index.
+FPS = 30
 DURATION_SECONDS = 30
 BASE_VOLUME = 0.08
 
@@ -165,9 +168,7 @@ def _editing_scene(frame: np.ndarray, second: float) -> None:
         cv2.rectangle(frame, (405, y), (840, y + 38), (35, 29, 22), -1)
         clip_start = 430 + row * 38
         moving_width = int(190 + 18 * math.sin(second * 1.7 + row))
-        cv2.rectangle(
-            frame, (clip_start, y + 5), (clip_start + moving_width, y + 33), color, -1
-        )
+        cv2.rectangle(frame, (clip_start, y + 5), (clip_start + moving_width, y + 33), color, -1)
         cv2.line(frame, (655, y - 8), (655, y + 46), WHITE, 2)
     _rounded_box(frame, 910, 258, 250, 334, (30, 27, 23), border=PANEL_LIGHT)
     _text(frame, "AGENT READ", 934, 294, scale=0.42, color=CYAN)
@@ -182,9 +183,7 @@ def _editing_scene(frame: np.ndarray, second: float) -> None:
         cv2.circle(frame, (938, y), 14, color, -1)
         _text(frame, number, 933, y + 5, scale=0.38, color=INK, thickness=2)
         _text(frame, label, 966, y + 6, scale=0.43, color=WHITE)
-    _text(
-        frame, "Ambiguity becomes an executable edit.", 302, 620, scale=0.48, color=CYAN
-    )
+    _text(frame, "Ambiguity becomes an executable edit.", 302, 620, scale=0.48, color=CYAN)
 
 
 def _reveal_scene(frame: np.ndarray, second: float) -> None:
@@ -196,9 +195,7 @@ def _reveal_scene(frame: np.ndarray, second: float) -> None:
     card_y = 118 + (410 - card_h) // 2
     _rounded_box(frame, card_x, card_y, card_w, card_h, PANEL, border=PURPLE)
     _person(frame, 177, 275, pointing=True)
-    _rounded_box(
-        frame, card_x + 38, card_y + 34, card_w - 76, 42, INK, border=PANEL_LIGHT
-    )
+    _rounded_box(frame, card_x + 38, card_y + 34, card_w - 76, 42, INK, border=PANEL_LIGHT)
     _text(
         frame,
         "LIVE PROOF TRACE",
@@ -238,9 +235,7 @@ def _reveal_scene(frame: np.ndarray, second: float) -> None:
         5,
     )
     _text(frame, "NOTE", card_x + 111, card_y + 305, scale=0.28, color=INK, thickness=2)
-    _text(
-        frame, "08-14", card_x + 315, card_y + 305, scale=0.28, color=INK, thickness=2
-    )
+    _text(frame, "08-14", card_x + 315, card_y + 305, scale=0.28, color=INK, thickness=2)
     _text(frame, "PASS", card_x + 514, card_y + 305, scale=0.28, color=INK, thickness=2)
     _rounded_box(frame, 76, 515, 1128, 95, INK, border=CYAN)
     _text(frame, "CAMERA PUSH-IN TARGET", 106, 553, scale=0.45, color=CYAN, thickness=2)
@@ -447,8 +442,7 @@ def variant_filter(*, punch_scale: float | None, cta_mode: str) -> str | None:
     if cta_mode in {"remove", "partial", "shifted"}:
         start = 25 if cta_mode == "partial" else 24
         filters.append(
-            f"drawbox=enable='between(t,{start},29)':x=840:y=570:"
-            "w=340:h=90:color=0x0e1423@1:t=fill"
+            f"drawbox=enable='between(t,{start},29)':x=840:y=570:w=340:h=90:color=0x0e1423@1:t=fill"
         )
     if cta_mode == "shifted":
         filters.extend(

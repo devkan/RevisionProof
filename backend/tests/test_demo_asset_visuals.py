@@ -13,6 +13,19 @@ def _frame(video: Path, second: float) -> np.ndarray:
     return frame
 
 
+def test_demo_source_uses_the_canonical_edit_timeline(runtime_dir: Path) -> None:
+    source = runtime_dir / "demo" / "revisionproof_v1.mp4"
+    capture = cv2.VideoCapture(str(source))
+    try:
+        fps = capture.get(cv2.CAP_PROP_FPS)
+        frame_count = capture.get(cv2.CAP_PROP_FRAME_COUNT)
+    finally:
+        capture.release()
+
+    assert fps == 30
+    assert frame_count == 30 * 30
+
+
 def test_demo_source_has_four_visually_distinct_storyboard_scenes(
     runtime_dir: Path,
 ) -> None:

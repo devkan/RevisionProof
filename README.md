@@ -34,7 +34,7 @@ npm run build --prefix frontend
 backend/.venv/Scripts/uvicorn.exe revisionproof.main:app --app-dir backend/src --reload --port 8000
 ```
 
-Open `http://127.0.0.1:8000`. Fixture mode is labeled in the UI and never emits a fake MCP or Gemini success. `OFFLINE_REHEARSAL` is read-only. `LIVE` mode fails readiness until Google Cloud, GCS, and ClickHouse settings are present.
+Open `http://127.0.0.1:8000/studio` for the separate six-step workspace, or `http://127.0.0.1:8000` for the preserved classic UI. Fixture mode is labeled in both screens and never emits a fake MCP or Gemini success. `OFFLINE_REHEARSAL` is read-only. `LIVE` mode fails readiness until Google Cloud, GCS, and ClickHouse settings are present.
 
 ## Deployed LIVE demo
 
