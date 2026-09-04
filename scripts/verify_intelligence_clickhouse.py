@@ -10,6 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
+
 from revisionproof.bootstrap import _provision_users
 from revisionproof.evidence.live import (
     ClickHouseWriter,
@@ -144,19 +145,14 @@ def main() -> None:
         )
         recipe_results = asyncio.run(
             reader.run_query(
-                build_recipe_search_query(
-                    workspace, "benchmark-768", recipe_vector, "exact"
-                )
+                build_recipe_search_query(workspace, "benchmark-768", recipe_vector, "exact")
             )
         )
         if (
             not recipe_results
-            or normalize_clickhouse_fixed_string(recipe_results[0]["memory_id"])
-            != recipe_memory_id
+            or normalize_clickhouse_fixed_string(recipe_results[0]["memory_id"]) != recipe_memory_id
         ):
-            raise RuntimeError(
-                "approved recipe search did not return the inserted recipe"
-            )
+            raise RuntimeError("approved recipe search did not return the inserted recipe")
 
         search_id = "01M00000000000000000000001"
         segment_id = "01M00000000000000000000002"
@@ -180,15 +176,12 @@ def main() -> None:
         )
         scene_results = asyncio.run(
             reader.run_query(
-                build_smart_scene_search_query(
-                    workspace, search_id, asset_id, vectors[44].tolist()
-                )
+                build_smart_scene_search_query(workspace, search_id, asset_id, vectors[44].tolist())
             )
         )
         if (
             not scene_results
-            or normalize_clickhouse_fixed_string(scene_results[0]["segment_id"])
-            != segment_id
+            or normalize_clickhouse_fixed_string(scene_results[0]["segment_id"]) != segment_id
         ):
             raise RuntimeError("smart scene search did not return the inserted segment")
         plan = asyncio.run(
@@ -200,10 +193,7 @@ def main() -> None:
             )
         )
         plan_text = "\n".join(str(value) for row in plan for value in row.values())
-        if (
-            "approved_edit_hnsw" not in plan_text
-            or "vector_similarity" not in plan_text
-        ):
+        if "approved_edit_hnsw" not in plan_text or "vector_similarity" not in plan_text:
             raise RuntimeError("HNSW was not selected by ClickHouse:\n" + plan_text)
         pair = [
             workspace,
@@ -235,15 +225,11 @@ def main() -> None:
             "smart_scene_segments",
         ):
             try:
-                asyncio.run(
-                    reader.run_query(f"SELECT * FROM revisionproof.{table} LIMIT 1")
-                )
+                asyncio.run(reader.run_query(f"SELECT * FROM revisionproof.{table} LIMIT 1"))
             except RuntimeError:
                 pass
             else:
-                raise RuntimeError(
-                    f"MCP reader unexpectedly accessed raw table {table}"
-                )
+                raise RuntimeError(f"MCP reader unexpectedly accessed raw table {table}")
         print(
             json.dumps(
                 {

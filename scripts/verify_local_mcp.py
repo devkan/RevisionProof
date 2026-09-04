@@ -16,9 +16,7 @@ async def verify() -> None:
         clickhouse_mcp_password="mcp-local-test",
     )
     reader = McpClickHouseReader(settings)
-    rows = await reader.run_query(
-        "SELECT count() AS segment_count FROM search_segments"
-    )
+    rows = await reader.run_query("SELECT count() AS segment_count FROM search_segments")
     if len(rows) != 1 or int(rows[0]["segment_count"]) < 0:
         raise RuntimeError("official mcp-clickhouse returned an invalid view result")
     try:

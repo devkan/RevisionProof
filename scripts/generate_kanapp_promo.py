@@ -115,9 +115,7 @@ def _base_frame(second: float, scene_number: int, scene_label: str) -> Image.Ima
 
     progress = min(1.0, max(0.0, second / DURATION))
     draw.rounded_rectangle((52, 676, 1228, 680), radius=2, fill=(39, 58, 82))
-    draw.rounded_rectangle(
-        (52, 676, 52 + int(1176 * progress), 680), radius=2, fill=CYAN
-    )
+    draw.rounded_rectangle((52, 676, 52 + int(1176 * progress), 680), radius=2, fill=CYAN)
     return image
 
 
@@ -139,9 +137,7 @@ def _hero(second: float) -> Image.Image:
     _text(draw, (x, 307), "Practical SaaS, powered by AI", 34, fill=CYAN, anchor="mm")
     _round_rect(draw, (350, 374, 930, 501), fill=PANEL, outline=(46, 72, 101), width=2)
     _text(draw, (392, 414), "REAL OPERATING PROBLEMS", 17, fill=MUTED, bold=True)
-    _text(
-        draw, (392, 454), "Working products people can use", 30, fill=WHITE, bold=True
-    )
+    _text(draw, (392, 454), "Working products people can use", 30, fill=WHITE, bold=True)
     _pill(draw, 392, 523, "AI + SOFTWARE + OPERATIONS", MINT)
     return image
 
@@ -166,9 +162,7 @@ def _workflows(second: float) -> Image.Image:
     pulse = 1.0 + 0.02 * math.sin((second - 5.0) * 2.5)
     for index, (x, number, title, detail, accent) in enumerate(cards):
         y = 279 + int(5 * math.sin(second * 1.5 + index))
-        _round_rect(
-            draw, (x, y, x + 350, y + 255), fill=PANEL, outline=(42, 64, 91), width=2
-        )
+        _round_rect(draw, (x, y, x + 350, y + 255), fill=PANEL, outline=(42, 64, 91), width=2)
         draw.ellipse((x + 28, y + 30, x + 78, y + 80), fill=accent)
         _text(draw, (x + 53, y + 55), number, 16, fill=BG, bold=True, anchor="mm")
         _text(draw, (x + 28, y + 124), title, 27, fill=WHITE, bold=True)
@@ -199,14 +193,10 @@ def _products(second: float) -> Image.Image:
         for row in range(3):
             yy = y + 213 + row * 20
             line = 250 + int(40 * math.sin(second * 1.2 + row + index))
-            draw.rounded_rectangle(
-                (x + 28, yy, x + 28 + line, yy + 7), radius=4, fill=PANEL_SOFT
-            )
+            draw.rounded_rectangle((x + 28, yy, x + 28 + line, yy + 7), radius=4, fill=PANEL_SOFT)
         signal_x = x + 476
         signal_y = y + 74
-        draw.ellipse(
-            (signal_x - 34, signal_y - 34, signal_x + 34, signal_y + 34), fill=accent
-        )
+        draw.ellipse((signal_x - 34, signal_y - 34, signal_x + 34, signal_y + 34), fill=accent)
         _text(draw, (signal_x, signal_y), "OK", 17, fill=BG, bold=True, anchor="mm")
     return image
 
@@ -242,9 +232,7 @@ def _approval(second: float) -> Image.Image:
     draw.line((295, y, 985, y), fill=(45, 69, 98), width=6)
     draw.line((295, y, int(295 + 690 * sweep), y), fill=CYAN, width=6)
     for x, label, accent in nodes:
-        draw.ellipse(
-            (x - 54, y - 54, x + 54, y + 54), fill=PANEL, outline=accent, width=4
-        )
+        draw.ellipse((x - 54, y - 54, x + 54, y + 54), fill=PANEL, outline=accent, width=4)
         if x <= int(250 + 780 * sweep):
             draw.ellipse((x - 32, y - 32, x + 32, y + 32), fill=accent)
         _text(draw, (x, y + 100), label, 18, fill=accent, bold=True, anchor="mm")
@@ -283,9 +271,7 @@ def _process(second: float) -> Image.Image:
         _text(draw, (x + 26, y + 44), number, 18, fill=accent, bold=True)
         _text(draw, (x + 26, y + 102), title, 31, fill=WHITE, bold=True)
         _text(draw, (x + 26, y + 145), detail, 21, fill=MUTED)
-        draw.rounded_rectangle(
-            (x + 26, y + 185, x + 294, y + 193), radius=4, fill=PANEL_SOFT
-        )
+        draw.rounded_rectangle((x + 26, y + 185, x + 294, y + 193), radius=4, fill=PANEL_SOFT)
         completed = int(268 * ((second - 20.0) / 6.0 + index * 0.22))
         completed = max(0, min(268, completed))
         draw.rounded_rectangle(
@@ -447,9 +433,7 @@ def generate_silent_video(destination: Path) -> None:
         raise RuntimeError(f"Video rendering failed: {error.strip()}")
 
 
-def add_narration(
-    silent_video: Path, voice_parts: list[Path], destination: Path
-) -> None:
+def add_narration(silent_video: Path, voice_parts: list[Path], destination: Path) -> None:
     command = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(silent_video)]
     for part in voice_parts:
         command.extend(("-i", str(part)))
@@ -457,7 +441,7 @@ def add_narration(
     filters: list[str] = []
     narration_labels: list[str] = []
     for index, ((start, _, volume), _) in enumerate(
-        zip(NARRATION, voice_parts), start=1
+        zip(NARRATION, voice_parts, strict=True), start=1
     ):
         delay_ms = round(start * 1000)
         label = f"voice{index}"
@@ -513,9 +497,7 @@ def generate_logo(destination: Path) -> None:
     draw.ellipse((38, 43, 118, 123), fill=(*CYAN, 255))
     _text(draw, (78, 83), "K", 38, fill=BG, bold=True, anchor="mm")
     _text(draw, (148, 78), "KANAPP", 54, fill=WHITE, bold=True, anchor="lm")
-    _text(
-        draw, (151, 126), "PRACTICAL AI PRODUCTS", 18, fill=CYAN, bold=True, anchor="lm"
-    )
+    _text(draw, (151, 126), "PRACTICAL AI PRODUCTS", 18, fill=CYAN, bold=True, anchor="lm")
     image.save(destination)
 
 

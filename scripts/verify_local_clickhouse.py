@@ -19,9 +19,7 @@ def main() -> None:
     parser.add_argument("--admin-password", default="revisionproof-local")
     args = parser.parse_args()
     if args.host not in LOOPBACK_HOSTS or args.port != 8123:
-        raise ValueError(
-            "this adversarial permission check is restricted to loopback port 8123"
-        )
+        raise ValueError("this adversarial permission check is restricted to loopback port 8123")
 
     try:
         import clickhouse_connect
@@ -74,18 +72,14 @@ def main() -> None:
             raise RuntimeError(f"role membership did not converge: {rows!r}")
         grants = [
             str(row[0])
-            for row in admin.query(
-                "SHOW GRANTS FOR revisionproof_writer_user"
-            ).result_rows
+            for row in admin.query("SHOW GRANTS FOR revisionproof_writer_user").result_rows
         ]
         if any("system.one" in grant for grant in grants):
             raise RuntimeError("direct writer grant survived convergence")
     finally:
         admin.command(f"DROP ROLE IF EXISTS {EXTRA_ROLE}")
         admin.close()
-    print(
-        "PASS excessive direct and inherited grants converged to exact RevisionProof roles"
-    )
+    print("PASS excessive direct and inherited grants converged to exact RevisionProof roles")
 
 
 if __name__ == "__main__":

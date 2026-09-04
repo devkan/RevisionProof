@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from migrate_clickhouse_intelligence import validate_target, verify_target
+
 from revisionproof.intelligence.schema import (
     require_supported_version,
     verify_intelligence_schema,
@@ -66,9 +67,7 @@ TABLE_COLUMNS = {
 FORMAT_VERSION = 2
 BACKUP_SCHEMAS = {
     1: {
-        name: columns
-        for name, columns in TABLE_COLUMNS.items()
-        if name != "approved_edit_recipes"
+        name: columns for name, columns in TABLE_COLUMNS.items() if name != "approved_edit_recipes"
     },
     2: TABLE_COLUMNS,
 }
@@ -84,9 +83,7 @@ def inspect_file(path: Path, columns: list[str], workspace: str) -> tuple[str, i
             digest.update(line)
             row = json.loads(line)
             if set(row) != set(columns) or row["workspace_id"] != workspace:
-                raise ValueError(
-                    "Backup contains unexpected columns or a different workspace"
-                )
+                raise ValueError("Backup contains unexpected columns or a different workspace")
             count += 1
     return digest.hexdigest(), count
 
@@ -102,7 +99,10 @@ def export_workspace(client, directory: Path, workspace: str) -> dict:
     }
     for table, columns in TABLE_COLUMNS.items():
         path = directory / f"{table}.jsonl"
-        query = f"SELECT {', '.join(columns)} FROM revisionproof.{table} WHERE workspace_id = {{workspace:String}}"
+        query = (
+            f"SELECT {', '.join(columns)} FROM revisionproof.{table} "
+            "WHERE workspace_id = {workspace:String}"
+        )
         with (
             client.raw_stream(
                 query, parameters={"workspace": workspace}, fmt="JSONEachRow"
@@ -127,9 +127,7 @@ def restore_workspace(client, directory: Path, workspace: str, apply: bool) -> d
         or manifest.get("workspace") != workspace
         or set(manifest.get("tables", {})) != set(columns_by_table)
     ):
-        raise ValueError(
-            "Backup manifest does not match the requested workspace/schema"
-        )
+        raise ValueError("Backup manifest does not match the requested workspace/schema")
     # Validate ALL files and destinations before any insert. Never merge into existing data.
     for table, columns in columns_by_table.items():
         path = directory / f"{table}.jsonl"
@@ -144,9 +142,7 @@ def restore_workspace(client, directory: Path, workspace: str, apply: bool) -> d
             parameters={"workspace": workspace},
         ).result_rows[0][0]
         if rows:
-            raise ValueError(
-                f"Refusing restore into non-empty workspace table: {table}"
-            )
+            raise ValueError(f"Refusing restore into non-empty workspace table: {table}")
     if apply:
         for table, columns in columns_by_table.items():
             if manifest["tables"][table]["rows"]:
@@ -158,13 +154,12 @@ def restore_workspace(client, directory: Path, workspace: str, apply: bool) -> d
                         fmt="JSONEachRow",
                     )
             count = client.query(
-                f"SELECT count() FROM revisionproof.{table} WHERE workspace_id = {{workspace:String}}",
+                f"SELECT count() FROM revisionproof.{table} "
+                "WHERE workspace_id = {workspace:String}",
                 parameters={"workspace": workspace},
             ).result_rows[0][0]
             if int(count) != manifest["tables"][table]["rows"]:
-                raise RuntimeError(
-                    f"Restore count mismatch: {table}. Stop; do not blindly retry."
-                )
+                raise RuntimeError(f"Restore count mismatch: {table}. Stop; do not blindly retry.")
     return {"applied": apply, "workspace": workspace, "tables": manifest["tables"]}
 
 
@@ -192,9 +187,9 @@ def main() -> None:
     )
     import clickhouse_connect
 
-    password = os.environ.get(
-        "REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD"
-    ) or getpass.getpass("ClickHouse admin password: ")
+    password = os.environ.get("REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD") or getpass.getpass(
+        "ClickHouse admin password: "
+    )
     client = clickhouse_connect.get_client(
         host=args.host,
         port=args.port,
@@ -206,9 +201,7 @@ def main() -> None:
     try:
         if not args.insecure_local:
             verify_target(client, args.confirm_project, args.host)
-        require_supported_version(
-            str(client.query("SELECT version()").result_rows[0][0])
-        )
+        require_supported_version(str(client.query("SELECT version()").result_rows[0][0]))
         verify_intelligence_schema(client)
         result = (
             export_workspace(client, args.directory, args.workspace)

@@ -28,9 +28,7 @@ class UploadBodyLimit:
         file_limit = self.max_logo_bytes if logo_upload else self.max_file_bytes
         limit = file_limit + 64 * 1024  # bounded form fields + multipart envelope
         limit_label = (
-            f"{file_limit // 1048576} MiB"
-            if logo_upload
-            else f"{file_limit // 1_000_000} MB"
+            f"{file_limit // 1048576} MiB" if logo_upload else f"{file_limit // 1_000_000} MB"
         )
         response = JSONResponse(
             status_code=413,

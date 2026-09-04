@@ -70,9 +70,7 @@ def main() -> None:
     parser.add_argument("--execute", action="store_true")
     args = parser.parse_args()
     if not args.execute:
-        raise ValueError(
-            "cleanup is dry by default; pass --execute only after inventory review"
-        )
+        raise ValueError("cleanup is dry by default; pass --execute only after inventory review")
     if args.confirm_database != DATABASE:
         raise ValueError(f"--confirm-database must be exactly {DATABASE}")
     if args.confirm_host != args.host:
@@ -82,9 +80,9 @@ def main() -> None:
     if not PROJECT_ID_RE.fullmatch(args.confirm_project):
         raise ValueError("cleanup requires a dedicated revisionproof-* project")
 
-    password = os.environ.get(
-        "REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD"
-    ) or getpass.getpass("ClickHouse admin password: ")
+    password = os.environ.get("REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD") or getpass.getpass(
+        "ClickHouse admin password: "
+    )
     if not password:
         raise ValueError("ClickHouse admin password is required")
     try:

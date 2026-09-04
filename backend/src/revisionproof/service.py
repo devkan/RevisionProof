@@ -225,8 +225,7 @@ class RevisionProofService:
             if stream is not None:
                 if size <= 0 or size > self.settings.max_upload_bytes:
                     raise SourceUploadError(
-                        "Video is too large or empty. "
-                        f"Maximum: {self.settings.max_upload_mb} MB.",
+                        f"Video is too large or empty. Maximum: {self.settings.max_upload_mb} MB.",
                         413,
                     )
                 source = folder / "source.video"
@@ -1341,9 +1340,7 @@ class RevisionProofService:
                 "version_label must use 1-64 letters, numbers, dots, dashes, or underscores"
             )
         if size <= 0 or size > self.settings.max_upload_bytes:
-            raise ValueError(
-                f"upload must be between 1 byte and {self.settings.max_upload_mb} MB"
-            )
+            raise ValueError(f"upload must be between 1 byte and {self.settings.max_upload_mb} MB")
 
         destination = (
             self.settings.runtime_dir / "runs" / run_id / "versions" / f"{version_label}.mp4"

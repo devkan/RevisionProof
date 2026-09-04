@@ -18,9 +18,7 @@ from revisionproof.intelligence.schema import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def validate_target(
-    host: str, port: int, confirm_host: str, project: str, local: bool
-) -> None:
+def validate_target(host: str, port: int, confirm_host: str, project: str, local: bool) -> None:
     if host != confirm_host:
         raise ValueError("--confirm-host must exactly match --host")
     if local:
@@ -37,9 +35,7 @@ def validate_target(
         and port == 8443
         and re.fullmatch(r"revisionproof-[a-z0-9-]{6,24}", project)
     ):
-        raise ValueError(
-            "Cloud migration requires the dedicated RevisionProof TLS service"
-        )
+        raise ValueError("Cloud migration requires the dedicated RevisionProof TLS service")
 
 
 def verify_target(admin, project: str, host: str) -> None:
@@ -69,9 +65,9 @@ def main() -> None:
     )
     import clickhouse_connect
 
-    password = os.environ.get(
-        "REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD"
-    ) or getpass.getpass("ClickHouse admin password: ")
+    password = os.environ.get("REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD") or getpass.getpass(
+        "ClickHouse admin password: "
+    )
     admin = clickhouse_connect.get_client(
         host=args.host,
         port=args.port,
@@ -85,11 +81,7 @@ def main() -> None:
             verify_target(admin, args.confirm_project, args.host)
         version = str(admin.query("SELECT version()").result_rows[0][0])
         require_supported_version(version)
-        result = (
-            migrate_intelligence(admin, ROOT)
-            if args.apply
-            else {"would_ensure": list(TABLES)}
-        )
+        result = migrate_intelligence(admin, ROOT) if args.apply else {"would_ensure": list(TABLES)}
         print(
             json.dumps(
                 {

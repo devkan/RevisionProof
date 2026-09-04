@@ -102,17 +102,10 @@ def migrate(admin: Any) -> dict[str, int]:
             raise RuntimeError(f"refusing unexpected schema for {DATABASE}.{table}")
         replacement = f"{table}_append_only_v1"
         backup = f"{table}_pre_append_only_v1"
-        if (
-            table_layout(admin, replacement) is not None
-            or table_layout(admin, backup) is not None
-        ):
-            raise RuntimeError(
-                f"refusing partial prior migration for {DATABASE}.{table}"
-            )
+        if table_layout(admin, replacement) is not None or table_layout(admin, backup) is not None:
+            raise RuntimeError(f"refusing partial prior migration for {DATABASE}.{table}")
         admin.command(CREATE_REPLACEMENTS[table])
-        admin.command(
-            f"INSERT INTO {DATABASE}.{replacement} SELECT * FROM {DATABASE}.{table}"
-        )
+        admin.command(f"INSERT INTO {DATABASE}.{replacement} SELECT * FROM {DATABASE}.{table}")
         before = table_count(admin, table)
         if table_count(admin, replacement) != before:
             raise RuntimeError(f"row count mismatch while migrating {DATABASE}.{table}")
@@ -161,14 +154,12 @@ def main() -> None:
         if args.confirm_project != "local":
             raise ValueError("local migration requires --confirm-project local")
     elif not args.host.endswith(".clickhouse.cloud") or args.port != 8443:
-        raise ValueError(
-            "cloud migration requires a .clickhouse.cloud host on TLS port 8443"
-        )
+        raise ValueError("cloud migration requires a .clickhouse.cloud host on TLS port 8443")
     elif not PROJECT_ID_RE.fullmatch(args.confirm_project):
         raise ValueError("cloud migration requires a dedicated revisionproof-* project")
-    password = os.environ.get(
-        "REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD"
-    ) or getpass.getpass("ClickHouse admin password: ")
+    password = os.environ.get("REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD") or getpass.getpass(
+        "ClickHouse admin password: "
+    )
     if not password:
         raise ValueError("ClickHouse admin password is required")
     try:
@@ -186,9 +177,7 @@ def main() -> None:
     )
     try:
         if not args.insecure_local:
-            verify_cloud_deployment_metadata(
-                admin, args.confirm_project, args.confirm_host
-            )
+            verify_cloud_deployment_metadata(admin, args.confirm_project, args.confirm_host)
         result = migrate(admin)
     finally:
         admin.close()
