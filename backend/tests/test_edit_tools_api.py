@@ -64,3 +64,49 @@ def test_transcription_fails_truthfully_outside_live_mode(tmp_path):
     )
     assert response.status_code == 409
     assert "LIVE Google Gemini" in response.json()["detail"]
+
+
+def test_fixture_scene_search_is_opt_in_and_selected_result_anchors_plan(runtime_dir):
+    client = client_for(runtime_dir)
+    searched = client.post(
+        "/api/scene-search",
+        data={"query": "the product dashboard", "asset_id": "01M00000000000000000000000"},
+    )
+    assert searched.status_code == 200, searched.text
+    result = searched.json()
+    assert result["source"] == "fixture.scene_search"
+    assert result["matches"]
+    hit = result["matches"][0]
+    plan = {
+        "source_duration": 30,
+        "operations": [
+            {
+                "kind": "zoom",
+                "start": hit["start_seconds"],
+                "end": hit["end_seconds"],
+                "text": "",
+                "position": "bottom",
+                "threshold_db": -40,
+                "min_silence": 0.7,
+                "detected": False,
+                "rate": 1,
+                "volume_db": 0,
+                "asset_id": "",
+                "asset_sha256": "",
+            }
+        ],
+    }
+    created = client.post(
+        "/api/runs",
+        json={
+            "asset_id": "01M00000000000000000000000",
+            "feedback": "Zoom the dashboard scene",
+            "edit_plan": plan,
+            "scene_search_id": result["search_id"],
+            "scene_segment_id": hit["segment_id"],
+        },
+        headers={"Idempotency-Key": "smart-scene-test"},
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["evidence"][0]["segment_id"] == hit["segment_id"]
+    assert created.json()["evidence"][0]["source"] == "fixture.segment_index"

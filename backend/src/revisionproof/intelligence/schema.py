@@ -18,6 +18,11 @@ TABLES = {
     "approved_edits": "MergeTree",
     "approved_edit_memory": "View",
     "approved_edit_neighbors": "View",
+    "approved_edit_recipes": "MergeTree",
+    "approved_edit_recipe_memory": "View",
+    "approved_edit_recipe_neighbors": "View",
+    "smart_scene_segments": "MergeTree",
+    "smart_scene_search": "View",
 }
 
 
@@ -47,6 +52,15 @@ def verify_intelligence_schema(admin: Any) -> None:
             "QBit(Float32, 768)" not in str(ddl) or "approved_edit_hnsw" not in str(ddl)
         ):
             raise RuntimeError("Approved memory vector schema is incomplete")
+        if name == "approved_edit_recipes" and (
+            "QBit(Float32, 768)" not in str(ddl) or "approved_recipe_hnsw" not in str(ddl)
+        ):
+            raise RuntimeError("Approved recipe vector schema is incomplete")
+        if name == "smart_scene_segments" and (
+            not re.search(r"\bTTL\s+expires_at(?:\s+DELETE)?\b", str(ddl))
+            or "smart_scene_hnsw" not in str(ddl)
+        ):
+            raise RuntimeError("Smart scene retention or vector schema is incomplete")
 
 
 def migrate_intelligence(admin: Any, root: Path) -> dict[str, Any]:

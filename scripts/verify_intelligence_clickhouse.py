@@ -6,13 +6,21 @@ import argparse
 import asyncio
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 from revisionproof.bootstrap import _provision_users
-from revisionproof.evidence.live import ClickHouseWriter, McpClickHouseReader
-from revisionproof.intelligence.queries import build_memory_search_query
+from revisionproof.evidence.live import (
+    ClickHouseWriter,
+    McpClickHouseReader,
+    normalize_clickhouse_fixed_string,
+)
+from revisionproof.intelligence.queries import (
+    build_memory_search_query,
+    build_recipe_search_query,
+    build_smart_scene_search_query,
+)
 from revisionproof.intelligence.schema import (
     migrate_intelligence,
     verify_intelligence_schema,
@@ -114,6 +122,75 @@ def main() -> None:
         }
         if any(value < 0.8 for value in recalls.values()):
             raise RuntimeError(f"vector recall below 0.8: {recalls}")
+
+        recipe_memory_id = hashlib.sha256(f"{workspace}:recipe".encode()).hexdigest()
+        recipe_vector = vectors[43].tolist()
+        writer.insert_approved_recipe(
+            [
+                workspace,
+                recipe_memory_id,
+                "01M00000000000000000000000",
+                "0" * 64,
+                "Synthetic recipe benchmark",
+                "Synthetic only",
+                "B",
+                12.0,
+                '{"source_duration":12,"operations":[]}',
+                "benchmark-768",
+                recipe_vector,
+                "{}",
+                now,
+            ]
+        )
+        recipe_results = asyncio.run(
+            reader.run_query(
+                build_recipe_search_query(
+                    workspace, "benchmark-768", recipe_vector, "exact"
+                )
+            )
+        )
+        if (
+            not recipe_results
+            or normalize_clickhouse_fixed_string(recipe_results[0]["memory_id"])
+            != recipe_memory_id
+        ):
+            raise RuntimeError(
+                "approved recipe search did not return the inserted recipe"
+            )
+
+        search_id = "01M00000000000000000000001"
+        segment_id = "01M00000000000000000000002"
+        asset_id = "01M00000000000000000000003"
+        writer.insert_smart_segments(
+            [
+                [
+                    workspace,
+                    search_id,
+                    segment_id,
+                    asset_id,
+                    4.0,
+                    8.0,
+                    "Synthetic transcript",
+                    "Synthetic dashboard scene",
+                    vectors[44].tolist(),
+                    now,
+                    now + timedelta(days=7),
+                ]
+            ]
+        )
+        scene_results = asyncio.run(
+            reader.run_query(
+                build_smart_scene_search_query(
+                    workspace, search_id, asset_id, vectors[44].tolist()
+                )
+            )
+        )
+        if (
+            not scene_results
+            or normalize_clickhouse_fixed_string(scene_results[0]["segment_id"])
+            != segment_id
+        ):
+            raise RuntimeError("smart scene search did not return the inserted segment")
         plan = asyncio.run(
             reader.run_query(
                 "EXPLAIN indexes = 1 "
@@ -152,14 +229,21 @@ def main() -> None:
         )
         if len(grouped) != 1 or int(grouped[0]["sample_count"]) != 1:
             raise RuntimeError("Duplicate insert inflated the Change Map")
-        try:
-            asyncio.run(
-                reader.run_query("SELECT * FROM revisionproof.approved_edits LIMIT 1")
-            )
-        except RuntimeError:
-            pass
-        else:
-            raise RuntimeError("MCP reader unexpectedly accessed the raw memory table")
+        for table in (
+            "approved_edits",
+            "approved_edit_recipes",
+            "smart_scene_segments",
+        ):
+            try:
+                asyncio.run(
+                    reader.run_query(f"SELECT * FROM revisionproof.{table} LIMIT 1")
+                )
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError(
+                    f"MCP reader unexpectedly accessed raw table {table}"
+                )
         print(
             json.dumps(
                 {
@@ -170,8 +254,10 @@ def main() -> None:
                     "synthetic_rows": len(vectors),
                     "recall_at_15": recalls,
                     "hnsw_explain_verified": True,
+                    "recipe_search_verified": True,
+                    "smart_scene_search_verified": True,
                     "duplicate_mv_samples": 1,
-                    "mcp_base_table_access": "DENIED",
+                    "mcp_base_table_access": "DENIED (3 tables)",
                 },
                 indent=2,
             )

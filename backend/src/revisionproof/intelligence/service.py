@@ -12,7 +12,8 @@ from pathlib import Path
 from threading import RLock
 from time import monotonic
 
-from revisionproof.contracts import ExecutionMode, RunSnapshot, RunState, Verdict
+from revisionproof.contracts import EditCandidate, ExecutionMode, RunSnapshot, RunState, Verdict
+from revisionproof.editing.models import EditPlan
 from revisionproof.evidence.live import (
     ClickHouseWriter,
     McpClickHouseReader,
@@ -37,6 +38,8 @@ from revisionproof.intelligence.queries import (
     build_change_map_query,
     build_memory_count_query,
     build_memory_search_query,
+    build_recipe_count_query,
+    build_recipe_search_query,
     normalize_embedding,
 )
 from revisionproof.media.executor import MediaExecutor
@@ -76,6 +79,8 @@ class RevisionIntelligence:
             raise ValueError("Review a supported request before searching approved memory")
         if snapshot.run_id not in self._embeddings:
             text = f"{snapshot.feedback.intent}\n{snapshot.feedback.target_phrase}"
+            if snapshot.edit_plan is not None:
+                text += "\n" + snapshot.edit_plan.model_dump_json()
             if self.settings.mode is ExecutionMode.FIXTURE:
                 vector = [0.0] * 768
                 for token in re.findall(r"\w+", text.casefold()):
@@ -154,7 +159,10 @@ class RevisionIntelligence:
     async def _search_live(self, snapshot: RunSnapshot, engine: SearchEngine) -> EditMemorySearch:
         reader = McpClickHouseReader(self.settings)
         workspace, model = self.settings.memory_workspace, self.settings.embedding_model
-        counts = await reader.run_query(build_memory_count_query(workspace, model))
+        recipe = snapshot.edit_plan is not None
+        count_query = build_recipe_count_query if recipe else build_memory_count_query
+        search_query = build_recipe_search_query if recipe else build_memory_search_query
+        counts = await reader.run_query(count_query(workspace, model))
         total = _count(counts)
         actual = engine
         message = "Verified, human-approved references. Fresh scene evidence is still required."
@@ -173,7 +181,7 @@ class RevisionIntelligence:
                 message="No approved edits yet. Count queried; no vector search ran.",
             )
         vector = await asyncio.to_thread(self._embedding, snapshot)
-        query = build_memory_search_query(
+        query = search_query(
             workspace,
             model,
             vector,
@@ -184,11 +192,12 @@ class RevisionIntelligence:
         if total and actual == "hnsw":
             plan = await reader.run_query("EXPLAIN indexes = 1 " + query)
             plan_text = "\n".join(str(value) for row in plan for value in row.values())
-            index_verified = "approved_edit_hnsw" in plan_text and "vector_similarity" in plan_text
+            expected_index = "approved_recipe_hnsw" if recipe else "approved_edit_hnsw"
+            index_verified = expected_index in plan_text and "vector_similarity" in plan_text
             if not index_verified:
                 actual = "exact"
                 message = "ClickHouse did not select HNSW for this filter; exact search was used."
-                query = build_memory_search_query(workspace, model, vector, "exact")
+                query = search_query(workspace, model, vector, "exact")
         rows = await reader.run_query(query) if total else []
         seen: set[str] = set()
         matches = []
@@ -207,11 +216,15 @@ class RevisionIntelligence:
             matches.append(
                 ApprovedEditMatch(
                     memory_id=memory_id,
+                    kind="recipe" if recipe else "zoom",
                     intent=str(row["intent"]),
                     target_phrase=str(row["target_phrase"]),
                     candidate_id=str(row["candidate_id"]),
-                    scale=round(float(row["scale"]), 2),
+                    scale=None if recipe else round(float(row["scale"]), 2),
                     duration_seconds=float(row["duration_seconds"]),
+                    edit_plan=EditPlan.model_validate_json(row["operations_json"])
+                    if recipe
+                    else None,
                     similarity=similarity,
                     approved_at=row["approved_at"],
                     spec_hash=normalize_clickhouse_fixed_string(row["spec_hash"]),
@@ -310,11 +323,6 @@ class RevisionIntelligence:
         return result
 
     def save(self, snapshot: RunSnapshot, token: str | None) -> MemorySaveResult:
-        if snapshot.spec is not None and snapshot.spec.schema_version in {"3.0", "3.1"}:
-            raise ValueError(
-                "The reusable edit library currently supports center zoom proofs. "
-                "Multi-edit plans cannot be saved to it yet."
-            )
         if not self.settings.intelligence_enabled:
             raise ValueError("Approved memory is disabled")
         live = self.settings.mode is ExecutionMode.LIVE
@@ -360,20 +368,23 @@ class RevisionIntelligence:
         if snapshot.memory_saved:
             return MemorySaveResult(memory_id=memory_id, status="already_saved", source=origin)
         candidate = snapshot.spec.approved_candidate
+        recipe = isinstance(candidate, EditCandidate)
         match = ApprovedEditMatch(
             memory_id=memory_id,
+            kind="recipe" if recipe else "zoom",
             intent=snapshot.feedback.intent,
             target_phrase=snapshot.feedback.target_phrase,
             candidate_id=candidate.candidate_id,
-            scale=candidate.scale,
+            scale=None if recipe else candidate.scale,
             duration_seconds=candidate.time_range.end_seconds - candidate.time_range.start_seconds,
+            edit_plan=candidate.plan if recipe else None,
             similarity=1,
             approved_at=datetime.now(UTC),
             spec_hash=proof.spec_hash,
         )
         vector = self._embedding(snapshot)
         if live:
-            query = build_memory_count_query(
+            query = (build_recipe_count_query if recipe else build_memory_count_query)(
                 self.settings.memory_workspace, self.settings.embedding_model, memory_id
             )
             reader = McpClickHouseReader(self.settings)
@@ -382,23 +393,40 @@ class RevisionIntelligence:
                 sanitized = proof.model_copy(deep=True)
                 for check in sanitized.checks:
                     check.evidence_urls = []
-                ClickHouseWriter(self.settings).insert_approved_edit(
-                    [
-                        self.settings.memory_workspace,
-                        memory_id,
-                        snapshot.run_id,
-                        proof.spec_hash,
-                        match.intent,
-                        match.target_phrase,
-                        match.candidate_id,
-                        match.scale,
-                        match.duration_seconds,
-                        self.settings.embedding_model,
-                        vector,
-                        sanitized.model_dump_json(),
-                        match.approved_at,
-                    ]
-                )
+                row = [
+                    self.settings.memory_workspace,
+                    memory_id,
+                    snapshot.run_id,
+                    proof.spec_hash,
+                    match.intent,
+                    match.target_phrase,
+                    match.candidate_id,
+                    match.duration_seconds,
+                ]
+                writer = ClickHouseWriter(self.settings)
+                if recipe:
+                    writer.insert_approved_recipe(
+                        [
+                            *row,
+                            candidate.plan.model_dump_json(),
+                            self.settings.embedding_model,
+                            vector,
+                            sanitized.model_dump_json(),
+                            match.approved_at,
+                        ]
+                    )
+                else:
+                    writer.insert_approved_edit(
+                        [
+                            *row[:7],
+                            match.scale,
+                            match.duration_seconds,
+                            self.settings.embedding_model,
+                            vector,
+                            sanitized.model_dump_json(),
+                            match.approved_at,
+                        ]
+                    )
                 confirmed = asyncio.run(reader.run_query(query))
                 if _count(confirmed, maximum=1) != 1:
                     raise RuntimeError("Approved edit persistence could not be confirmed")

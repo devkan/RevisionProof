@@ -24,6 +24,7 @@ from revisionproof.contracts import (
     VerificationCheck,
     VerificationProof,
 )
+from revisionproof.editing.models import EditOperation, EditPlan
 from revisionproof.intelligence.models import ChangeWindow, RevisionChangeMap
 from revisionproof.intelligence.service import RevisionIntelligence
 from revisionproof.repository import InMemoryRunRepository
@@ -127,6 +128,27 @@ def memory_row(*, identity="a" * 64, distance=0.1, **overrides) -> dict:
     }
     row.update(overrides)
     return row
+
+
+def test_live_recipe_search_returns_an_editable_validated_plan(monkeypatch) -> None:
+    intelligence = manager(live=True)
+    snapshot = ready_snapshot()
+    snapshot.edit_plan = EditPlan(
+        source_duration=30,
+        operations=(EditOperation(kind="text", start=4, end=8, text="AI, made practical."),),
+    )
+    monkeypatch.setattr(intelligence, "_embedding", lambda _snapshot: UNIT_VECTOR)
+    row = memory_row()
+    row.pop("scale")
+    row["duration_seconds"] = 30
+    row["operations_json"] = snapshot.edit_plan.model_dump_json()
+    queries = install_reader(monkeypatch, [[{"total": 1}], [row]])
+    result = intelligence.search(snapshot, "exact")
+    assert result.status == "ready"
+    assert result.matches[0].kind == "recipe"
+    assert result.matches[0].edit_plan == snapshot.edit_plan
+    assert "approved_edit_recipe_memory" in queries[0]
+    assert "approved_edit_recipe_memory" in queries[1]
 
 
 def install_reader(monkeypatch, responses):

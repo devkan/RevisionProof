@@ -33,6 +33,21 @@ TABLE_COLUMNS = {
         "proof_json",
         "approved_at",
     ],
+    "approved_edit_recipes": [
+        "workspace_id",
+        "memory_id",
+        "run_id",
+        "spec_hash",
+        "intent",
+        "target_phrase",
+        "candidate_id",
+        "duration_seconds",
+        "operations_json",
+        "embedding_model",
+        "embedding",
+        "proof_json",
+        "approved_at",
+    ],
     "revision_frame_pairs": [
         "workspace_id",
         "run_id",
@@ -48,7 +63,15 @@ TABLE_COLUMNS = {
         "measured_at",
     ],
 }
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
+BACKUP_SCHEMAS = {
+    1: {
+        name: columns
+        for name, columns in TABLE_COLUMNS.items()
+        if name != "approved_edit_recipes"
+    },
+    2: TABLE_COLUMNS,
+}
 MAX_LINE_BYTES = 1024 * 1024
 
 
@@ -98,16 +121,17 @@ def export_workspace(client, directory: Path, workspace: str) -> dict:
 
 def restore_workspace(client, directory: Path, workspace: str, apply: bool) -> dict:
     manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    columns_by_table = BACKUP_SCHEMAS.get(manifest.get("format_version"))
     if (
-        manifest.get("format_version") != FORMAT_VERSION
+        columns_by_table is None
         or manifest.get("workspace") != workspace
-        or set(manifest.get("tables", {})) != set(TABLE_COLUMNS)
+        or set(manifest.get("tables", {})) != set(columns_by_table)
     ):
         raise ValueError(
             "Backup manifest does not match the requested workspace/schema"
         )
     # Validate ALL files and destinations before any insert. Never merge into existing data.
-    for table, columns in TABLE_COLUMNS.items():
+    for table, columns in columns_by_table.items():
         path = directory / f"{table}.jsonl"
         if path.is_symlink() or path.resolve().parent != directory.resolve():
             raise ValueError("Backup paths must remain inside the export directory")
@@ -124,7 +148,7 @@ def restore_workspace(client, directory: Path, workspace: str, apply: bool) -> d
                 f"Refusing restore into non-empty workspace table: {table}"
             )
     if apply:
-        for table, columns in TABLE_COLUMNS.items():
+        for table, columns in columns_by_table.items():
             if manifest["tables"][table]["rows"]:
                 with (directory / f"{table}.jsonl").open("rb") as data:
                     client.raw_insert(

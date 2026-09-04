@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { ChangeMap, ComparisonDialog, EditMemory, SaveApprovedMemory } from './RevisionIntelligence'
+import { RequestDraft } from './EditComposer'
 import type { RunSnapshot, RuntimeStatus } from './types'
 
 const base = {
@@ -17,6 +18,14 @@ const base = {
 } as RunSnapshot
 
 describe('revision intelligence presentation', () => {
+  it('keeps smart scene finder opt-in and requires explicit time by default', () => {
+    const html = renderToStaticMarkup(<RequestDraft text="Zoom the dashboard" onText={vi.fn()} duration={30} disabled={false} onApply={vi.fn()} onBusy={vi.fn()} assetId="01M00000000000000000000000" mode="LIVE" onSceneSelect={vi.fn()} />)
+    expect(html).toContain('type="checkbox"')
+    expect(html).toContain('Smart scene finder')
+    expect(html).toContain('Scene time')
+    expect(html).toContain('Enter both times')
+    expect(html).toContain('disabled=""')
+  })
   it('labels sampled evidence and exposes a named time-window button', () => {
     const html = renderToStaticMarkup(<ChangeMap run={base} />)
     expect(html).toContain('0:08 to 0:09: Requested edit')

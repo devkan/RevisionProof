@@ -6,9 +6,38 @@ from revisionproof.intelligence.queries import (
     build_change_map_query,
     build_memory_count_query,
     build_memory_search_query,
+    build_recipe_count_query,
+    build_recipe_search_query,
+    build_smart_scene_search_query,
     normalize_embedding,
     sql_string,
 )
+
+
+def test_recipe_queries_use_only_the_security_definer_views() -> None:
+    count = build_recipe_count_query("revisionproof-demo", "text-embedding-005")
+    search = build_recipe_search_query(
+        "revisionproof-demo", "text-embedding-005", UNIT_VECTOR, "exact"
+    )
+    assert "FROM approved_edit_recipe_memory" in count
+    assert "FROM approved_edit_recipe_memory" in search
+    assert "operations_json" in search
+    assert "approved_edit_recipes" not in search
+
+
+def test_smart_scene_query_is_scoped_to_workspace_search_and_asset() -> None:
+    query = build_smart_scene_search_query(
+        "revisionproof-demo",
+        "01M00000000000000000000001",
+        "01M00000000000000000000002",
+        UNIT_VECTOR,
+    )
+    assert "FROM smart_scene_search" in query
+    assert "workspace_id = 'revisionproof-demo'" in query
+    assert "search_id = '01M00000000000000000000001'" in query
+    assert "asset_id = '01M00000000000000000000002'" in query
+    assert "expires_at > now()" in query
+
 
 UNIT_VECTOR = [1.0] + [0.0] * 767
 

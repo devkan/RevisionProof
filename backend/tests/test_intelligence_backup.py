@@ -61,6 +61,14 @@ def frame_row(workspace=WORKSPACE) -> dict:
     }
 
 
+def recipe_row(workspace=WORKSPACE) -> dict:
+    row = approved_row(workspace)
+    row.pop("scale")
+    row["duration_seconds"] = 12
+    row["operations_json"] = '{"source_duration":12,"operations":[]}'
+    return row
+
+
 def encoded_rows(rows) -> bytes:
     return b"".join((json.dumps(row, ensure_ascii=False) + "\n").encode() for row in rows)
 
@@ -80,10 +88,12 @@ class FakeClient:
     def __init__(self, *, exported=None, counts=None):
         self.exported = exported or {
             "approved_edits": encoded_rows([approved_row()]),
+            "approved_edit_recipes": encoded_rows([recipe_row()]),
             "revision_frame_pairs": encoded_rows([frame_row()]),
         }
         self.counts = {
             "approved_edits": 0,
+            "approved_edit_recipes": 0,
             "revision_frame_pairs": 0,
             "revision_change_windows": 0,
             **(counts or {}),
@@ -144,7 +154,7 @@ def test_export_streams_only_own_workspace_and_commits_checksummed_manifest(
     assert result["created_at"]
     assert set(result["tables"]) == set(backup_script.TABLE_COLUMNS)
     assert client.inserts == []
-    assert len(client.selects) == 2
+    assert len(client.selects) == 3
     for query, parameters, fmt in client.selects:
         assert "WHERE workspace_id = {workspace:String}" in query
         assert parameters == {"workspace": WORKSPACE}
@@ -179,6 +189,7 @@ def test_failed_export_has_no_complete_manifest_and_cannot_be_restored(
     client = FakeClient(
         exported={
             "approved_edits": encoded_rows([approved_row()]),
+            "approved_edit_recipes": encoded_rows([recipe_row()]),
             "revision_frame_pairs": encoded_rows([frame_row("other-project")]),
         }
     )
@@ -200,8 +211,25 @@ def test_restore_dry_run_validates_all_destinations_without_writing(
     result = backup_script.restore_workspace(client, directory, WORKSPACE, False)
     assert result == {"applied": False, "workspace": WORKSPACE, "tables": manifest["tables"]}
     assert client.inserts == []
-    assert len(client.queries) == 3
+    assert len(client.queries) == 4
     assert all(parameters == {"workspace": WORKSPACE} for _, parameters in client.queries)
+
+
+def test_restore_accepts_previous_format_without_recipe_rows(
+    backup_script, exported_backup
+) -> None:
+    directory, manifest = exported_backup
+    manifest["format_version"] = 1
+    manifest["tables"].pop("approved_edit_recipes")
+    (directory / "approved_edit_recipes.jsonl").unlink()
+    rewrite_manifest(directory, manifest)
+    client = FakeClient()
+    result = backup_script.restore_workspace(client, directory, WORKSPACE, True)
+    assert result["applied"] is True
+    assert [table for table, *_ in client.inserts] == [
+        "revisionproof.approved_edits",
+        "revisionproof.revision_frame_pairs",
+    ]
 
 
 def test_restore_applies_streams_only_after_all_empty_checks_and_confirms_counts(
@@ -211,13 +239,14 @@ def test_restore_applies_streams_only_after_all_empty_checks_and_confirms_counts
     client = FakeClient()
     result = backup_script.restore_workspace(client, directory, WORKSPACE, True)
     assert result["applied"] is True
-    assert client.events[:3] == [
+    assert client.events[:4] == [
         ("query", "approved_edits"),
+        ("query", "approved_edit_recipes"),
         ("query", "revision_frame_pairs"),
         ("query", "revision_change_windows"),
     ]
-    assert len(client.inserts) == 2
-    assert len(client.queries) == 5
+    assert len(client.inserts) == 3
+    assert len(client.queries) == 7
     for table, columns, data, fmt in client.inserts:
         name = table.removeprefix("revisionproof.")
         assert columns == backup_script.TABLE_COLUMNS[name]
@@ -227,7 +256,8 @@ def test_restore_applies_streams_only_after_all_empty_checks_and_confirms_counts
 
 
 @pytest.mark.parametrize(
-    "table", ["approved_edits", "revision_frame_pairs", "revision_change_windows"]
+    "table",
+    ["approved_edits", "approved_edit_recipes", "revision_frame_pairs", "revision_change_windows"],
 )
 @pytest.mark.parametrize("apply", [False, True])
 def test_any_nonempty_destination_refuses_before_any_insert(
@@ -240,7 +270,7 @@ def test_any_nonempty_destination_refuses_before_any_insert(
     assert client.inserts == []
 
 
-@pytest.mark.parametrize("field,value", [("workspace", "other-project"), ("format_version", 2)])
+@pytest.mark.parametrize("field,value", [("workspace", "other-project"), ("format_version", 3)])
 def test_manifest_workspace_and_version_tamper_fails_before_destination_checks(
     backup_script, exported_backup, field, value
 ) -> None:
@@ -290,7 +320,9 @@ def test_manifest_checksums_and_exact_row_counts_are_verified(
     assert client.queries == [] and client.inserts == []
 
 
-@pytest.mark.parametrize("table", ["approved_edits", "revision_frame_pairs"])
+@pytest.mark.parametrize(
+    "table", ["approved_edits", "approved_edit_recipes", "revision_frame_pairs"]
+)
 def test_modified_file_content_is_rejected_even_when_json_is_valid(
     backup_script, exported_backup, table
 ) -> None:
@@ -376,7 +408,13 @@ def test_bounded_import_size_rejects_oversized_rows(backup_script, tmp_path) -> 
 
 def test_empty_export_roundtrip_does_not_insert_any_empty_blocks(backup_script, tmp_path) -> None:
     directory = tmp_path / "empty-export"
-    source = FakeClient(exported={"approved_edits": b"", "revision_frame_pairs": b""})
+    source = FakeClient(
+        exported={
+            "approved_edits": b"",
+            "approved_edit_recipes": b"",
+            "revision_frame_pairs": b"",
+        }
+    )
     manifest = backup_script.export_workspace(source, directory, WORKSPACE)
     assert all(info["rows"] == 0 for info in manifest["tables"].values())
     target = FakeClient()

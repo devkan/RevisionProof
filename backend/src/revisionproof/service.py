@@ -50,7 +50,13 @@ from revisionproof.editing.verify import approved_reference
 from revisionproof.editing.workflow import plan_previews, review_plan
 from revisionproof.evidence.fixture import FixtureEvidenceLocator, FixtureInterpreter
 from revisionproof.ids import new_ulid
-from revisionproof.intelligence.models import EditMemorySearch, MemorySaveResult, SearchEngine
+from revisionproof.intelligence.models import (
+    EditMemorySearch,
+    MemorySaveResult,
+    SceneSearchResult,
+    SearchEngine,
+)
+from revisionproof.intelligence.scene_search import search_fixture_scenes, search_live_scenes
 from revisionproof.intelligence.service import RevisionIntelligence
 from revisionproof.media.executor import MediaExecutor
 from revisionproof.media.preview import generate_full_revision, generate_preview
@@ -60,6 +66,7 @@ from revisionproof.media.source import (
     copy_source,
     interpret_selected_range,
     prepare_source,
+    validate_source,
 )
 from revisionproof.repository import InMemoryRunRepository
 from revisionproof.settings import Settings
@@ -80,6 +87,11 @@ from revisionproof.verification.service import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _file_sha256(path: Path) -> str:
+    with path.open("rb") as handle:
+        return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 class RateLimitError(ValueError):
@@ -105,6 +117,8 @@ class RevisionProofService:
         self._create_rate_lock = threading.Lock()
         self._evicted_run_ids: SimpleQueue[str] = SimpleQueue()
         self._baseline_proofs: dict[str, VerificationProof] = {}
+        self._scene_searches: dict[str, tuple[str, str, SceneSearchResult]] = {}
+        self._scene_search_lock = threading.Lock()
         self.repository.set_eviction_callback(self._evicted_run_ids.put)
 
     def _cleanup_evicted_run(self, run_id: str) -> None:
@@ -259,6 +273,121 @@ class RevisionProofService:
                     "or add timed subtitles manually."
                 ) from exc
 
+    async def search_scenes(
+        self,
+        *,
+        query: str,
+        stream: BinaryIO | None,
+        size: int,
+        content_sha256: str,
+        asset_id: str | None,
+    ) -> SceneSearchResult:
+        self._assert_mutable_mode()
+        query = query.strip()
+        if not 2 <= len(query) <= 500:
+            raise ValueError("Describe the scene to find in 2-500 characters.")
+        self._record_new_run()
+        self.settings.runtime_dir.mkdir(parents=True, exist_ok=True)
+
+        async def execute(source: Path, source_key: str) -> SceneSearchResult:
+            try:
+                info = await asyncio.to_thread(probe_media, source, self.executor)
+                selection = TimeRange(
+                    start_seconds=0,
+                    end_seconds=min(6, round(info.duration_seconds, 3)),
+                )
+                validate_source(info, selection, self.settings)
+                search_asset_id = new_ulid()
+                if self.settings.mode is ExecutionMode.LIVE:
+                    if self.settings.live_missing_settings:
+                        raise ValueError("Smart scene finder is unavailable in this runtime.")
+                    result = await search_live_scenes(
+                        source,
+                        duration=round(info.duration_seconds, 3),
+                        query=query,
+                        asset_id=search_asset_id,
+                        settings=self.settings,
+                    )
+                else:
+                    result = search_fixture_scenes(
+                        round(info.duration_seconds, 3), query, search_asset_id
+                    )
+            except (SourceUploadError, ValueError):
+                raise
+            except Exception as exc:
+                logger.exception("Smart scene search failed")
+                raise ValueError(
+                    "Smart scene finder could not finish. Enter a start and end time instead."
+                ) from exc
+            return result
+
+        if stream is not None:
+            if size <= 0 or size > self.settings.max_upload_bytes:
+                raise SourceUploadError(
+                    f"Video is too large or empty. Maximum: {self.settings.max_upload_mib} MiB.",
+                    413,
+                )
+            with tempfile.TemporaryDirectory(
+                prefix="scene-search-", dir=self.settings.runtime_dir
+            ) as tmp:
+                source = Path(tmp) / "source.video"
+                source_key = await asyncio.to_thread(
+                    copy_source,
+                    stream,
+                    source,
+                    self.settings.max_upload_bytes,
+                    content_sha256,
+                )
+                result = await execute(source, source_key)
+        elif asset_id:
+            _, source = await asyncio.to_thread(
+                require_demo_asset, asset_id, self.settings.runtime_dir, self.executor
+            )
+            source_key = await asyncio.to_thread(_file_sha256, source)
+            result = await execute(source, source_key)
+        else:
+            raise SourceUploadError("Choose a video before using Smart scene finder.")
+        with self._scene_search_lock:
+            if len(self._scene_searches) >= 64:
+                self._scene_searches.pop(next(iter(self._scene_searches)))
+            self._scene_searches[result.search_id] = (asset_id or "upload", source_key, result)
+        return result
+
+    def _smart_evidence(
+        self,
+        *,
+        search_id: str | None,
+        segment_id: str | None,
+        source_key: str,
+        sample_asset_id: str | None = None,
+    ) -> EvidenceAnchor | None:
+        if not search_id and not segment_id:
+            return None
+        if not search_id or not segment_id:
+            raise ValueError("Choose a complete Smart scene finder result.")
+        with self._scene_search_lock:
+            receipt = self._scene_searches.get(search_id)
+        if receipt is None:
+            raise ValueError("That scene result expired. Run Smart scene finder again.")
+        source_ref, expected_key, result = receipt
+        if expected_key != source_key or (sample_asset_id and source_ref != sample_asset_id):
+            raise ValueError("The selected scene belongs to a different video.")
+        hit = next((item for item in result.matches if item.segment_id == segment_id), None)
+        if hit is None:
+            raise ValueError("Choose one of the returned scene results.")
+        return EvidenceAnchor(
+            segment_id=hit.segment_id,
+            time_range=TimeRange(start_seconds=hit.start_seconds, end_seconds=hit.end_seconds),
+            score=max(0, hit.score),
+            transcript=hit.transcript,
+            visual_summary=hit.visual_summary,
+            source=(
+                "mcp-clickhouse.run_query"
+                if result.source == "mcp-clickhouse.run_query"
+                else "fixture.segment_index"
+            ),
+        )
+
     @staticmethod
     def _validate_idempotency_key(key: str | None) -> str | None:
         if key is not None and not re.fullmatch(r"[A-Za-z0-9._:-]{8,128}", key):
@@ -348,6 +477,8 @@ class RevisionProofService:
         content_sha256: str,
         idempotency_key: str | None,
         edit_plan: EditPlan | None = None,
+        scene_search_id: str | None = None,
+        scene_segment_id: str | None = None,
     ) -> RunSnapshot:
         self._assert_mutable_mode()
         key = self._validate_idempotency_key(idempotency_key)
@@ -374,6 +505,11 @@ class RevisionProofService:
                         self.settings.max_upload_bytes,
                         content_sha256,
                     )
+                    smart_evidence = self._smart_evidence(
+                        search_id=scene_search_id,
+                        segment_id=scene_segment_id,
+                        source_key=digest,
+                    )
                     fingerprint = self._fingerprint(
                         json.dumps(
                             [
@@ -381,6 +517,8 @@ class RevisionProofService:
                                 feedback,
                                 selected_range.model_dump(),
                                 edit_plan.model_dump() if edit_plan else None,
+                                scene_search_id,
+                                scene_segment_id,
                             ],
                             sort_keys=True,
                         )
@@ -420,6 +558,8 @@ class RevisionProofService:
                         codec="h264/aac",
                     ),
                 )
+                if smart_evidence is not None:
+                    snapshot.evidence = [smart_evidence]
                 self.repository.create(snapshot, source_path, active=True)
                 try:
                     source_path.parent.mkdir(parents=True, exist_ok=True)
@@ -498,6 +638,13 @@ class RevisionProofService:
             self.settings.runtime_dir,
             self.executor,
         )
+        source_key = await asyncio.to_thread(_file_sha256, source_path)
+        smart_evidence = self._smart_evidence(
+            search_id=request.scene_search_id,
+            segment_id=request.scene_segment_id,
+            source_key=source_key,
+            sample_asset_id=request.asset_id,
+        )
         self._record_new_run()
         run_id = new_ulid()
         if request.edit_plan is not None:
@@ -514,6 +661,8 @@ class RevisionProofService:
             source_feedback=request.feedback,
             edit_plan=request.edit_plan,
         )
+        if smart_evidence is not None:
+            snapshot.evidence = [smart_evidence]
         self.repository.create(snapshot, source_path, active=True)
         try:
             await self._cleanup_pending_evictions()

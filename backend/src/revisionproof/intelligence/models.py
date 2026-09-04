@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from revisionproof.editing.models import EditPlan
+
 SearchEngine = Literal["exact", "hnsw", "qbit"]
 
 
@@ -37,11 +39,13 @@ class RevisionChangeMap(BaseModel):
 
 class ApprovedEditMatch(BaseModel):
     memory_id: str
+    kind: Literal["zoom", "recipe"] = "zoom"
     intent: str
     target_phrase: str
-    candidate_id: Literal["A", "B"]
-    scale: Literal[1.05, 1.12]
-    duration_seconds: float = Field(ge=4, le=8)
+    candidate_id: Literal["A", "B"] | None = None
+    scale: Literal[1.05, 1.12] | None = None
+    duration_seconds: float = Field(ge=0.1, le=60.05)
+    edit_plan: EditPlan | None = None
     similarity: float = Field(ge=-1, le=1)
     approved_at: datetime
     spec_hash: str
@@ -64,3 +68,22 @@ class MemorySaveResult(BaseModel):
     memory_id: str
     status: Literal["saved", "already_saved"]
     source: Literal["fixture.approved_memory", "clickhouse.approved_memory"]
+
+
+class SceneSearchHit(BaseModel):
+    segment_id: str = Field(min_length=26, max_length=26)
+    start_seconds: float = Field(ge=0, le=60)
+    end_seconds: float = Field(gt=0, le=60.05)
+    score: float = Field(ge=-1, le=1)
+    transcript: str = Field(default="", max_length=4000)
+    visual_summary: str = Field(min_length=1, max_length=1000)
+
+
+class SceneSearchResult(BaseModel):
+    search_id: str = Field(min_length=26, max_length=26)
+    asset_id: str = Field(min_length=26, max_length=26)
+    query: str = Field(min_length=2, max_length=500)
+    source: Literal["fixture.scene_search", "mcp-clickhouse.run_query"]
+    segments_indexed: int = Field(ge=1, le=15)
+    matches: list[SceneSearchHit] = Field(default_factory=list, max_length=3)
+    message: str

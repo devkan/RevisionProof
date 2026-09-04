@@ -50,14 +50,34 @@ export interface RevisionChangeMap {
 }
 export interface ApprovedEditMatch {
   memory_id: string
+  kind: 'zoom' | 'recipe'
   intent: string
   target_phrase: string
-  candidate_id: 'A' | 'B'
-  scale: 1.05 | 1.12
+  candidate_id: 'A' | 'B' | null
+  scale: 1.05 | 1.12 | null
   duration_seconds: number
+  edit_plan: EditPlan | null
   similarity: number
   approved_at: string
   spec_hash: string
+}
+
+export interface SceneSearchHit {
+  segment_id: string
+  start_seconds: number
+  end_seconds: number
+  score: number
+  transcript: string
+  visual_summary: string
+}
+export interface SceneSearchResult {
+  search_id: string
+  asset_id: string
+  query: string
+  source: 'fixture.scene_search' | 'mcp-clickhouse.run_query'
+  segments_indexed: number
+  matches: SceneSearchHit[]
+  message: string
 }
 export interface EditMemorySearch {
   status: 'ready' | 'empty' | 'unavailable' | 'disabled'

@@ -1,5 +1,6 @@
 # RevisionProof docs
 
+- [스마트 장면 찾기, 편집 레시피 메모리, 압축 자막 UI — 2026-09-04](smart-scene-and-recipe-memory-2026-09-04.md)
 - [Advanced editing LIVE release — source, Cloud Run, mixed-speech gstack proof](deployment-2026-09-04-advanced-editing.md)
 - [Advanced editing — speed, volume, logo, Korean/English speech subtitles](advanced-editing-guide-2026-09-04.md)
 - [QA 수정본 LIVE 배포 완료 — revision 00022, 컷·복합 편집 검증](deployment-2026-09-03-qa-fixes.md)

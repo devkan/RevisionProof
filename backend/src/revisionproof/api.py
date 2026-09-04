@@ -42,6 +42,7 @@ from revisionproof.intelligence.models import (
     EditMemorySearch,
     MemoryAuthorizationError,
     MemorySaveResult,
+    SceneSearchResult,
     SearchEngine,
 )
 from revisionproof.media.source import SourceUploadError
@@ -219,6 +220,39 @@ async def interpret_edit_plan(payload: InterpretEditRequest, service: ServiceDep
         raise as_http_error(exc) from exc
 
 
+@router.post("/scene-search", response_model=SceneSearchResult)
+async def search_scenes(
+    service: ServiceDep,
+    query: Annotated[str, Form(min_length=2, max_length=500)],
+    file: Annotated[UploadFile | None, File()] = None,
+    asset_id: Annotated[str | None, Form(max_length=64)] = None,
+    content_sha256: Annotated[str | None, Header(alias="X-Content-SHA256")] = None,
+) -> SceneSearchResult:
+    if file is not None and file.content_type not in {
+        "video/mp4",
+        "application/mp4",
+        "video/quicktime",
+        "video/webm",
+        "application/octet-stream",
+    }:
+        raise HTTPException(status_code=415, detail="Choose an MP4, MOV, or WebM video.")
+    if file is not None and asset_id:
+        raise HTTPException(status_code=409, detail="Choose either your video or the sample.")
+    try:
+        return await service.search_scenes(
+            query=query,
+            stream=file.file if file is not None else None,
+            size=file.size or 0 if file is not None else 0,
+            content_sha256=content_sha256 or "",
+            asset_id=asset_id,
+        )
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+    finally:
+        if file is not None:
+            await file.close()
+
+
 @router.post("/runs", response_model=RunSnapshot, status_code=status.HTTP_201_CREATED)
 async def create_run(
     payload: CreateRunRequest,
@@ -241,6 +275,8 @@ async def upload_source(
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     content_sha256: Annotated[str | None, Header(alias="X-Content-SHA256")] = None,
     edit_plan: Annotated[str | None, Form(max_length=24000)] = None,
+    scene_search_id: Annotated[str | None, Form(max_length=26)] = None,
+    scene_segment_id: Annotated[str | None, Form(max_length=26)] = None,
 ) -> RunSnapshot:
     try:
         if file.content_type not in {
@@ -260,6 +296,8 @@ async def upload_source(
             content_sha256=content_sha256 or "",
             idempotency_key=idempotency_key,
             edit_plan=EditPlan.model_validate_json(edit_plan) if edit_plan else None,
+            scene_search_id=scene_search_id,
+            scene_segment_id=scene_segment_id,
         )
     except Exception as exc:
         raise as_http_error(exc) from exc

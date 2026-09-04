@@ -312,8 +312,12 @@ async def test_plan_workflow_verifies_export_and_rejects_changed_preview(media, 
     )
     service.approve_for_delivery(run.run_id)
     assert run.delivery_approved
-    with pytest.raises(ValueError, match="Multi-edit"):
-        service.save_memory(run.run_id)
+    saved = service.save_memory(run.run_id)
+    assert saved.status == "saved"
+    recipe = service.search_memory(run.run_id, "exact")
+    assert recipe.status == "ready"
+    assert recipe.matches[0].kind == "recipe"
+    assert recipe.matches[0].edit_plan == run.edit_plan
     altered = tmp_path / "omitted-caption.mp4"
     render_plan(
         service.repository.source_path(run.run_id),

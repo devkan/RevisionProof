@@ -57,7 +57,7 @@ Memory reads are exact L2, HNSW, or `L2DistanceTransposed` against materialized 
 
 Search is lazy: creating or interpreting a run no longer waits for approved-memory retrieval. Opening the optional “Past approved edits” area fetches references. A zero-count LIVE library returns `actual_engine: "none"`, with no embedding/vector query. The empty UI explains the runtime save policy and hides engine controls; a populated library retains advanced search details.
 
-Export/restore includes source extension tables, not aggregate-state serialization. QBit and the materialized view rebuild during restore. Stop writes during the export/restore maintenance window. Existing workspace data is never overwritten by the restore tool. See [the runbook](clickhouse-intelligence-runbook.md).
+Export/restore includes approved zooms, approved edit recipes and raw Change Map measurements, not aggregate-state serialization. Format v2 restores those three sources and remains compatible with v1 exports that predate recipe memory. Seven-day smart-scene search rows are intentionally ephemeral and are not exported. QBit and the materialized view rebuild during restore. Stop writes during the export/restore maintenance window. Existing workspace data is never overwritten by the restore tool. See [the runbook](clickhouse-intelligence-runbook.md).
 
 ## State machine (unchanged)
 

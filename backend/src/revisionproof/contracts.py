@@ -374,9 +374,13 @@ class CreateRunRequest(BaseModel):
     asset_id: str
     feedback: str = Field(min_length=2, max_length=2000)
     edit_plan: EditPlan | None = None
+    scene_search_id: str | None = Field(default=None, pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
+    scene_segment_id: str | None = Field(default=None, pattern=r"^[0-9A-HJKMNP-TV-Z]{26}$")
 
     @model_validator(mode="after")
     def feedback_length(self) -> CreateRunRequest:
+        if bool(self.scene_search_id) != bool(self.scene_segment_id):
+            raise ValueError("Scene search and selected result must be supplied together.")
         if self.edit_plan is None and len(self.feedback) < 8:
             raise ValueError("Describe the edit in 8–2000 characters.")
         return self

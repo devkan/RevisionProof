@@ -38,6 +38,10 @@ def schema_rows(shared=False):
             definer = VIEW_DEFINER_USER
         if name == "approved_edits":
             ddl += " (embedding_qbit QBit(Float32, 768), INDEX approved_edit_hnsw embedding)"
+        if name == "approved_edit_recipes":
+            ddl += " (embedding_qbit QBit(Float32, 768), INDEX approved_recipe_hnsw embedding)"
+        if name == "smart_scene_segments":
+            ddl += " (INDEX smart_scene_hnsw embedding) TTL expires_at DELETE"
         actual_engine = f"Shared{engine}" if shared and engine.endswith("MergeTree") else engine
         rows.append((name, actual_engine, definer, ddl))
     return rows
@@ -59,7 +63,9 @@ def test_schema_verifier_accepts_oss_and_cloud_shared_engines(shared) -> None:
     verify_intelligence_schema(FakeAdmin([schema_rows(shared)]))
 
 
-@pytest.mark.parametrize("mutation", ["missing", "engine", "definer", "qbit", "hnsw"])
+@pytest.mark.parametrize(
+    "mutation", ["missing", "engine", "definer", "qbit", "hnsw", "recipe", "scene_ttl"]
+)
 def test_schema_verifier_rejects_incomplete_or_unsafe_layout(mutation) -> None:
     rows = schema_rows()
     if mutation == "missing":
@@ -70,11 +76,19 @@ def test_schema_verifier_rejects_incomplete_or_unsafe_layout(mutation) -> None:
         index = next(i for i, row in enumerate(rows) if row[1] == "View")
         row = rows[index]
         rows[index] = (*row[:2], "default", row[3])
-    else:
+    elif mutation in {"qbit", "hnsw"}:
         index = next(i for i, row in enumerate(rows) if row[0] == "approved_edits")
         row = rows[index]
         marker = "QBit(Float32, 768)" if mutation == "qbit" else "approved_edit_hnsw"
         rows[index] = (*row[:3], row[3].replace(marker, "unexpected"))
+    elif mutation == "recipe":
+        index = next(i for i, row in enumerate(rows) if row[0] == "approved_edit_recipes")
+        row = rows[index]
+        rows[index] = (*row[:3], row[3].replace("approved_recipe_hnsw", "unexpected"))
+    else:
+        index = next(i for i, row in enumerate(rows) if row[0] == "smart_scene_segments")
+        row = rows[index]
+        rows[index] = (*row[:3], row[3].replace("TTL expires_at", "missing_ttl"))
     with pytest.raises(RuntimeError):
         verify_intelligence_schema(FakeAdmin([rows]))
 
@@ -124,7 +138,9 @@ def test_extension_sql_keeps_raw_data_private_and_uses_incremental_aggregation()
     assert mcp_grants
     assert all("GRANT SELECT ON revisionproof." in grant for grant in mcp_grants)
     assert all(
-        "approved_edits TO" not in grant and "revision_frame_pairs TO" not in grant
+        "approved_edits TO" not in grant
+        and "approved_edit_recipes TO" not in grant
+        and "revision_frame_pairs TO" not in grant
         for grant in mcp_grants
     )
     assert "AggregateFunction(uniqExact, UInt32)" in sql

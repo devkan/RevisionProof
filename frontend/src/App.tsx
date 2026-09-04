@@ -42,6 +42,7 @@ import type {
   Verdict,
   TimeRange,
   EditOperation,
+  SceneSearchHit,
 } from './types'
 
 type ProcessingPhase =
@@ -247,6 +248,7 @@ export default function App() {
   const [videoPreview, setVideoPreview] = useState<VideoLightboxContent | null>(null)
   const [uploadedSource, setUploadedSource] = useState<UploadedSource | null>(null)
   const [selectedRange, setSelectedRange] = useState<TimeRange>({ start_seconds: 0, end_seconds: 6 })
+  const [smartSelection, setSmartSelection] = useState<{ searchId: string; hit: SceneSearchHit } | null>(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const sourcePlayer = useRef<HTMLVideoElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -330,9 +332,10 @@ export default function App() {
       const problem = fileValidation(uploadedSource.file, limitsFor(runtime)) ?? rangeError
       if (problem) { setError(problem); return }
       setUploadProgress(0)
-      const range = guided ? { start_seconds: 0, end_seconds: Math.min(6, activeAsset.duration_seconds) } : selectedRange
-      void action('uploading-source', () => api.uploadSource(uploadedSource.file, notes, range, setUploadProgress, plan))
-    } else void action('interpreting', () => api.createRun(activeAsset.asset_id, notes, plan))
+      const range = guided ? smartSelection ? { start_seconds: smartSelection.hit.start_seconds, end_seconds: smartSelection.hit.end_seconds } : { start_seconds: 0, end_seconds: Math.min(6, activeAsset.duration_seconds) } : selectedRange
+      const scene = smartSelection ? { searchId: smartSelection.searchId, segmentId: smartSelection.hit.segment_id } : undefined
+      void action('uploading-source', () => api.uploadSource(uploadedSource.file, notes, range, setUploadProgress, plan, scene))
+    } else void action('interpreting', () => api.createRun(activeAsset.asset_id, notes, plan, smartSelection ? { searchId: smartSelection.searchId, segmentId: smartSelection.hit.segment_id } : undefined))
   }
 
   function renderPreviews() {
@@ -381,7 +384,7 @@ export default function App() {
     setSelectedNoteId(null)
     setError(null)
     setFeedback(guided ? '' : uploadedSource ? 'Apply a center punch-in to the selected section.' : DEFAULT_FEEDBACK)
-    setOperations([]); setUsedDraftText('')
+    setOperations([]); setUsedDraftText(''); setSmartSelection(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -389,6 +392,7 @@ export default function App() {
     if (busy) return
     setRun(null)
     setSelectedNoteId(null)
+    setSmartSelection(null)
     setError(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -469,7 +473,7 @@ export default function App() {
                 setUploadedSource(source); setError(null)
                 setSelectedRange({ start_seconds: 0, end_seconds: source ? Math.min(6, source.asset.duration_seconds) : 6 })
                 setFeedback(guided ? '' : source ? 'Apply a center punch-in to the selected section.' : DEFAULT_FEEDBACK)
-                setOperations([]); setUsedDraftText('')
+                setOperations([]); setUsedDraftText(''); setSmartSelection(null)
               }} />}
               {processing === 'uploading-source' && <div className="upload-progress" role="status"><progress value={uploadProgress} max={100} /><span>{uploadProgress < 100 ? `Uploading ${uploadProgress}%` : 'Upload complete. Preparing video and reviewing your request…'}</span></div>}
               {run?.asset.source_kind === 'upload' && <p className="input-help">Your video · {seconds(run.asset.duration_seconds)} · prepared at 1280×720 with aspect ratio preserved.</p>}
@@ -494,7 +498,7 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                {guided ? <RequestDraft key={activeAsset?.source_url} text={feedback} onText={setFeedback} duration={activeAsset?.duration_seconds ?? 0} disabled={Boolean(run) || processing !== null || !activeAsset || !runtime?.mutable} onBusy={setDraftBusy} onApply={plan => { setOperations(plan.operations); setUsedDraftText(feedback) }} /> : <div className="feedback-field">
+                {guided ? <RequestDraft key={activeAsset?.source_url} text={feedback} onText={setFeedback} duration={activeAsset?.duration_seconds ?? 0} disabled={Boolean(run) || processing !== null || !activeAsset || !runtime?.mutable} onBusy={setDraftBusy} sourceFile={uploadedSource?.file} assetId={uploadedSource ? undefined : activeAsset?.asset_id} mode={runtime?.mode} onSceneSelect={selection => { setSmartSelection(selection); if (selection) setSelectedRange({ start_seconds: selection.hit.start_seconds, end_seconds: selection.hit.end_seconds }) }} onApply={plan => { setOperations(plan.operations); setUsedDraftText(feedback) }} /> : <div className="feedback-field">
                   <label htmlFor="feedback">Client feedback</label>
                   <textarea
                     id="feedback"
@@ -536,6 +540,7 @@ export default function App() {
                   mode={runtime?.mode}
                   logoMaxBytes={runtime?.logo_limits?.max_bytes ?? 2 * 1048576}
                   onBusy={setDraftBusy}
+                  defaultRange={smartSelection ? { start_seconds: smartSelection.hit.start_seconds, end_seconds: smartSelection.hit.end_seconds } : undefined}
                 />
                 <div className="section-action-bar"><div><strong>{operations.length ? `${operations.length} edits in your plan` : 'Start with an edit or an example'}</strong><p>{editProblem ?? 'Next: review the exact edits and any detected quiet pauses.'}</p></div><button type="button" className="primary-button" disabled={busy || !activeAsset || !runtime?.mutable || Boolean(editProblem)} onClick={start}><Sparkles size={18} />Review edit plan</button></div>
               </>}
@@ -587,8 +592,8 @@ export default function App() {
               </section>
             ) : null}
 
-            {runtime?.intelligence_enabled && run?.feedback && !run.edit_plan && (
-              <EditMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} />
+            {runtime?.intelligence_enabled && run?.feedback && (
+              <EditMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} onApply={(plan, label) => { setOperations([...plan.operations]); setFeedback(label); setUsedDraftText(label); editRequest() }} />
             )}
 
             {run?.candidates.length ? (
@@ -681,7 +686,7 @@ export default function App() {
                     {run.delivery_approved ? 'Approved for delivery' : 'Approve for delivery'}
                   </button>
                 </div>
-                {runtime?.intelligence_enabled && !run.edit_plan && <SaveApprovedMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} onSaved={() => setRun((current) => current ? { ...current, memory_saved: true } : current)} />}
+                {runtime?.intelligence_enabled && <SaveApprovedMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} onSaved={() => setRun((current) => current ? { ...current, memory_saved: true } : current)} />}
               </section>
             )}
 

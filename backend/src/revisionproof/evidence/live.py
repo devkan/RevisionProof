@@ -354,6 +354,11 @@ class VertexGeminiInterpreter:
         )
 
     def embed(self, text: str) -> list[float]:
+        return self.embed_many([text])[0]
+
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        if not texts or len(texts) > 16:
+            raise ValueError("Embedding batch must contain 1-16 items")
         from google import genai
 
         client = genai.Client(
@@ -364,14 +369,14 @@ class VertexGeminiInterpreter:
         )
         try:
             response = client.models.embed_content(
-                model=self.settings.embedding_model, contents=text
+                model=self.settings.embedding_model, contents=texts
             )
-            values = list(response.embeddings[0].values)
+            vectors = [list(item.values) for item in response.embeddings]
         finally:
             client.close()
-        if len(values) != 768:
-            raise RuntimeError(f"expected 768 embedding dimensions, got {len(values)}")
-        return values
+        if len(vectors) != len(texts) or any(len(values) != 768 for values in vectors):
+            raise RuntimeError("expected one 768-dimension embedding per input")
+        return vectors
 
 
 @dataclass(slots=True)
@@ -408,6 +413,54 @@ class ClickHouseWriter:
                     "time_start",
                     "time_end",
                     "extracted_at",
+                ],
+            )
+        finally:
+            client.close()
+
+    def insert_smart_segments(self, rows: list[list[Any]]) -> None:
+        client = self._client()
+        try:
+            client.insert(
+                "smart_scene_segments",
+                rows,
+                column_names=[
+                    "workspace_id",
+                    "search_id",
+                    "segment_id",
+                    "asset_id",
+                    "start_seconds",
+                    "end_seconds",
+                    "transcript",
+                    "visual_summary",
+                    "embedding",
+                    "created_at",
+                    "expires_at",
+                ],
+            )
+        finally:
+            client.close()
+
+    def insert_approved_recipe(self, row: list[Any]) -> None:
+        client = self._client()
+        try:
+            client.insert(
+                "approved_edit_recipes",
+                [row],
+                column_names=[
+                    "workspace_id",
+                    "memory_id",
+                    "run_id",
+                    "spec_hash",
+                    "intent",
+                    "target_phrase",
+                    "candidate_id",
+                    "duration_seconds",
+                    "operations_json",
+                    "embedding_model",
+                    "embedding",
+                    "proof_json",
+                    "approved_at",
                 ],
             )
         finally:

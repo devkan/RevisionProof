@@ -52,16 +52,17 @@ def review_plan(service, snapshot, plan: EditPlan) -> None:
         rationale=snapshot.notes[0].rationale,
         interpreter_source="user.structured",
     )
-    snapshot.evidence = [
-        EvidenceAnchor(
-            segment_id=f"plan_{snapshot.run_id}",
-            time_range=TimeRange(start_seconds=0, end_seconds=plan.source_duration),
-            score=1,
-            transcript="",
-            visual_summary="Original-video times and exact text selected by the user.",
-            source="user.selected_range",
-        )
-    ]
+    if not snapshot.evidence:
+        snapshot.evidence = [
+            EvidenceAnchor(
+                segment_id=f"plan_{snapshot.run_id}",
+                time_range=TimeRange(start_seconds=0, end_seconds=plan.source_duration),
+                score=1,
+                transcript="",
+                visual_summary="Original-video times and exact text selected by the user.",
+                source="user.selected_range",
+            )
+        ]
     service._transition(
         snapshot, RunState.EVIDENCE_ANCHORED, "Choose edits and detected cuts before previewing"
     )

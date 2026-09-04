@@ -17,7 +17,7 @@ The local rehearsal library resets on backend restart. LIVE memory is durable in
 
 ## Database preparation
 
-ClickHouse 26.2+ is required. QBit uses the 26.2-compatible Float32 layout; no 26.7-only functions are required. `docker compose -p revisionproof up -d clickhouse` initializes the seven extension objects for a **new** volume. Do not point a new image at another project's volume or use `down --volumes` on an existing project as an upgrade procedure. Export/backup an old 25.6 installation first. Use a separate named project/volume for testing.
+ClickHouse 26.2+ is required. QBit uses the 26.2-compatible Float32 layout; no 26.7-only functions are required. `docker compose -p revisionproof up -d clickhouse` initializes the twelve extension objects for a **new** volume. The additions include approved multi-edit recipes and seven-day smart-scene search rows; original media is never stored in these tables. Do not point a new image at another project's volume or use `down --volumes` on an existing project as an upgrade procedure. Export/backup an old 25.6 installation first. Use a separate named project/volume for testing.
 
 Existing 26.2 volumes require the additive migration; Docker initialization scripts are not rerun for populated data directories. The migration has no DROP, DELETE, TRUNCATE or replacement of existing tables. It rejects unsupported versions, wrong engines and unsafe view definers. It is not an automatic repair tool for drifted schemas.
 
@@ -43,7 +43,7 @@ backend/.venv/Scripts/python.exe scripts/migrate_clickhouse_intelligence.py --ho
 
 The Cloud command checks the exact deployment sentinel before writes. Review `infra/clickhouse/intelligence.sql` and approve its narrowly scoped role grants before `--apply`. Alternatively, the signed-in SQL console can execute those reviewed statements **one at a time**, after the same sentinel check. Do not rerun the full historical bootstrap: the former bootstrap admin has been removed, and that workflow also changes credential assignments.
 
-After migration, verify all seven objects, their view definers and the MCP SELECT/denied-base-table boundaries. The parameterized `approved_edit_neighbors` view is necessary: on tested 26.2, an ordinary definer view prevented HNSW selection. Actual HNSW is reported only after EXPLAIN names the index. Small or selective queries may legitimately report exact. QBit is an alternative approximate-distance route, not a second HNSW index.
+After migration, verify all twelve objects, their view definers, the smart-scene TTL and the MCP SELECT/denied-base-table boundaries. The parameterized neighbor views are necessary: on tested 26.2, an ordinary definer view prevented HNSW selection. Actual HNSW is reported only after EXPLAIN names the index. Small or selective queries may legitimately report exact. QBit is an alternative approximate-distance route, not a second HNSW index.
 
 ## Enable the Cloud UI
 
@@ -61,7 +61,7 @@ The default public library is **read-only**. To allow owner-curated saves, the o
 
 The code is not trial-limited. Hosting and stored Cloud data still depend on an active paid/trial service. Move/export data before expiry; neither Git nor an application deployment backs up ClickHouse. The billing screen on 2026-09-03 showed the trial credit period ending 2026-09-24; recheck this before acting.
 
-Pause application writes first. Export only one workspace to a new, protected directory. This extension backup contains approved memory and raw Change Map measurements, **not** existing audit tables, source/revised media in GCS, or in-progress runs. Keep separate ClickHouse/GCS backups for those.
+Pause application writes first. Export only one workspace to a new, protected directory. Format v2 contains approved zoom memory, approved multi-edit recipes and raw Change Map measurements. Restore remains compatible with format v1 exports. It does **not** include seven-day smart-scene rows, existing audit tables, source/revised media in GCS, or in-progress runs. Keep separate ClickHouse/GCS backups for those.
 
 ```powershell
 $env:PYTHONPATH='backend/src'
@@ -88,7 +88,7 @@ Deletion is intentionally manual and requires separate approval: exact targets a
 
 ## Reproduce the real vector check
 
-`scripts/verify_intelligence_clickhouse.py` is restricted to loopback ports 18123 (dedicated QA container) or 8123 (isolated CI Compose project). It creates a clearly synthetic, timestamped benchmark namespace; never run it against Cloud. It checks exact/HNSW/QBit top-15 agreement on one 12,000-vector corpus, actual HNSW EXPLAIN selection, duplicate-safe aggregation and denied raw-table MCP access. This is a correctness smoke, not a representative performance/recall study.
+`scripts/verify_intelligence_clickhouse.py` is restricted to loopback ports 18123 (dedicated QA container) or 8123 (isolated CI Compose project). It creates a clearly synthetic, timestamped benchmark namespace; never run it against Cloud. It checks exact/HNSW/QBit top-15 agreement on one 12,000-vector corpus, actual HNSW EXPLAIN selection, approved-recipe search, smart-scene search, duplicate-safe aggregation and denied MCP access to all three raw tables. This is a correctness smoke, not a representative performance/recall study.
 
 ```powershell
 $env:PYTHONPATH='backend/src'

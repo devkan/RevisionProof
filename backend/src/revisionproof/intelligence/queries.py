@@ -38,6 +38,19 @@ def build_memory_count_query(workspace: str, model: str, memory_id: str | None =
     )
 
 
+def build_recipe_count_query(workspace: str, model: str, memory_id: str | None = None) -> str:
+    extra = ""
+    if memory_id is not None:
+        if not re.fullmatch(r"[a-f0-9]{64}", memory_id):
+            raise ValueError("invalid memory id")
+        extra = f" AND memory_id = '{memory_id}'"
+    return (
+        "SELECT uniqExact(memory_id) AS total FROM approved_edit_recipe_memory WHERE "
+        + memory_filter(workspace, model)
+        + extra
+    )
+
+
 def build_memory_search_query(
     workspace: str,
     model: str,
@@ -67,6 +80,61 @@ def build_memory_search_query(
         "SELECT memory_id, intent, target_phrase, candidate_id, scale, duration_seconds, "
         f"approved_at, spec_hash, {distance} AS distance FROM approved_edit_memory "
         f"WHERE {memory_filter(workspace, model)} ORDER BY distance ASC LIMIT 15{settings}"
+    )
+
+
+def build_recipe_search_query(
+    workspace: str,
+    model: str,
+    embedding: list[float],
+    engine: SearchEngine,
+    precision: int = 16,
+) -> str:
+    if engine not in {"exact", "hnsw", "qbit"} or not 12 <= precision <= 32:
+        raise ValueError("unsupported memory search engine or precision")
+    vector = ",".join(format(value, ".9g") for value in normalize_embedding(embedding))
+    if engine == "hnsw":
+        return (
+            "SELECT memory_id, intent, target_phrase, candidate_id, duration_seconds, "
+            "operations_json, approved_at, spec_hash, distance FROM approved_edit_recipe_neighbors("
+            f"workspace={sql_string(workspace)}, model={sql_string(model)}, "
+            f"reference_vector=[{vector}]) ORDER BY distance ASC LIMIT 15"
+        )
+    distance = (
+        f"L2DistanceTransposed(embedding_qbit, reference_vector, {precision})"
+        if engine == "qbit"
+        else "L2Distance(embedding, reference_vector)"
+    )
+    return (
+        f"WITH CAST([{vector}], 'Array(Float32)') AS reference_vector "
+        "SELECT memory_id, intent, target_phrase, candidate_id, duration_seconds, "
+        f"operations_json, approved_at, spec_hash, {distance} AS distance "
+        "FROM approved_edit_recipe_memory "
+        f"WHERE {memory_filter(workspace, model)} ORDER BY distance ASC LIMIT 15 "
+        "SETTINGS use_skip_indexes = 0"
+    )
+
+
+def build_smart_scene_search_query(
+    workspace: str,
+    search_id: str,
+    asset_id: str,
+    embedding: list[float],
+    limit: int = 3,
+) -> str:
+    if not all(re.fullmatch(r"[0-9A-HJKMNP-TV-Z]{26}", value) for value in (search_id, asset_id)):
+        raise ValueError("search and asset ids must be ULIDs")
+    if not 1 <= limit <= 10:
+        raise ValueError("scene result limit must be between 1 and 10")
+    vector = ",".join(format(value, ".9g") for value in normalize_embedding(embedding))
+    return (
+        f"WITH CAST([{vector}], 'Array(Float32)') AS reference_vector "
+        "SELECT segment_id, start_seconds, end_seconds, transcript, visual_summary, "
+        "1 - cosineDistance(embedding, reference_vector) AS score "
+        "FROM smart_scene_search "
+        f"WHERE workspace_id = {sql_string(workspace)} AND search_id = '{search_id}' "
+        f"AND asset_id = '{asset_id}' AND expires_at > now() "
+        f"ORDER BY score DESC LIMIT {limit} SETTINGS use_skip_indexes = 0"
     )
 
 

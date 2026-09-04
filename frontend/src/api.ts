@@ -1,4 +1,4 @@
-import type { DemoAsset, EditInterpretation, EditMemorySearch, EditPlan, LogoAsset, RunSnapshot, RuntimeStatus, SearchEngine, TimeRange, TranscriptionLanguage, TranscriptionResult } from './types'
+import type { DemoAsset, EditInterpretation, EditMemorySearch, EditPlan, LogoAsset, RunSnapshot, RuntimeStatus, SceneSearchResult, SearchEngine, TimeRange, TranscriptionLanguage, TranscriptionResult } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -22,9 +22,9 @@ async function blobSha256(blob: Blob): Promise<string> {
 }
 
 export const api = {
-  interpretEdit: (text: string, duration: number) => request<EditInterpretation>('/api/edit-plans/interpret', {
+  interpretEdit: (text: string, duration: number, range?: TimeRange) => request<EditInterpretation>('/api/edit-plans/interpret', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, duration, start: 0, end: duration }),
+    body: JSON.stringify({ text, duration, start: range?.start_seconds ?? 0, end: range?.end_seconds ?? duration }),
   }),
   runtime: () => request<RuntimeStatus>('/api/runtime'),
   assets: () => request<DemoAsset[]>('/api/demo-assets'),
@@ -45,7 +45,15 @@ export const api = {
     const headers: HeadersInit = file ? { 'X-Content-SHA256': await blobSha256(file) } : {}
     return request<TranscriptionResult>('/api/transcriptions', { method: 'POST', headers, body: form })
   },
-  uploadSource: async (file: File, feedback: string, range: TimeRange, onProgress: (value: number) => void, editPlan?: EditPlan): Promise<RunSnapshot> => {
+  searchScenes: async (query: string, file?: File, assetId?: string): Promise<SceneSearchResult> => {
+    const form = new FormData()
+    form.append('query', query)
+    if (file) form.append('file', file)
+    else if (assetId) form.append('asset_id', assetId)
+    const headers: HeadersInit = file ? { 'X-Content-SHA256': await blobSha256(file) } : {}
+    return request<SceneSearchResult>('/api/scene-search', { method: 'POST', headers, body: form })
+  },
+  uploadSource: async (file: File, feedback: string, range: TimeRange, onProgress: (value: number) => void, editPlan?: EditPlan, scene?: { searchId: string; segmentId: string }): Promise<RunSnapshot> => {
     const digest = await blobSha256(file)
     const form = new FormData()
     form.append('file', file)
@@ -53,6 +61,7 @@ export const api = {
     form.append('start_seconds', String(range.start_seconds))
     form.append('end_seconds', String(range.end_seconds))
     if (editPlan) form.append('edit_plan', JSON.stringify(editPlan))
+    if (scene) { form.append('scene_search_id', scene.searchId); form.append('scene_segment_id', scene.segmentId) }
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
       xhr.open('POST', '/api/runs/upload')
@@ -78,11 +87,11 @@ export const api = {
       method: 'POST',
       headers: workspaceKey ? { 'X-Workspace-Key': workspaceKey } : {},
     }),
-  createRun: (assetId: string, feedback: string, editPlan?: EditPlan) =>
+  createRun: (assetId: string, feedback: string, editPlan?: EditPlan, scene?: { searchId: string; segmentId: string }) =>
     request<RunSnapshot>('/api/runs', {
       method: 'POST',
       headers: mutationHeaders(`create:${crypto.randomUUID()}`, true),
-      body: JSON.stringify({ asset_id: assetId, feedback, edit_plan: editPlan }),
+      body: JSON.stringify({ asset_id: assetId, feedback, edit_plan: editPlan, scene_search_id: scene?.searchId, scene_segment_id: scene?.segmentId }),
     }),
   retryRun: (runId: string) =>
     request<RunSnapshot>(`/api/runs/${runId}/retry`, {
