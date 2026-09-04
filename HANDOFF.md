@@ -6,6 +6,9 @@ Branch: review/qa-hardening
 
 ## Current Status
 
+- Smart scene finder and recipe memory are **deployed and LIVE verified**: source `b0b00a9937cf158560f4a3fba2f3d473104b3b6c`, revision `revisionproof-staging-00024-c9p`, traffic 100%, all readiness conditions True. Build `aa63da88-9407-45e6-9659-235427e5d4a2` SUCCESS at `2026-09-04T05:51:14.595604Z`; image `sha256:03da71d487c0911359164cae0956de4e29ce7410207ab5ec65d4df3b268f2970`. Read [the smart scene and recipe memory release record](docs/smart-scene-and-recipe-memory-2026-09-04.md) first.
+- Smart scene finder defaults OFF and requires Start/End times. ON clearly discloses Google AI and ClickHouse credit use before **Find scenes**. LIVE sample search indexed 8 segments through `mcp-clickhouse.run_query`, returned three choices, and carried the selected 20–24 second range into a `Zoom in · 20s–24s` editable draft. Browser network/console and 390px overflow checks passed.
+- ClickHouse Cloud now has 24 target objects including 5 new smart-scene/recipe objects. Smart scene rows expire after 7 days; MCP can read only the three security-definer views and cannot read the new raw tables. Approved recipe saving still requires all proof/approval gates and a private owner key; public LIVE memory remains read-only.
 - Advanced editing is **deployed and LIVE verified**: source `150d36774b0acaece9aad57a4d655af3eda59c5b`, revision `revisionproof-staging-00023-j7p`, traffic 100%, all readiness conditions True. Build `fcb6b33c-7b81-421c-8d5d-21eff29cc1bf` SUCCESS at `2026-09-04T03:41:32.832473Z`; image `sha256:fc05a5676d7a68c5c6f7502902ab81bfe2b36bff3a6bd459d144c1207344826e`. Read [the advanced release record](docs/deployment-2026-09-04-advanced-editing.md) first.
 - The guided editor now has eight controls: zoom, text, timed subtitle, exact cut, reviewed quiet-pause removal, 0.5-2x speed, -60 to +12 dB volume, and bounded uploaded logos. LIVE Vertex Gemini drafts editable Korean, English, auto-detected, or mixed Korean/English subtitle cues. Spec 3.1 freezes retiming, audio changes, normalized logo ID/hash, overlays, mapped timeline, and the chosen full-preview SHA-256. Legacy 2.x and safe 3.0 contracts remain compatible.
 - Exact-source gates: backend 336 passed / 129.74s, focused regressions 25 passed / 22.77s, rate-limit checks 5 passed / 2.86s, frontend 23 passed, plus Ruff/ESLint/build. Desktop and 390 px local gstack QA passed, including valid and over-limit logos, compound previews, output frames, overflow, and console checks.
@@ -28,6 +31,7 @@ Branch: review/qa-hardening
 
 ## Relevant Docs
 
+- [Smart scene finder and recipe memory LIVE release](docs/smart-scene-and-recipe-memory-2026-09-04.md) — current source/build/revision, ClickHouse Cloud migration, opt-in cost UX, recipe memory and LIVE search proof.
 - [Advanced editing LIVE deployment and proof](docs/deployment-2026-09-04-advanced-editing.md) — read first; source/build/image/revision IDs, mixed-speech run, spec 3.1, and gstack evidence.
 - [Advanced editing usage guide](docs/advanced-editing-guide-2026-09-04.md) — eight controls, subtitle workflow, limits, examples, and unsupported advanced work.
 - [Latest QA-fix deployment and LIVE evidence](docs/deployment-2026-09-03-qa-fixes.md) — read first; source/build/image/revision IDs, cut and compound runs, exact download hash.
@@ -48,12 +52,12 @@ Branch: review/qa-hardening
 
 ## Remaining Work
 
-Requested advanced editing, push, deployment and fresh LIVE verification are complete. Private memory keys, burned-in text replacement, moving-object/background edits, generated scenes, voice or music generation, and durable job recovery remain separate future scope. Final delivery approval is the owner's decision.
+Requested smart scene finder, recipe memory, compact editor UI, push, deployment and fresh LIVE verification are complete. Private memory keys, burned-in text replacement, moving-object/background edits, generated scenes, voice or music generation, and durable job recovery remain separate future scope. Final delivery approval is the owner's decision.
 
 ## Watchouts
 
 - Target ONLY `revisionproof-agentic-2026-kan` (number `348672234012`, label `managed-by=revisionproof-gcp`), region `us-central1`, account `secureis@gmail.com`. Pass explicit `--project` on applicable commands; never change global gcloud defaults or use `CLOUDSDK_CORE_ACCOUNT` to switch identities.
-- ClickHouse host `r2uz2gfc2f.asia-northeast1.gcp.clickhouse.cloud`, service `268999c1-badb-423e-993c-ebab14b551c4`. Seven extension objects/grants are already applied; do not rerun historical bootstrap or revoke existing grants.
+- ClickHouse host `r2uz2gfc2f.asia-northeast1.gcp.clickhouse.cloud`, service `268999c1-badb-423e-993c-ebab14b551c4`. Twelve extension objects and their grants are already applied, for 24 target objects total; do not rerun historical bootstrap or revoke existing grants.
 - Preserve `revisionproof.segments_pre_seed_dedupe_20260826`, shared roles/definer, other projects and Docker volumes. Deletion, billing and new credentials require scoped owner authority.
 - Runs are process-local; refresh does not restore the active UI, and restart may make old run APIs unavailable. Keep Cloud Run concurrency 4 / min-max 1 unless that state model is deliberately changed.
 - The bundled source is an authored storyboard/tone with seeded metadata. User uploads use explicit original-video timing; speech transcription runs only when the user selects the subtitle generator and always returns an editable draft. New exports have exact preview identity checks while the Change Map remains sampled diagnostics. Prepared videos and logo assets are process-local, not durably archived originals.
@@ -63,4 +67,4 @@ Requested advanced editing, push, deployment and fresh LIVE verification are com
 
 ## Suggested Next Action
 
-Use [the current LIVE editor](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=150d367) and the advanced guide's examples for the demo; refresh old tabs. Latest ignored browser evidence is `.gstack/advanced-live-ab-previews.png`, `.gstack/advanced-live-ready.png`, and `.gstack/advanced-live-ready-mobile.png`. Preserve existing resources and secret versions; do not approve delivery on behalf of the owner.
+Use [the current LIVE editor](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=b0b00a9) and the new smart-scene release record for the demo; refresh old tabs. Local UI screenshots are `runtime/qa-smart-manual.png`, `runtime/qa-smart-enabled.png`, `runtime/qa-smart-plan.png`, `runtime/qa-subtitles-compact.png`, and `runtime/qa-subtitles-mobile.png`. Preserve existing resources and secret versions; do not approve delivery on behalf of the owner.

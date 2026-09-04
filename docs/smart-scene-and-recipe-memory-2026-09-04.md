@@ -1,6 +1,6 @@
 # 스마트 장면 찾기와 편집 레시피 메모리 — 2026-09-04
 
-Status: 구현과 로컬 gstack/ClickHouse 26.2 검증 완료. Cloud 스키마 적용과 LIVE 배포 증거는 이 문서에 이어서 기록한다.
+Status: 구현, ClickHouse Cloud 스키마 적용, Cloud Run 배포와 LIVE gstack 검증 완료.
 
 ## 사용 흐름
 
@@ -39,3 +39,32 @@ Approved Edit Memory는 이제 단일 확대 선택뿐 아니라 검증된 복�
 - gstack 데스크톱/390px 모바일: 압축 자막 편집 UI와 반응형 배치, 가로 오버플로 없음, 최종 브라우저 콘솔 오류 없음.
 
 로컬 FIXTURE 검색 결과는 UI 연습용이며 Google 또는 ClickHouse 크레딧을 쓰지 않는다. LIVE 성공은 배포 뒤 실제 `google.vertex.gemini`와 `mcp-clickhouse.run_query` 출처를 확인해야 한다.
+
+## ClickHouse Cloud 적용
+
+기존 데이터와 권한을 보존한 채 다음 5개 객체를 추가했다.
+
+- `smart_scene_segments`, `smart_scene_search`
+- `approved_edit_recipes`, `approved_edit_recipe_memory`, `approved_edit_recipe_neighbors`
+
+적용 후 `revisionproof` 데이터베이스는 전체 24개 대상 객체를 반환했다. 새 구성 검사는 보안 뷰 3개, TTL 테이블 1개, writer INSERT 권한 2개, MCP SELECT 권한 3개, definer 권한 2개를 확인했다. MCP 역할의 세 원본 테이블 직접 SELECT 권한은 0개였고, 적용 과정에서 실제 승인 레시피나 장면 데이터를 넣지 않았다.
+
+## LIVE 배포와 검증
+
+- Source: `b0b00a9937cf158560f4a3fba2f3d473104b3b6c`
+- Cloud Build: `aa63da88-9407-45e6-9659-235427e5d4a2`, SUCCESS at `2026-09-04T05:51:14.595604Z`
+- Image: `sha256:03da71d487c0911359164cae0956de4e29ce7410207ab5ec65d4df3b268f2970`
+- Cloud Run: `revisionproof-staging-00024-c9p`, traffic 100%, readiness conditions `True / True / True`
+- URL: `https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=b0b00a9`
+
+배포 후 gstack으로 다음을 다시 확인했다.
+
+- `/health`, `/ready`, `/api/runtime`가 모두 200을 반환했다. 런타임은 `LIVE`, `live_ready=true`, intelligence enabled, memory read-only다.
+- 체크 해제 상태에서 **Start / End** 입력이 보이고, 요청문만 입력한 상태에서는 시간 범위가 없어 초안 버튼이 비활성화됐다.
+- 체크 상태에서 **Uses Google AI and ClickHouse credits**와 **Find scenes를 누를 때만 표본 추출과 색인이 실행된다**는 안내가 보였다.
+- 번들 샘플에 `dashboard chart`를 검색하자 `/api/scene-search`가 200으로 완료됐고, UI에 `8 segments indexed · ClickHouse search`와 세 결과를 표시했다.
+- 첫 결과 `20.0–24.0s`를 선택하고 `선택한 장면을 확대해 주세요`를 해석하자 `Zoom in · 20s–24s` 초안이 만들어졌다.
+- 스마트 검색은 28.9초, 편집 해석은 2.5초가 걸렸다. 네트워크 요청 실패와 브라우저 콘솔 오류는 없었다.
+- 390px 뷰에서 `scrollWidth=390`, 가로 오버플로가 없었고 검색 결과와 편집 기능을 계속 조작할 수 있었다.
+
+LIVE QA에는 번들 샘플만 사용했다. 실제 KANAPP 업로드 파일은 재전송하지 않았고, 전달 승인이나 가짜 Approved Edit Memory도 만들지 않았다.
