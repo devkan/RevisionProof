@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { Captions, Check, Film, Plus, Scissors, Sparkles, Trash2, Type, VolumeX, ZoomIn } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Captions, Check, Film, Gauge, ImagePlus, Languages, Plus, Scissors, Sparkles, Trash2, Type, Volume2, VolumeX, ZoomIn } from 'lucide-react'
 import { api } from './api'
-import { EDIT_LABELS, editSummary, operation, outputDuration, planProblem, seconds } from './editing'
-import type { EditInterpretation, EditOperation, EditPlan } from './types'
+import { EDIT_LABELS, editDetail, editSummary, operation, outputDuration, planProblem, seconds } from './editing'
+import type { EditInterpretation, EditOperation, EditPlan, ExecutionMode, TranscriptionLanguage } from './types'
 
 const EDITS = [
   { kind: 'zoom', icon: ZoomIn, hint: 'Bring a moment closer' },
@@ -10,6 +10,9 @@ const EDITS = [
   { kind: 'subtitle', icon: Captions, hint: 'Different words at each time' },
   { kind: 'cut', icon: Scissors, hint: 'Delete a time range' },
   { kind: 'remove_silence', icon: VolumeX, hint: 'Review pauses before cutting' },
+  { kind: 'speed', icon: Gauge, hint: 'Slow down or speed up a section' },
+  { kind: 'volume', icon: Volume2, hint: 'Mute, lower or raise a section' },
+  { kind: 'logo', icon: ImagePlus, hint: 'Upload an image and place it' },
 ] as const
 
 export function RequestDraft({ text, onText, duration, disabled, onApply, onBusy }: {
@@ -49,11 +52,18 @@ export function RequestDraft({ text, onText, duration, disabled, onApply, onBusy
   </div>
 }
 
-export function EditComposer({ duration, operations, onChange, disabled, onSeek }: {
+export function EditComposer({ duration, operations, onChange, disabled, onSeek, sourceFile, assetId, mode, logoMaxBytes, onBusy }: {
   duration: number; operations: EditOperation[]; onChange: (ops: EditOperation[]) => void
-  disabled: boolean; onSeek: (time: number) => void
+  disabled: boolean; onSeek: (time: number) => void; sourceFile?: File; assetId?: string
+  mode?: ExecutionMode; logoMaxBytes: number; onBusy: (busy: boolean) => void
 }) {
+  const logoInput = useRef<HTMLInputElement>(null)
+  const [language, setLanguage] = useState<TranscriptionLanguage>('auto')
+  const [toolBusy, setToolBusy] = useState<'logo' | 'subtitles' | null>(null)
+  const [toolMessage, setToolMessage] = useState<string | null>(null)
+  const [toolError, setToolError] = useState<string | null>(null)
   function add(kind: EditOperation['kind']) {
+    if (kind === 'logo') { logoInput.current?.click(); return }
     let start = 0, end = Math.min(4, duration)
     if (kind === 'remove_silence') end = duration
     if (kind === 'subtitle') {
@@ -62,6 +72,39 @@ export function EditComposer({ duration, operations, onChange, disabled, onSeek 
       end = Math.min(start + 3, duration)
     }
     onChange([...operations, operation(kind, start, end)])
+  }
+  async function uploadLogo(file?: File) {
+    if (!file || disabled || toolBusy) return
+    setToolError(null); setToolMessage(null)
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) { setToolError('Choose a PNG, JPG, or WebP logo.'); return }
+    if (!file.size || file.size > logoMaxBytes) { setToolError(`Logo must be no larger than ${logoMaxBytes / 1048576} MiB.`); return }
+    setToolBusy('logo'); onBusy(true)
+    try {
+      const asset = await api.uploadLogo(file)
+      const logo = { ...operation('logo', 0, duration), asset_id: asset.asset_id, asset_sha256: asset.sha256 }
+      onChange([...operations, logo])
+      setToolMessage(`${file.name} uploaded. Choose its time and corner below.`)
+    } catch (reason) {
+      setToolError(reason instanceof Error ? reason.message : 'The logo could not be uploaded.')
+    } finally { setToolBusy(null); onBusy(false) }
+  }
+  async function generateSubtitles() {
+    if (disabled || toolBusy) return
+    setToolError(null); setToolMessage(null); setToolBusy('subtitles'); onBusy(true)
+    try {
+      const result = await api.transcribe(language, sourceFile, sourceFile ? undefined : assetId)
+      if (!result.cues.length) { setToolMessage(result.warnings[0] ?? 'No clear speech was detected.'); return }
+      const other = operations.filter(op => op.kind !== 'subtitle')
+      const available = Math.max(0, 24 - other.length)
+      if (!available) { setToolError('Remove at least one edit before adding automatic subtitles.'); return }
+      const subtitles = result.cues.slice(0, available).map(cue => ({ ...operation('subtitle', cue.start, cue.end, cue.text), position: 'bottom' as const }))
+      onChange([...other, ...subtitles])
+      const detected = result.detected_languages.length ? result.detected_languages.map(value => value === 'ko' ? 'Korean' : value === 'en' ? 'English' : 'other').join(' + ') : 'no language'
+      const replaced = operations.some(op => op.kind === 'subtitle') ? ' Existing timed subtitles were replaced.' : ''
+      setToolMessage(`${subtitles.length} subtitle cue${subtitles.length === 1 ? '' : 's'} added (${detected}). Review every word and time below.${replaced}${result.cues.length > available ? ' Some cues exceeded the 24-edit limit.' : ''}`)
+    } catch (reason) {
+      setToolError(reason instanceof Error ? reason.message : 'Speech could not be transcribed.')
+    } finally { setToolBusy(null); onBusy(false) }
   }
   function change(index: number, update: Partial<EditOperation>) {
     onChange(operations.map((op, i) => i === index ? { ...op, ...update } : op))
@@ -79,7 +122,18 @@ export function EditComposer({ duration, operations, onChange, disabled, onSeek 
   }
   return <div className="edit-composer">
     <div className="composer-heading"><div><span className="eyebrow">BUILD YOUR EDIT</span><h3>What would you like to change?</h3></div><span className="input-help">Combine up to 24 edits</span></div>
-    <div className="edit-type-grid">{EDITS.map(({ kind, icon: Icon, hint }) => <button type="button" className="edit-type" key={kind} onClick={() => add(kind)} disabled={disabled || operations.length >= 24}><Icon size={21} /><strong>{EDIT_LABELS[kind]}</strong><span>{hint}</span><Plus size={15} className="edit-type-plus" /></button>)}</div>
+    <div className="speech-subtitles">
+      <div><Languages size={22} /><div><strong>Generate subtitles from speech</strong><p>Google Gemini transcribes the audio. It does not translate it. You review and edit every cue before previewing.</p></div></div>
+      <div className="speech-controls">
+        <label>Spoken language<select value={language} disabled={disabled || Boolean(toolBusy)} onChange={event => setLanguage(event.target.value as TranscriptionLanguage)}><option value="auto">Auto detect Korean + English</option><option value="ko">Korean</option><option value="en">English</option><option value="mixed">Korean + English mixed</option></select></label>
+        <button type="button" className="secondary-button" onClick={() => void generateSubtitles()} disabled={disabled || Boolean(toolBusy) || mode !== 'LIVE'}>{toolBusy === 'subtitles' ? <span className="spinner" /> : <Captions size={18} />}{toolBusy === 'subtitles' ? 'Listening…' : 'Generate editable subtitles'}</button>
+      </div>
+      {mode !== 'LIVE' && <p className="input-help">Automatic speech transcription is available in LIVE mode. Timed subtitles below still work manually.</p>}
+    </div>
+    <input ref={logoInput} hidden type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" aria-label="Upload logo image" onChange={event => { void uploadLogo(event.target.files?.[0]); event.target.value = '' }} />
+    {toolError && <p className="upload-warning" role="alert">{toolError}</p>}
+    {toolMessage && <p className="tool-success" role="status">{toolMessage}</p>}
+    <div className="edit-type-grid">{EDITS.map(({ kind, icon: Icon, hint }) => <button type="button" className="edit-type" key={kind} onClick={() => add(kind)} disabled={disabled || Boolean(toolBusy) || operations.length >= 24}><Icon size={21} /><strong>{EDIT_LABELS[kind]}</strong><span>{hint}</span><Plus size={15} className="edit-type-plus" /></button>)}</div>
     <details className="edit-examples" open={!operations.length}>
       <summary>Need an idea? Start with a ready-to-edit example</summary>
       <div className="example-grid">
@@ -101,18 +155,24 @@ export function EditComposer({ duration, operations, onChange, disabled, onSeek 
         </div>
         {['text', 'subtitle'].includes(op.kind) && <div className="caption-fields">
           <label>Exact words<textarea rows={2} maxLength={160} value={op.text} placeholder={op.kind === 'text' ? 'AI, made practical.' : 'Enter this subtitle line…'} onChange={e => change(index, { text: e.target.value })} /></label>
-          <label>Position<select value={op.position} onChange={e => change(index, { position: e.target.value as EditOperation['position'] })}><option value="bottom">Bottom</option><option value="top">Top</option><option value="center">Center</option><option value="bottom_right">Bottom right</option></select></label>
+          <label>Position<select value={op.position} onChange={e => change(index, { position: e.target.value as EditOperation['position'] })}><option value="bottom">Bottom</option><option value="top">Top</option><option value="center">Center</option><option value="top_left">Top left</option><option value="top_right">Top right</option><option value="bottom_left">Bottom left</option><option value="bottom_right">Bottom right</option></select></label>
         </div>}
+        {op.kind === 'speed' && <div className="edit-fields"><label>Playback speed<select value={op.rate} onChange={e => change(index, { rate: Number(e.target.value) })}><option value={0.5}>0.5× · slow</option><option value={0.75}>0.75×</option><option value={1.25}>1.25×</option><option value={1.5}>1.5×</option><option value={2}>2× · fast</option></select></label></div>}
+        {op.kind === 'volume' && <div className="edit-fields"><label>Volume change<select value={op.volume_db} onChange={e => change(index, { volume_db: Number(e.target.value) })}><option value={-60}>Mute</option><option value={-12}>Much quieter · −12 dB</option><option value={-6}>Quieter · −6 dB</option><option value={3}>Louder · +3 dB</option><option value={6}>Much louder · +6 dB</option><option value={12}>Maximum boost · +12 dB</option></select></label></div>}
+        {op.kind === 'logo' && <div className="logo-fields"><img src={`/media/edit-assets/${op.asset_id}.png`} alt="Uploaded logo preview" /><label>Position<select value={op.position} onChange={e => change(index, { position: e.target.value as EditOperation['position'] })}><option value="top_left">Top left</option><option value="top_right">Top right</option><option value="bottom_left">Bottom left</option><option value="bottom_right">Bottom right</option><option value="center">Center</option></select></label></div>}
         {op.kind === 'zoom' && <p className="input-help">A fixed center zoom during this interval: 1.05× or 1.12×. The crop can cut off existing text near the edges; check the previews.</p>}
         {op.kind === 'cut' && <p className="input-help">Remove both the picture and audio in this interval. Kept sections join together.</p>}
-        {op.kind === 'subtitle' && <p className="input-help">One cue per edit. Add another timed subtitle for the next line. Speech is not transcribed automatically.</p>}
+        {op.kind === 'subtitle' && <p className="input-help">One cue per edit. Automatic cues are drafts: correct names, punctuation and timing before previewing.</p>}
+        {op.kind === 'speed' && <p className="input-help">Picture and sound change together, while subtitles and overlays remain attached to their original scene times.</p>}
+        {op.kind === 'volume' && <p className="input-help">Changes the selected audio only. Louder settings may clip if the original is already loud; compare the preview.</p>}
+        {op.kind === 'logo' && <p className="input-help">The uploaded image is fixed by checksum for this review. Option A uses a smaller logo; B uses a larger logo.</p>}
         {op.kind === 'remove_silence' && <>
           <div className="edit-fields silence-fields"><label>Minimum pause (s)<input type="number" min={0.3} max={3} step={0.1} value={Number.isFinite(op.min_silence) ? op.min_silence : ''} onChange={e => change(index, { min_silence: e.target.valueAsNumber })} /></label><label>Quiet level<select value={op.threshold_db} onChange={e => change(index, { threshold_db: Number(e.target.value) })}><option value={-50}>Very quiet · −50 dB</option><option value={-40}>Quiet · −40 dB</option><option value={-30}>Low sound · −30 dB</option></select></label></div>
           <p className="input-help">Continuous music may leave no quiet pauses. We keep a small margin around sound and ask you to select each proposed cut.</p>
         </>}
       </fieldset>)}
     </div>}
-    <p className="capability-note">Available: center zoom, text, timed subtitles, timed cuts and quiet-pause detection. Existing text in the original is not erased. Object tracking, background replacement, generated scenes and automatic speech transcription are not included.</p>
+    <details className="capability-guide"><summary>What can I ask for?</summary><div><p><strong>Works now:</strong> “Speed up 2–6s to 1.5×”, “Lower 0–4s by −6 dB”, upload a logo, generate Korean/English mixed subtitles, add exact text, zoom, cut a range, or find quiet pauses.</p><p><strong>Combine them:</strong> “Zoom 4–8s, add ‘AI, made practical.’ at the bottom, make 0–4s 1.25×, then mute 8–10s.” Review the generated cards before applying them.</p><p><strong>Needs an editor:</strong> moving-object tracking, removing text baked into footage, background replacement, color grading, generated scenes and music selection.</p></div></details>
   </div>
 }
 
@@ -126,7 +186,7 @@ export function PlanReview({ plan, warnings, selected, onSelect, onPreview, onEd
     <div className="section-heading"><div><span className="step-number">02</span><div><h2>Review your edit plan</h2><p>{rendered ? 'These are the edits in your previews.' : 'Only checked edits will appear in the previews.'}</p></div></div></div>
     {warnings.map((warning, i) => <p key={i} className="intelligence-notice" role="status">{warning}</p>)}
     <div className="plan-review-list">{plan.operations.map((op, i) => <div className={`plan-review-row ${selected.includes(i) ? 'chosen' : ''}`} key={i}>
-      <label><input type="checkbox" checked={selected.includes(i)} disabled={disabled || rendered} onChange={() => onSelect(selected.includes(i) ? selected.filter(n => n !== i) : [...selected, i])} /><span><strong>{op.detected ? 'Quiet pause · proposed cut' : EDIT_LABELS[op.kind]}</strong><span>{seconds(op.start)}–{seconds(op.end)} of original{op.text ? ` · “${op.text}” · ${op.position.replace('_', ' ')}` : ''}</span></span></label>
+      <label><input type="checkbox" checked={selected.includes(i)} disabled={disabled || rendered} onChange={() => onSelect(selected.includes(i) ? selected.filter(n => n !== i) : [...selected, i])} /><span><strong>{op.detected ? 'Quiet pause · proposed cut' : EDIT_LABELS[op.kind]}</strong><span>{editDetail(op)} · original timeline</span></span></label>
       <button type="button" className="secondary-button" onClick={() => onSeek(op.start)}>Watch original</button>
     </div>)}</div>
     <div className="plan-duration"><span>Original <strong>{seconds(plan.source_duration)}</strong></span><span>After selected edits <strong>{seconds(outputDuration(chosen))}</strong></span></div>

@@ -7,25 +7,32 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 class UploadBodyLimit:
     """Reject oversized multipart bodies before the framework spools the file."""
 
-    def __init__(self, app: ASGIApp, max_file_bytes: int):
+    def __init__(self, app: ASGIApp, max_file_bytes: int, max_logo_bytes: int = 2 * 1048576):
         self.app = app
         self.max_file_bytes = max_file_bytes
+        self.max_logo_bytes = max_logo_bytes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         path = scope.get("path", "")
-        upload = path == "/api/runs/upload" or (
+        video_upload = path in {"/api/runs/upload", "/api/transcriptions"} or (
             path.startswith("/api/runs/") and path.endswith("/versions")
         )
-        if scope["type"] != "http" or scope.get("method") != "POST" or not upload:
+        logo_upload = path == "/api/edit-assets/logo"
+        if (
+            scope["type"] != "http"
+            or scope.get("method") != "POST"
+            or not (video_upload or logo_upload)
+        ):
             await self.app(scope, receive, send)
             return
-        limit = self.max_file_bytes + 64 * 1024  # bounded form fields + multipart envelope
+        file_limit = self.max_logo_bytes if logo_upload else self.max_file_bytes
+        limit = file_limit + 64 * 1024  # bounded form fields + multipart envelope
         response = JSONResponse(
             status_code=413,
             content={
                 "detail": (
-                    f"Video is too large. Maximum: {self.max_file_bytes // 1048576} MiB. "
-                    "Choose a smaller file."
+                    f"{'Logo' if logo_upload else 'Video'} is too large. "
+                    f"Maximum: {file_limit // 1048576} MiB. Choose a smaller file."
                 )
             },
         )

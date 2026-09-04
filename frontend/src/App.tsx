@@ -419,7 +419,7 @@ export default function App() {
           <div>
             <span className="eyebrow">VIDEO REVISION WORKSPACE</span>
             <h1>Turn client notes into a verified video.</h1>
-            <p>Add text, time your subtitles, zoom in or cut pauses. Review the result before you deliver.</p>
+            <p>Adjust picture, sound, logos and speech subtitles. Review the result before you deliver.</p>
           </div>
           <ol className="step-rail" aria-label="Revision workflow progress">
             {['Choose edits', 'Review plan', 'Watch previews', 'Verify & deliver'].map((label, index) => {
@@ -525,7 +525,18 @@ export default function App() {
                 </div>}
               </div>
               {guided && !run && <>
-                <EditComposer duration={activeAsset?.duration_seconds ?? 0} operations={operations} onChange={setOperations} disabled={busy || !activeAsset || !runtime?.mutable} onSeek={watchOriginal} />
+                <EditComposer
+                  duration={activeAsset?.duration_seconds ?? 0}
+                  operations={operations}
+                  onChange={setOperations}
+                  disabled={busy || !activeAsset || !runtime?.mutable}
+                  onSeek={watchOriginal}
+                  sourceFile={uploadedSource?.file}
+                  assetId={uploadedSource ? undefined : activeAsset?.asset_id}
+                  mode={runtime?.mode}
+                  logoMaxBytes={runtime?.logo_limits?.max_bytes ?? 2 * 1048576}
+                  onBusy={setDraftBusy}
+                />
                 <div className="section-action-bar"><div><strong>{operations.length ? `${operations.length} edits in your plan` : 'Start with an edit or an example'}</strong><p>{editProblem ?? 'Next: review the exact edits and any detected quiet pauses.'}</p></div><button type="button" className="primary-button" disabled={busy || !activeAsset || !runtime?.mutable || Boolean(editProblem)} onClick={start}><Sparkles size={18} />Review edit plan</button></div>
               </>}
               {!run && (!uploadedSource || !guided) && <button type="button" className="classic-toggle" disabled={busy} onClick={() => { setGuided(!guided); setFeedback(guided ? DEFAULT_FEEDBACK : ''); setOperations([]); setUsedDraftText('') }}>{guided ? 'Try the original scene-search proof demo' : 'Return to the video editor'}</button>}
@@ -583,7 +594,7 @@ export default function App() {
             {run?.candidates.length ? (
               <section className="workspace-section compare-section">
                 <div className="section-heading">
-                  <div><span className="step-number">03</span><div><h2>Watch and choose</h2><p>{run.edit_plan ? 'Every preview includes your selected edits from start to finish. If two styles are shown, only text size and zoom strength differ.' : 'Both options preserve timing and audio. Only the center crop strength changes.'}</p></div></div>
+                  <div><span className="step-number">03</span><div><h2>Watch and choose</h2><p>{run.edit_plan ? 'Every preview includes your selected edits from start to finish. If two styles are shown, text, zoom or logo size differs.' : 'Both options preserve timing and audio. Only the center crop strength changes.'}</p></div></div>
                   <span className="section-state state-active">{run.candidates.length === 1 ? 'Review preview' : 'Choose A or B'}</span>
                 </div>
                 {run.evidence[0] && !run.edit_plan && (

@@ -36,13 +36,18 @@ app = FastAPI(
 app.include_router(router)
 
 settings = get_settings()
-app.add_middleware(UploadBodyLimit, max_file_bytes=settings.max_upload_bytes)
+app.add_middleware(
+    UploadBodyLimit,
+    max_file_bytes=settings.max_upload_bytes,
+    max_logo_bytes=settings.max_logo_bytes,
+)
 settings.runtime_dir.mkdir(parents=True, exist_ok=True)
 
 PUBLIC_MEDIA_PATTERNS = (
     re.compile(r"demo/revisionproof_(?:v1|v2_blocked|v3_ready)\.mp4"),
     re.compile(r"runs/[0-9A-HJKMNP-TV-Z]{26}/previews/[AB]\.mp4"),
     re.compile(r"runs/[0-9A-HJKMNP-TV-Z]{26}/evidence/[A-Za-z0-9._-]{1,96}\.png"),
+    re.compile(r"edit-assets/[0-9A-HJKMNP-TV-Z]{26}\.png"),
 )
 
 

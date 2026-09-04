@@ -1,5 +1,6 @@
 # RevisionProof docs
 
+- [Advanced editing — speed, volume, logo, Korean/English speech subtitles](advanced-editing-guide-2026-09-04.md)
 - [QA 수정본 LIVE 배포 완료 — revision 00022, 컷·복합 편집 검증](deployment-2026-09-03-qa-fixes.md)
 - [기본 편집 gstack 리뷰·QA — 오류 3건 수정, 330/22 테스트](qa-review-2026-09-03-basic-editor.md)
 - [기본 영상 편집 — 사용법, 요청 예시, 최종 LIVE 배포·검증 (revision 00021)](basic-editing-guide-2026-09-03.md)

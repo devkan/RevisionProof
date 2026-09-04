@@ -30,7 +30,14 @@ from revisionproof.contracts import (
     TimeRange,
     VerificationProof,
 )
-from revisionproof.editing.models import EditInterpretation, EditPlan, InterpretEditRequest
+from revisionproof.editing.models import (
+    EditInterpretation,
+    EditPlan,
+    InterpretEditRequest,
+    LogoAsset,
+    TranscriptionLanguage,
+    TranscriptionResult,
+)
 from revisionproof.intelligence.models import (
     EditMemorySearch,
     MemoryAuthorizationError,
@@ -108,6 +115,10 @@ def runtime_status(service: ServiceDep):
             "max_duration_seconds": service.settings.max_duration_seconds,
             "min_duration_seconds": 4,
         },
+        "logo_limits": {
+            "max_bytes": service.settings.max_logo_bytes,
+            "max_dimension": 2048,
+        },
         "memory_save_policy": (
             "operator_key"
             if mode is ExecutionMode.LIVE and service.settings.memory_write_token
@@ -130,6 +141,74 @@ def runtime_status(service: ServiceDep):
 @router.get("/demo-assets")
 def demo_assets(service: ServiceDep):
     return list_demo_assets(service.settings.runtime_dir, service.executor)
+
+
+@router.post("/edit-assets/logo", response_model=LogoAsset, status_code=201)
+def upload_logo(
+    service: ServiceDep,
+    file: Annotated[UploadFile, File()],
+    content_sha256: Annotated[str | None, Header(alias="X-Content-SHA256")] = None,
+) -> LogoAsset:
+    if file.content_type not in {
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+        "application/octet-stream",
+    }:
+        raise HTTPException(status_code=415, detail="Choose a PNG, JPG, or WebP logo.")
+    try:
+        size = file.size
+        if size is None:
+            file.file.seek(0, 2)
+            size = file.file.tell()
+            file.file.seek(0)
+        return service.upload_logo(
+            file.file,
+            size=size,
+            content_sha256=content_sha256 or "",
+        )
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+    finally:
+        file.file.close()
+
+
+@router.post("/transcriptions", response_model=TranscriptionResult)
+async def transcribe_source(
+    service: ServiceDep,
+    language: Annotated[TranscriptionLanguage, Form()],
+    file: Annotated[UploadFile | None, File()] = None,
+    asset_id: Annotated[str | None, Form(max_length=64)] = None,
+    content_sha256: Annotated[str | None, Header(alias="X-Content-SHA256")] = None,
+) -> TranscriptionResult:
+    if file is not None and file.content_type not in {
+        "video/mp4",
+        "application/mp4",
+        "video/quicktime",
+        "video/webm",
+        "application/octet-stream",
+    }:
+        raise HTTPException(status_code=415, detail="Choose an MP4, MOV, or WebM video.")
+    if file is not None and asset_id:
+        raise HTTPException(status_code=409, detail="Choose either your video or the sample.")
+    try:
+        size = file.size if file is not None else 0
+        if file is not None and size is None:
+            file.file.seek(0, 2)
+            size = file.file.tell()
+            file.file.seek(0)
+        return await service.transcribe_source(
+            language=language,
+            stream=file.file if file is not None else None,
+            size=size or 0,
+            content_sha256=content_sha256 or "",
+            asset_id=asset_id,
+        )
+    except Exception as exc:
+        raise as_http_error(exc) from exc
+    finally:
+        if file is not None:
+            await file.close()
 
 
 @router.post("/edit-plans/interpret", response_model=EditInterpretation)

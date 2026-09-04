@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     mode: ExecutionMode = ExecutionMode.FIXTURE
     runtime_dir: Path = Path("runtime")
     max_upload_mib: int = Field(default=24, ge=1, le=100)
+    max_logo_mib: int = Field(default=2, ge=1, le=5)
     max_duration_seconds: int = Field(default=60, ge=1, le=600)
     ffmpeg_timeout_seconds: int = Field(default=90, ge=5, le=600)
     gemini_timeout_seconds: int = Field(default=60, ge=5, le=300)
@@ -58,6 +59,10 @@ class Settings(BaseSettings):
     @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mib * 1024 * 1024
+
+    @property
+    def max_logo_bytes(self) -> int:
+        return self.max_logo_mib * 1024 * 1024
 
     @property
     def live_missing_settings(self) -> list[str]:

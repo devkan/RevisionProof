@@ -1,7 +1,8 @@
-"""Render literal text before source-time cuts. User text never enters a filter expression."""
+"""Render approved timeline, audio, text, and frozen logo edits with ffmpeg."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import tempfile
@@ -46,13 +47,17 @@ def text_layer(op: EditOperation, destination: Path, appearance: str) -> None:
     content = "\n".join(lines)
     box = draw.multiline_textbbox((0, 0), content, font=font, spacing=8, stroke_width=1)
     width, height = box[2] - box[0], box[3] - box[1]
-    x = 1216 - width if op.position == "bottom_right" else (1280 - width) / 2
+    x = (
+        64
+        if op.position in {"top_left", "bottom_left"}
+        else 1216 - width
+        if op.position in {"top_right", "bottom_right"}
+        else (1280 - width) / 2
+    )
     y = (
         64
-        if op.position == "top"
-        else (720 - height) / 2
-        if op.position == "center"
-        else 648 - height
+        if op.position in {"top", "top_left", "top_right"}
+        else ((720 - height) / 2 if op.position == "center" else 648 - height)
     )
     draw.rounded_rectangle(
         (x - 18, y - 14, x + width + 18, y + height + 14),
@@ -186,7 +191,12 @@ def resolve_plan(
 
 
 def render_plan(
-    source: Path, destination: Path, plan: EditPlan, appearance: str, executor: MediaExecutor
+    source: Path,
+    destination: Path,
+    plan: EditPlan,
+    appearance: str,
+    executor: MediaExecutor,
+    logo_root: Path | None = None,
 ) -> Path:
     if not plan.operations or any(op.kind == "remove_silence" for op in plan.operations):
         raise ValueError("Review and resolve the edit plan before rendering.")
@@ -195,11 +205,13 @@ def render_plan(
     with tempfile.TemporaryDirectory(prefix="edit-layers-", dir=destination.parent) as folder:
         args = ["ffmpeg", "-y", "-v", "error", "-i", str(source)]
         graph, current, layer_index = [], "0:v", 0
-        # Captions remain screen overlays even when the same scene is zoomed.
-        ordered = sorted(plan.operations, key=lambda op: op.kind != "zoom")
+        # Captions remain above logos and attached to source time when a scene is sped up.
+        visual_priority = {"zoom": 0, "logo": 1, "text": 2, "subtitle": 2}
+        ordered = sorted(
+            (op for op in plan.operations if op.kind in visual_priority),
+            key=lambda op: visual_priority[op.kind],
+        )
         for index, op in enumerate(ordered):
-            if op.kind == "cut":
-                continue
             enabled = f"gte(t,{op.start:.9f})*lt(t,{op.end:.9f})"
             output = f"v{index}"
             if op.kind == "zoom":
@@ -209,7 +221,7 @@ def render_plan(
                     f"[zoom{index}]",
                     f"[base{index}][zoom{index}]overlay=0:0:enable='{enabled}'[{output}]",
                 ]
-            else:
+            elif op.kind in {"text", "subtitle"}:
                 layer_index += 1
                 layer = Path(folder) / f"layer{index}.png"
                 text_layer(op, layer, appearance)
@@ -217,28 +229,80 @@ def render_plan(
                 graph.append(
                     f"[{current}][{layer_index}:v]overlay=0:0:enable='{enabled}':shortest=1[{output}]"
                 )
+            else:
+                if logo_root is None:
+                    raise ValueError("The uploaded logo is unavailable. Upload it again.")
+                logo = (logo_root / f"{op.asset_id}.png").resolve()
+                root = logo_root.resolve()
+                if logo.parent != root or not logo.is_file():
+                    raise ValueError("The uploaded logo is unavailable. Upload it again.")
+                with logo.open("rb") as stream:
+                    digest = hashlib.file_digest(stream, "sha256").hexdigest()
+                if digest != op.asset_sha256:
+                    raise ValueError("The uploaded logo changed. Upload it again.")
+                layer_index += 1
+                args += ["-loop", "1", "-framerate", "30", "-i", str(logo)]
+                width = 190 if appearance == "A" else 250
+                x = (
+                    "48"
+                    if op.position in {"top_left", "bottom_left"}
+                    else "W-w-48"
+                    if op.position in {"top_right", "bottom_right"}
+                    else "(W-w)/2"
+                )
+                y = (
+                    "48"
+                    if op.position in {"top", "top_left", "top_right"}
+                    else "(H-h)/2"
+                    if op.position == "center"
+                    else "H-h-48"
+                )
+                graph += [
+                    f"[{layer_index}:v]scale={width}:-1,format=rgba,colorchannelmixer=aa=0.92[logo{index}]",
+                    f"[{current}][logo{index}]overlay=x={x}:y={y}:enable='{enabled}':shortest=1[{output}]",
+                ]
             current = output
-        # Trim video and audio by the same frame-aligned source boundaries.
+        audio = "0:a"
+        volume_edits = [op for op in plan.operations if op.kind == "volume"]
+        for index, op in enumerate(volume_edits):
+            output = f"avol{index}"
+            value = "0" if op.volume_db <= -60 else f"{op.volume_db:.3f}dB"
+            graph.append(
+                f"[{audio}]volume={value}:enable='gte(t,{op.start:.9f})*lt(t,{op.end:.9f})'[{output}]"
+            )
+            audio = output
+        # Trim and retime video/audio by the same original-time boundaries.
         spans = plan.kept_spans
-        has_cuts = any(op.kind == "cut" for op in plan.operations)
-        if has_cuts:
-            graph.append(
-                f"[{current}]split={len(spans)}" + "".join(f"[sv{i}]" for i in range(len(spans)))
-            )
-            graph.append(
-                f"[0:a]asplit={len(spans)}" + "".join(f"[sa{i}]" for i in range(len(spans)))
-            )
+        retimed = any(op.kind in {"cut", "speed"} for op in plan.operations)
+        if retimed:
+            if len(spans) > 1:
+                graph.append(
+                    f"[{current}]split={len(spans)}"
+                    + "".join(f"[sv{i}]" for i in range(len(spans)))
+                )
+                graph.append(
+                    f"[{audio}]asplit={len(spans)}" + "".join(f"[sa{i}]" for i in range(len(spans)))
+                )
+            else:
+                graph += [f"[{current}]null[sv0]", f"[{audio}]anull[sa0]"]
             for i, span in enumerate(spans):
                 graph += [
-                    f"[sv{i}]trim=start={span.source_start:.9f}:end={span.source_end:.9f},setpts=PTS-STARTPTS[vcut{i}]",
-                    f"[sa{i}]atrim=start={span.source_start:.9f}:end={span.source_end:.9f},asetpts=PTS-STARTPTS[acut{i}]",
+                    f"[sv{i}]trim=start={span.source_start:.9f}:end={span.source_end:.9f},"
+                    f"setpts=(PTS-STARTPTS)/{span.rate:.9f}[vcut{i}]",
+                    f"[sa{i}]atrim=start={span.source_start:.9f}:end={span.source_end:.9f},"
+                    f"asetpts=PTS-STARTPTS,atempo={span.rate:.9f}[acut{i}]",
                 ]
-            graph.append(
-                "".join(f"[vcut{i}][acut{i}]" for i in range(len(spans)))
-                + f"concat=n={len(spans)}:v=1:a=1[outv][outa]"
-            )
+            if len(spans) > 1:
+                graph.append(
+                    "".join(f"[vcut{i}][acut{i}]" for i in range(len(spans)))
+                    + f"concat=n={len(spans)}:v=1:a=1[outv][outa]"
+                )
+            else:
+                graph += ["[vcut0]null[outv]", "[acut0]anull[outa]"]
         else:
             graph.append(f"[{current}]null[outv]")
+            if volume_edits:
+                graph.append(f"[{audio}]anull[outa]")
         executor.run(
             [
                 *args,
@@ -249,7 +313,7 @@ def render_plan(
                 "-map",
                 "[outv]",
                 "-map",
-                "[outa]" if has_cuts else "0:a",
+                "[outa]" if retimed or volume_edits else "0:a",
                 "-t",
                 f"{plan.output_duration:.9f}",
                 "-c:v",
@@ -265,7 +329,7 @@ def render_plan(
                 "-pix_fmt",
                 "yuv420p",
                 "-c:a",
-                "aac" if has_cuts else "copy",
+                "aac" if retimed or volume_edits else "copy",
                 "-movflags",
                 "+faststart",
                 str(destination),

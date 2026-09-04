@@ -37,7 +37,15 @@ from revisionproof.contracts import (
     VerificationManifest,
     VerificationProof,
 )
-from revisionproof.editing.models import EditPlan, InterpretEditRequest
+from revisionproof.editing.logo import save_logo
+from revisionproof.editing.models import (
+    EditPlan,
+    InterpretEditRequest,
+    LogoAsset,
+    TranscriptionLanguage,
+    TranscriptionResult,
+)
+from revisionproof.editing.transcription import extract_speech_audio, transcribe_with_gemini
 from revisionproof.editing.verify import approved_reference
 from revisionproof.editing.workflow import plan_previews, review_plan
 from revisionproof.evidence.fixture import FixtureEvidenceLocator, FixtureInterpreter
@@ -164,6 +172,92 @@ class RevisionProofService:
                     "Your words are preserved; use the edit buttons below or try again."
                 ) from exc
         return interpret_local(request)
+
+    def upload_logo(self, stream: BinaryIO, *, size: int, content_sha256: str) -> LogoAsset:
+        self._assert_mutable_mode()
+        self._record_new_run()
+        with self._exclusive_media_pipeline():
+            return save_logo(
+                stream,
+                self.settings.runtime_dir / "edit-assets",
+                size=size,
+                limit=self.settings.max_logo_bytes,
+                expected_hash=content_sha256,
+            )
+
+    async def transcribe_source(
+        self,
+        *,
+        language: TranscriptionLanguage,
+        stream: BinaryIO | None,
+        size: int,
+        content_sha256: str,
+        asset_id: str | None,
+    ) -> TranscriptionResult:
+        self._assert_mutable_mode()
+        if self.settings.mode is not ExecutionMode.LIVE:
+            raise ValueError(
+                "Automatic speech subtitles require the LIVE Google Gemini runtime. "
+                "You can still add and edit timed subtitles manually."
+            )
+        if not self.settings.google_cloud_project:
+            raise ValueError("Automatic speech subtitles are unavailable in this runtime.")
+        self._record_new_run()
+        self.settings.runtime_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(
+            prefix="transcription-", dir=self.settings.runtime_dir
+        ) as temporary:
+            folder = Path(temporary)
+            if stream is not None:
+                if size <= 0 or size > self.settings.max_upload_bytes:
+                    raise SourceUploadError(
+                        "Video is too large or empty. "
+                        f"Maximum: {self.settings.max_upload_mib} MiB.",
+                        413,
+                    )
+                source = folder / "source.video"
+                await asyncio.to_thread(
+                    copy_source,
+                    stream,
+                    source,
+                    self.settings.max_upload_bytes,
+                    content_sha256,
+                )
+            elif asset_id:
+                _, source = require_demo_asset(asset_id, self.settings.runtime_dir, self.executor)
+            else:
+                raise SourceUploadError("Choose a video before generating subtitles.")
+            try:
+                info = await asyncio.to_thread(probe_media, source, self.executor)
+            except Exception as exc:
+                raise SourceUploadError("This file could not be read as a video.") from exc
+            if not 4 <= info.duration_seconds <= self.settings.max_duration_seconds:
+                raise SourceUploadError(
+                    "Choose a video between 4 and "
+                    f"{self.settings.max_duration_seconds} seconds long."
+                )
+            if info.audio_codec is None:
+                raise SourceUploadError(
+                    "This video has no audio track. Add timed subtitles manually instead."
+                )
+            audio = folder / "speech.wav"
+            try:
+                with self._exclusive_media_pipeline():
+                    await asyncio.to_thread(extract_speech_audio, source, audio, self.executor)
+                return await transcribe_with_gemini(
+                    audio,
+                    duration=round(info.duration_seconds, 3),
+                    language=language,
+                    settings=self.settings,
+                )
+            except (SourceUploadError, ValueError):
+                raise
+            except Exception as exc:
+                logger.exception("Automatic subtitle transcription failed")
+                raise ValueError(
+                    "Speech could not be transcribed. Try the language setting again, "
+                    "or add timed subtitles manually."
+                ) from exc
 
     @staticmethod
     def _validate_idempotency_key(key: str | None) -> str | None:
@@ -718,7 +812,7 @@ class RevisionProofService:
                     kind="AUDIO",
                     time_range=audio_range,
                     description=(
-                        "Preserve original audio levels across the complete video."
+                        "Follow the approved audio timing and level changes across the video."
                         if uploaded
                         else "Audio RMS may vary by at most 3 dB; peak stays below -1 dBFS."
                     ),
@@ -824,7 +918,9 @@ class RevisionProofService:
             "audio_peak_dbfs": audio_range,
         }
         rows = []
-        baseline_label = "approved-reference" if snapshot.spec.schema_version == "3.0" else "v1"
+        baseline_label = (
+            "approved-reference" if snapshot.spec.schema_version in {"3.0", "3.1"} else "v1"
+        )
         for label, values in ((baseline_label, baseline_values), (version_label, current_values)):
             rows.extend(
                 [
@@ -887,7 +983,7 @@ class RevisionProofService:
             baseline_proof = self.verifier.verify(
                 source=original,
                 candidate=approved_reference(original, snapshot.spec)
-                if snapshot.spec.schema_version == "3.0"
+                if snapshot.spec.schema_version in {"3.0", "3.1"}
                 else original,
                 spec=snapshot.spec,
                 version_label="v1",
@@ -996,7 +1092,7 @@ class RevisionProofService:
                     snapshot.spec = RevisionSpec.model_validate_json(
                         snapshot.spec.model_dump_json()
                     )
-                    if snapshot.spec.schema_version == "3.0":
+                    if snapshot.spec.schema_version in {"3.0", "3.1"}:
                         staging.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copyfile(
                             approved_reference(self.repository.source_path(run_id), snapshot.spec),
@@ -1225,7 +1321,7 @@ class RevisionProofService:
                 if snapshot.spec is None:
                     raise ValueError("Delivery requires an approved edit.")
                 RevisionSpec.model_validate_json(snapshot.spec.model_dump_json())
-                if snapshot.spec.schema_version == "3.0":
+                if snapshot.spec.schema_version in {"3.0", "3.1"}:
                     from revisionproof.editing.verify import file_hash
 
                     reference = approved_reference(

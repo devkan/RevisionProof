@@ -1,4 +1,4 @@
-import type { DemoAsset, EditInterpretation, EditMemorySearch, EditPlan, RunSnapshot, RuntimeStatus, SearchEngine, TimeRange } from './types'
+import type { DemoAsset, EditInterpretation, EditMemorySearch, EditPlan, LogoAsset, RunSnapshot, RuntimeStatus, SearchEngine, TimeRange, TranscriptionLanguage, TranscriptionResult } from './types'
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
@@ -28,6 +28,23 @@ export const api = {
   }),
   runtime: () => request<RuntimeStatus>('/api/runtime'),
   assets: () => request<DemoAsset[]>('/api/demo-assets'),
+  uploadLogo: async (file: File): Promise<LogoAsset> => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<LogoAsset>('/api/edit-assets/logo', {
+      method: 'POST',
+      headers: { 'X-Content-SHA256': await blobSha256(file) },
+      body: form,
+    })
+  },
+  transcribe: async (language: TranscriptionLanguage, file?: File, assetId?: string): Promise<TranscriptionResult> => {
+    const form = new FormData()
+    form.append('language', language)
+    if (file) form.append('file', file)
+    else if (assetId) form.append('asset_id', assetId)
+    const headers: HeadersInit = file ? { 'X-Content-SHA256': await blobSha256(file) } : {}
+    return request<TranscriptionResult>('/api/transcriptions', { method: 'POST', headers, body: form })
+  },
   uploadSource: async (file: File, feedback: string, range: TimeRange, onProgress: (value: number) => void, editPlan?: EditPlan): Promise<RunSnapshot> => {
     const digest = await blobSha256(file)
     const form = new FormData()

@@ -111,7 +111,7 @@ def measure_frame_pairs(
                 if original.shape != revised.shape:
                     raise ValueError("Change Map requires matching source and candidate geometry")
                 requested = (
-                    frame_sample.visual_edit
+                    frame_sample.requested_edit
                     if frame_sample is not None
                     else patch.time_range.start_seconds <= t < patch.time_range.end_seconds
                 )

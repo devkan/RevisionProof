@@ -2,9 +2,9 @@
 
 ## Product boundary
 
-RevisionProof combines bounded video edits with human approval and deterministic export verification. The owner expanded the hackathon scope on 2026-09-03 to center zoom, literal text overlays, timed subtitle cues, exact interval cuts, and reviewed silence removal. Sources remain MP4/MOV/WebM, <=24 MiB, 4–60 seconds; prepared media is aspect-preserving 1280×720, 30 fps H.264/AAC. There are at most 24 operations and at least one output second. Auto-transcription, object/background manipulation, generation and removal of burned-in text are outside scope.
+RevisionProof combines bounded video edits with human approval and deterministic export verification. The guided editor supports center zoom, literal text overlays, timed subtitle cues, exact interval cuts, reviewed silence removal, 0.5–2× speed, −60 to +12 dB volume, and a frozen uploaded logo. A dedicated LIVE Gemini step can draft timed subtitles from Korean, English, or mixed speech; users edit every word and time before it becomes part of a preview. Sources remain MP4/MOV/WebM, <=24 MiB, 4–60 seconds; prepared media is aspect-preserving 1280×720, 30 fps H.264/AAC. There are at most 24 selected operations and the result remains between 1 and 60 seconds. Object/background manipulation, generated scenes, burned-in text removal, translation, and semantic correction are outside scope.
 
-See [current usage and release evidence](basic-editing-guide-2026-09-03.md) and [engineering review](basic-editing-plan-2026-09-03.md). The original scene-search proof remains an explicit alternate demo; its legacy PUNCH_IN contracts and 4–8 second previews retain their behavior.
+See the [advanced editing guide](advanced-editing-guide-2026-09-04.md), [original editing guide](basic-editing-guide-2026-09-03.md), and [engineering review](basic-editing-plan-2026-09-03.md). The original scene-search proof remains an explicit alternate demo; its legacy PUNCH_IN contracts and 4–8 second previews retain their behavior.
 
 ## Runtime and editing path
 
@@ -12,11 +12,12 @@ A Cloud Run container serves React and FastAPI with one 4 GiB / 2 CPU instance a
 
 ```text
 User edit controls OR natural-language draft (LIVE Google ADK/Gemini)
+  -> optional bounded logo normalization OR speech-audio transcription draft
   -> explicit editable plan: original times, literal words, positions
   -> normalized original + per-channel silence analysis
   -> user selects operations and proposed cuts
   -> FFmpeg full previews (A/B appearance; cut-only gets A)
-  -> human choice freezes spec 3.0 + full-preview SHA-256
+  -> human choice freezes spec 3.1 + full-preview SHA-256
   -> copy approved preview to export
   -> exact identity + mapped kept scenes + approved audio checks
   -> ClickHouse INSERT -> official MCP feature diff -> frozen thresholds
@@ -24,9 +25,9 @@ User edit controls OR natural-language draft (LIVE Google ADK/Gemini)
   -> separate final human delivery approval
 ```
 
-All operations use original time. Frame-aligned cuts merge into kept spans; source time maps from output time for verification and synchronized browser comparison. Text is rasterized using Pillow and a bundled Korean/English font into PNG layers; user strings never enter FFmpeg expressions. All zoom filters are applied before text overlays, then both picture and audio are trimmed by identical boundaries and concatenated. Silence detection uses the maximum per-channel RMS over 20ms blocks, preserving 0.12s margins. Proposed cuts require explicit selection; surplus proposals are bounded and explained.
+All operations use original time. Cuts and speed boundaries form kept spans; source time maps through each span's speed for verification and synchronized browser comparison. Text is rasterized using Pillow and a bundled Korean/English font into PNG layers; user strings never enter FFmpeg expressions. Uploaded logos are decoded, normalized to a bounded PNG, assigned a random ID, and rechecked by SHA-256 at every render. Zoom and overlays are applied in source time before picture and audio are trimmed, retimed together, and concatenated. Volume uses the same original timeline. Silence detection uses the maximum per-channel RMS over 20ms blocks, preserving 0.12s margins. Proposed cuts require explicit selection; surplus proposals are bounded and explained.
 
-New EDIT_PLAN candidates use spec 3.0. The approved full preview is hashed and rechecked at use. Export is byte-identical, so short or small missing text cannot slip through sampled frame checks. Kept, unedited scenes compare against mapped original frames, while intended visual changes compare against the approved reference. Audio levels compare against the approved cut timeline. The existing three ClickHouse check IDs remain compatible; the feature-diff baseline is labelled `approved-reference`, not legacy `v1`. Change Map remains sampled diagnostics, not a semantic or every-frame verdict.
+Expanded EDIT_PLAN candidates use spec 3.1 so speed, volume, and logo identity are included in the canonical approval hash. Historical spec 3.0 plans remain readable, but validation rejects expanded fields in that older hash domain. The approved full preview is hashed and rechecked at use. Export is byte-identical, so short or small missing overlays cannot slip through sampled frame checks. Kept, unedited scenes compare against speed-aware mapped original frames, while intended visual changes compare against the approved reference. Audio levels compare against the approved edited timeline. The existing three ClickHouse check IDs remain compatible; the feature-diff baseline is labelled `approved-reference`, not legacy `v1`. Change Map remains sampled diagnostics, not a semantic or every-frame verdict.
 
 Legacy spec 2.0 retains CTA/absolute audio limits, 2.1 retains uploaded full-video/absolute audio limits, and 2.2 retains original-relative audio RMS/peak deltas. Their original canonical JSON/hash is covered by pinned pre-expansion fixtures. The external-editor verification UI remains available only for the legacy approximate-check contract; new plans require the exact approved export.
 

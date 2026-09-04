@@ -86,7 +86,14 @@ def plan_previews(service, snapshot, selection: EditPlan | None) -> None:
     source = service.repository.source_path(snapshot.run_id)
     for option in ("A", "B") if plan.has_appearance_choices else ("A",):
         target = folder / f"{option}.mp4"
-        render_plan(source, target, plan, option, service.executor)
+        render_plan(
+            source,
+            target,
+            plan,
+            option,
+            service.executor,
+            logo_root=service.settings.runtime_dir / "edit-assets",
+        )
         with target.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         candidates.append(

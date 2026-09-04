@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,7 +30,16 @@ def test_live_edit_draft_schema_converts_with_installed_vertex_sdk():
     schema = _transformers.t_schema(SimpleNamespace(vertexai=True), EditDraftOutput)
     operation_schema = schema.properties["operations"].items
     assert operation_schema.properties["end"].type == "NUMBER"
-    assert set(operation_schema.properties) == {"kind", "start", "end", "text", "position"}
+    assert set(operation_schema.properties) == {
+        "kind",
+        "start",
+        "end",
+        "text",
+        "position",
+        "rate",
+        "volume_db",
+    }
+    assert "logo" not in operation_schema.properties["kind"].enum
     assert set(operation_schema.required) == set(operation_schema.properties)
     wire = schema.model_dump_json(exclude_none=True)
     for unsupported in ("additional_properties", "default", "maximum", "max_items"):
@@ -115,6 +125,19 @@ def test_korean_compound_request_preserves_literal_caption():
     assert result.plan.operations[1].text == "AI, made practical."
     assert result.plan.operations[1].position == "bottom"
     assert all((op.start, op.end) == (4, 10) for op in result.plan.operations)
+
+
+def test_korean_speed_and_volume_request_builds_exact_timed_controls():
+    result = interpret_local(
+        InterpretEditRequest(
+            text="2–6초 속도를 1.5배속\n6–9초 음량을 -6 dB로 조절",
+            duration=10,
+        )
+    )
+    assert [op.kind for op in result.plan.operations] == ["speed", "volume"]
+    assert result.plan.operations[0].rate == 1.5
+    assert result.plan.operations[1].volume_db == -6
+    assert not result.warnings
 
 
 def test_cut_union_source_mapping_and_conflicts():
@@ -273,7 +296,15 @@ async def test_plan_workflow_verifies_export_and_rejects_changed_preview(media, 
     assert run.state == "EVIDENCE_ANCHORED", run.error
     service.generate_previews(run.run_id)
     service.approve(run.run_id, ApprovalRequest(candidate_id="A"))
-    assert run.spec.schema_version == "3.0"
+    assert run.spec.schema_version == "3.1"
+    legacy = run.spec.model_dump(mode="json", exclude={"spec_hash"})
+    legacy["schema_version"] = "3.0"
+    for operation_payload in legacy["approved_candidate"]["plan"]["operations"]:
+        for key in ("rate", "volume_db", "asset_id", "asset_sha256"):
+            operation_payload.pop(key)
+    canonical = json.dumps(legacy, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    legacy["spec_hash"] = hashlib.sha256(canonical.encode()).hexdigest()
+    assert RevisionSpec.model_validate(legacy).schema_version == "3.0"
     service.render_approved_version(run.run_id)
     assert run.state == "READY", run.proof
     assert run.change_map.status == "ready" and not any(

@@ -218,7 +218,7 @@ class VerificationManifest(BaseModel):
 class RevisionSpec(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    schema_version: Literal["2.0", "2.1", "2.2", "3.0"] = "2.0"
+    schema_version: Literal["2.0", "2.1", "2.2", "3.0", "3.1"] = "2.0"
     run_id: str
     asset_id: str
     approved_candidate: EditCandidate | PatchCandidate
@@ -238,10 +238,25 @@ class RevisionSpec(BaseModel):
         locked_by_kind = {element.kind: element for element in self.locked_elements}
         visual_kind = "VIDEO_CONTENT" if self.schema_version != "2.0" else "CTA_OVERLAY"
         relative_audio = "maximum_peak_delta_db" in self.manifest_for("locked_audio").threshold
-        if relative_audio != (self.schema_version in {"2.2", "3.0"}):
+        if relative_audio != (self.schema_version in {"2.2", "3.0", "3.1"}):
             raise ValueError("relative audio preservation requires spec 2.2")
-        if isinstance(self.approved_candidate, EditCandidate) != (self.schema_version == "3.0"):
+        if isinstance(self.approved_candidate, EditCandidate) != (
+            self.schema_version in {"3.0", "3.1"}
+        ):
             raise ValueError("Edit plans require spec 3.0.")
+        if (
+            self.schema_version == "3.0"
+            and isinstance(self.approved_candidate, EditCandidate)
+            and any(
+                operation.kind in {"speed", "volume", "logo"}
+                or operation.rate != 1
+                or operation.volume_db != 0
+                or operation.asset_id
+                or operation.asset_sha256
+                for operation in self.approved_candidate.plan.operations
+            )
+        ):
+            raise ValueError("Expanded edit operations require spec 3.1.")
         if len(self.locked_elements) != 2 or set(locked_by_kind) != {visual_kind, "AUDIO"}:
             raise ValueError("RevisionSpec must freeze exactly one visual and one audio lock")
         if (
@@ -250,6 +265,12 @@ class RevisionSpec(BaseModel):
         ):
             raise ValueError("verification manifest ranges must match locked elements")
         payload = self.model_dump(mode="json", exclude={"spec_hash"})
+        if self.schema_version == "3.0" and isinstance(self.approved_candidate, EditCandidate):
+            # Schema 3.0 predates speed, volume and uploaded-logo fields. Keep
+            # historical hashes valid while 3.1 freezes the expanded plan.
+            for operation in payload["approved_candidate"]["plan"]["operations"]:
+                for key in ("rate", "volume_db", "asset_id", "asset_sha256"):
+                    operation.pop(key, None)
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         expected_hash = hashlib.sha256(canonical.encode()).hexdigest()
         if self.spec_hash != expected_hash:
@@ -275,7 +296,7 @@ class RevisionSpec(BaseModel):
     ) -> RevisionSpec:
         timestamp = approved_at or datetime.now(UTC)
         payload: dict[str, Any] = {
-            "schema_version": "3.0"
+            "schema_version": "3.1"
             if isinstance(candidate, EditCandidate)
             else "2.2"
             if any("maximum_peak_delta_db" in m.threshold for m in verification_manifest)

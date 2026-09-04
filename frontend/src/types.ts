@@ -23,6 +23,7 @@ export interface RuntimeStatus {
   intelligence_enabled?: boolean
   memory_save_policy?: 'operator_key' | 'read_only' | 'local_rehearsal'
   upload_limits?: { max_bytes: number; max_duration_seconds: number; min_duration_seconds: number }
+  logo_limits?: { max_bytes: number; max_dimension: number }
 }
 
 export type SearchEngine = 'exact' | 'hnsw' | 'qbit'
@@ -125,17 +126,37 @@ export interface ZoomCandidate {
 }
 
 export interface EditOperation {
-  kind: 'zoom' | 'text' | 'subtitle' | 'cut' | 'remove_silence'
+  kind: 'zoom' | 'text' | 'subtitle' | 'cut' | 'remove_silence' | 'speed' | 'volume' | 'logo'
   start: number
   end: number
   text: string
-  position: 'top' | 'center' | 'bottom' | 'bottom_right'
+  position: 'top' | 'center' | 'bottom' | 'top_left' | 'top_right' | 'bottom_left' | 'bottom_right'
   threshold_db: number
   min_silence: number
   detected: boolean
+  rate: number
+  volume_db: number
+  asset_id: string
+  asset_sha256: string
 }
 export interface EditPlan { source_duration: number; operations: EditOperation[] }
 export interface EditInterpretation { plan: EditPlan; warnings: string[]; source: string }
+export interface LogoAsset {
+  asset_id: string
+  sha256: string
+  preview_url: string
+  width: number
+  height: number
+}
+export type TranscriptionLanguage = 'auto' | 'ko' | 'en' | 'mixed'
+export interface TranscriptionResult {
+  duration: number
+  requested_language: TranscriptionLanguage
+  detected_languages: Array<'ko' | 'en' | 'other'>
+  cues: Array<{ start: number; end: number; text: string; language: 'ko' | 'en' | 'mixed' | 'other' }>
+  warnings: string[]
+  source: 'google.vertex.gemini'
+}
 export interface EditCandidate {
   candidate_id: 'A' | 'B'
   patch_type: 'EDIT_PLAN'
@@ -147,7 +168,7 @@ export interface EditCandidate {
 export type PatchCandidate = ZoomCandidate | EditCandidate
 
 export interface RevisionSpec {
-  schema_version: '2.0' | '2.1' | '2.2' | '3.0'
+  schema_version: '2.0' | '2.1' | '2.2' | '3.0' | '3.1'
   run_id: string
   asset_id: string
   approved_candidate: PatchCandidate

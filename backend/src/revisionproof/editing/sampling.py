@@ -13,6 +13,7 @@ class PlanFrameSample:
     output_frame: int
     source_frame: int
     visual_edit: bool
+    requested_edit: bool
 
 
 def sample_plan_frame(plan: EditPlan, seconds: float) -> PlanFrameSample:
@@ -23,11 +24,22 @@ def sample_plan_frame(plan: EditPlan, seconds: float) -> PlanFrameSample:
         start = round(span.output_start * FPS)
         count = round(span.duration * FPS)
         if start <= output_frame < start + count:
-            source_frame = round(span.source_start * FPS) + output_frame - start
+            source_frame = round(span.source_start * FPS) + round(
+                (output_frame - start) * span.rate
+            )
             visual = any(
-                op.kind in {"zoom", "text", "subtitle"}
+                op.kind in {"zoom", "text", "subtitle", "logo"}
                 and round(op.start * FPS) <= source_frame < round(op.end * FPS)
                 for op in plan.operations
             )
-            return PlanFrameSample(output_frame, source_frame, visual)
+            requested = (
+                visual
+                or source_frame != output_frame
+                or any(
+                    op.kind in {"speed", "volume"}
+                    and round(op.start * FPS) <= source_frame < round(op.end * FPS)
+                    for op in plan.operations
+                )
+            )
+            return PlanFrameSample(output_frame, source_frame, visual, requested)
     raise ValueError("Sample frame is outside the edited video.")
