@@ -1,5 +1,7 @@
 # Studio repeat review and gstack QA
 
+Subsequent LIVE deployment and QA are recorded in [Studio deployment](deployment-2026-09-05-studio.md) and [LIVE QA](qa-live-2026-09-05-studio.md). The local-only results and authorization boundary below describe this earlier pass, not the current deployment state.
+
 Date: 2026-09-05 KST. Scope: Studio delta after `270d37d`, with this repeat pass starting at `ca87a05`.
 Tested source: `91ef980` (includes `40aff61`, `126080f`). Local URL: `http://127.0.0.1:18131/studio`.
 

@@ -1,5 +1,7 @@
 # RevisionProof docs
 
+- [Studio LIVE 배포·복원 기록 — 실사용 검증, 오류 수정, 재배포](deployment-2026-09-05-studio.md)
+- [Studio LIVE gstack QA — 전체 편집 도구, 차단·복구, 모바일 검증](qa-live-2026-09-05-studio.md)
 - [Studio 재리뷰·gstack QA — 상태 복원, 외부 파일, 모바일 오류 수정](qa-review-2026-09-05-studio.md)
 - [별도 6단계 Studio UI — 기존 화면 보존, 기능 매핑, FIXTURE E2E](studio-ui-2026-09-04.md)
 - [KANAPP 30-second English promo and three RevisionProof demo scenarios](kanapp-english-demo-video-2026-09-04.md)
