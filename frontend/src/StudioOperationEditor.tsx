@@ -78,6 +78,7 @@ export function StudioOperationEditor({
   const segmentDuration = Math.max(0, operation.end - operation.start)
   const supportsWholeVideo = !['cut', 'remove_silence', 'subtitle'].includes(operation.kind)
   const supportsPosition = ['text', 'subtitle', 'logo'].includes(operation.kind)
+  const invalidRange = !Number.isFinite(operation.start) || !Number.isFinite(operation.end) || operation.start < 0
 
   return (
     <section className="studio-settings" aria-labelledby="studio-settings-title">
@@ -117,8 +118,8 @@ export function StudioOperationEditor({
           </label>
         </div>
       ) : null}
-      <div className={`studio-range-note ${operation.end <= operation.start || operation.end > duration ? 'is-error' : ''}`}>
-        {operation.end <= operation.start
+      <div className={`studio-range-note ${invalidRange || operation.end <= operation.start || operation.end > duration ? 'is-error' : ''}`}>
+        {invalidRange ? 'Enter a start and end time within this video.' : operation.end <= operation.start
           ? 'End time must be later than the start time.'
           : operation.end > duration
             ? `End time is past the end of the video (${seconds(duration)}).`
@@ -180,6 +181,7 @@ export function StudioOperationEditor({
         <label className="studio-stack-field">
           <span>Volume change</span>
           <select value={operation.volume_db} disabled={disabled} onChange={(event) => onChange({ volume_db: Number(event.target.value) })}>
+            {![-60, -12, -6, 3, 6, 12].includes(operation.volume_db) && <option value={operation.volume_db}>Custom · {operation.volume_db > 0 ? '+' : ''}{operation.volume_db} dB</option>}
             <option value={-60}>Mute</option><option value={-12}>Much quieter · −12 dB</option><option value={-6}>Quieter · −6 dB</option><option value={3}>Louder · +3 dB</option><option value={6}>Much louder · +6 dB</option><option value={12}>Maximum boost · +12 dB</option>
           </select>
           <input aria-label="Volume decibels" type="range" min={-60} max={12} step={1} value={operation.volume_db} disabled={disabled} onChange={(event) => onChange({ volume_db: Number(event.target.value) })} />
