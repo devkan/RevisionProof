@@ -83,10 +83,7 @@ export function StudioOperationEditor({
   return (
     <section className="studio-settings" aria-labelledby="studio-settings-title">
       <header>
-        <div>
-          <span className="studio-kicker">REVISION {String(index + 1).padStart(2, '0')}</span>
-          <h3 id="studio-settings-title">{EDIT_LABELS[operation.kind]}</h3>
-        </div>
+        <h3 id="studio-settings-title" aria-label={`${EDIT_LABELS[operation.kind]} settings`}>Edit settings</h3>
         <button className="studio-icon-button" type="button" onClick={onDelete} disabled={disabled} aria-label={`Delete revision ${index + 1}`}>
           <Trash2 size={17} />
         </button>

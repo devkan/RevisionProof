@@ -38,6 +38,7 @@ import { candidateTitle, editDetail, EDIT_LABELS, editSummary, operation, output
 import { ChangeMap, EditMemory, SaveApprovedMemory } from './RevisionIntelligence'
 import { SourceUpload, type UploadedSource } from './SourceUpload'
 import { StudioOperationEditor } from './StudioOperationEditor'
+import { StudioRevisionCard } from './StudioRevisionCard'
 import { fileValidation, formatUploadSize, limitsFor } from './uploadValidation'
 import { VideoLightbox, type VideoLightboxContent } from './VideoLightbox'
 import { isTerminalRunState } from './runStream'
@@ -250,9 +251,14 @@ export default function StudioApp() {
   }, [step, view])
 
   useEffect(() => {
+    if (step !== 2 || view !== 'flow') return
+    rightColumn.current?.querySelector<HTMLElement>('.studio-revision-card.is-selected')?.scrollIntoView({ block: 'start' })
+  }, [selectedOperation, step, view])
+
+  useEffect(() => {
     if (!editorFocusRequest) return
     const editor = rightColumn.current?.querySelector<HTMLElement>('.studio-settings')
-    editor?.scrollIntoView({ block: 'nearest' })
+    editor?.closest('.studio-revision-card')?.scrollIntoView({ block: 'start' })
     editor?.querySelector<HTMLElement>('input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')?.focus({ preventScroll: true })
   }, [editorFocusRequest])
 
@@ -586,7 +592,7 @@ export default function StudioApp() {
     )
     if (step === 2) return (
       <aside ref={leftColumn} className="studio-left studio-scroll-column">
-        <section><span className="studio-kicker">EDIT TOOLS</span><h2>Choose an edit.</h2><p className="studio-muted">Its settings open beside the edit list.</p></section>
+        <section><span className="studio-kicker">EDIT TOOLS</span><h2>Choose an edit.</h2><p className="studio-muted">Adjust its settings right inside the edit list.</p></section>
         <div className="studio-tool-list">
           {TOOL_CATALOG.map(({ kind, label, hint, icon: Icon }) => {
             const count = operations.filter((item) => item.kind === kind).length
@@ -616,12 +622,15 @@ export default function StudioApp() {
   function renderRevisionList() {
     return (
       <section className="studio-revision-list">
-        <header><div><span className="studio-kicker">REVISION LIST</span><h3>{displayOperations.length} / 24 queued</h3></div>{displayOperations.length === 24 && <span className="studio-tag is-warning">Limit reached</span>}</header>
+        <header><div><span className="studio-kicker">YOUR EDITS</span><h3>{displayOperations.length} / 24 queued</h3>{!run && displayOperations.length > 0 && <p>Open an edit to adjust its settings.</p>}</div>{displayOperations.length === 24 && <span className="studio-tag is-warning">Limit reached</span>}</header>
         {displayOperations.length ? <ol>{displayOperations.map((item, index) => {
           const selected = step === 2 && !run && selectedOperation === index
           const included = !run?.edit_plan || selectedEdits.includes(index) || Boolean(run.candidates.length)
-          const needsFix = validationIssues.some(issue => issue.operationIndexes.includes(index))
-          return <li key={`${item.kind}-${index}`} className={`${selected ? 'is-selected' : ''} ${needsFix ? 'has-issue' : ''}`}><button type="button" disabled={busy || Boolean(run)} onClick={() => openOperation(index)}><span className="studio-revision-number">{String(index + 1).padStart(2, '0')}</span><span><strong>{item.detected ? 'Proposed quiet cut' : EDIT_LABELS[item.kind]}</strong><small>{editDetail(item)}</small></span><em className={`studio-tag ${needsFix ? 'is-warning' : included ? 'is-ready' : 'is-muted'}`}>{needsFix ? 'needs fix' : included ? item.detected ? 'check' : 'ready' : 'skipped'}</em></button></li>
+          const issues = validationIssues.filter(issue => issue.operationIndexes.includes(index)).map(issue => issue.message)
+          return <StudioRevisionCard key={`${item.kind}-${index}`} index={index} title={item.detected ? 'Proposed quiet cut' : EDIT_LABELS[item.kind]} detail={editDetail(item)} status={included ? item.detected ? 'check' : 'ready' : 'skipped'} expanded={selected} disabled={busy} editable={!run} issues={issues}
+            onToggle={() => { setSelectedOperation(selected ? null : index); setStep(2) }}>
+            <StudioOperationEditor operation={item} index={index} duration={activeAsset?.duration_seconds ?? 0} disabled={busy} canMoveDown={index < operations.length - 1} canDuplicate={operations.length < 24} onChange={changeOperation} onDelete={deleteOperation} onDuplicate={duplicateOperation} onMove={moveOperation} onSeek={seekOriginal} />
+          </StudioRevisionCard>
         })}</ol> : <div className="studio-list-empty"><ListChecks size={28} /><strong>No edits yet</strong><p>Choose a tool or write a request.</p></div>}
       </section>
     )
@@ -716,9 +725,8 @@ export default function StudioApp() {
           {renderLeftColumn()}
           <div ref={centerColumn} className="studio-center studio-scroll-column">{renderCenter()}</div>
           <aside ref={rightColumn} className="studio-right studio-scroll-column">
-            {step === 2 && <StudioOperationEditor operation={currentOperation} index={selectedOperation} duration={activeAsset?.duration_seconds ?? 0} disabled={busy || Boolean(run)} canMoveDown={selectedOperation !== null && selectedOperation < operations.length - 1} canDuplicate={operations.length < 24} onChange={changeOperation} onDelete={deleteOperation} onDuplicate={duplicateOperation} onMove={moveOperation} onSeek={seekOriginal} />}
-            {step === 2 && !run && <PlanIssueNotice issues={actionIssues} onEdit={openOperation} disabled={busy} />}
             {renderRevisionList()}
+            {step === 2 && !run && <PlanIssueNotice issues={actionIssues} onEdit={openOperation} disabled={busy} />}
             <ProofTrace run={run} runtime={runtime} />
           </aside>
         </main>

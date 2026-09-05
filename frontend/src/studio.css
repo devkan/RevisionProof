@@ -292,8 +292,23 @@
 .studio-revision-list li > button:disabled { opacity: 1; }
 .studio-revision-number { color: var(--studio-accent-bright); font-size: 12px; font-weight: 750; font-variant-numeric: tabular-nums; }
 .studio-revision-list li > button > span:nth-child(2) { display: grid; min-width: 0; }
-.studio-revision-list li strong { overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-.studio-revision-list li small { overflow: hidden; color: var(--studio-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.studio-revision-trigger strong { font-size: 15px; line-height: 1.4; }
+.studio-revision-trigger small { color: var(--studio-muted); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.studio-revision-list > header p { margin-top: 6px; color: var(--studio-muted); font-size: 13px; }
+.studio-revision-card { scroll-margin-top: 14px; }
+.studio-revision-list li > .studio-revision-trigger { grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; padding: 14px 12px; align-items: start; }
+.studio-revision-number { padding-top: 2px; }
+.studio-revision-summary { gap: 4px; }
+.studio-revision-hint { color: var(--studio-accent-bright); font-size: 12px; font-weight: 650; }
+.studio-revision-state { display: grid; justify-items: end; gap: 12px; }
+.studio-revision-state > svg { color: var(--studio-muted); }
+.is-selected .studio-revision-state > svg { transform: rotate(180deg); color: var(--studio-accent-bright); }
+.studio-revision-panel > .studio-settings { margin: 0; padding: 14px 12px; border: 0; border-top: 1px solid var(--studio-line); background: transparent; }
+.studio-revision-panel .studio-settings > header { align-items: center; }
+.studio-revision-panel .studio-settings > header h3 { margin: 0; font-size: 15px; letter-spacing: 0; }
+.studio-revision-issues { padding: 12px; border-top: 1px solid var(--studio-danger); background: rgba(239, 127, 118, 0.08); }
+.studio-revision-issues > strong { display: flex; align-items: center; gap: 6px; color: var(--studio-danger); font-size: 14px; }
+.studio-revision-issues p { margin-top: 6px; font-size: 14px; overflow-wrap: anywhere; }
 .studio-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--studio-line-strong); color: var(--studio-muted); font-size: 12px; font-style: normal; font-weight: 750; text-transform: uppercase; white-space: nowrap; }
 .studio-tag.is-ready, .studio-tag.is-pass { border-color: rgba(131, 198, 160, 0.48); color: var(--studio-good); }
 .studio-tag.is-warning { border-color: rgba(239, 127, 118, 0.48); color: var(--studio-danger); }
@@ -469,6 +484,7 @@
 }
 
 @media (max-width: 939px) {
+  .studio-revision-card { scroll-margin-top: 124px; }
   .rp-studio { position: relative; min-width: 0; min-height: 100dvh; height: auto; overflow: visible; }
   .studio-topbar { position: sticky; top: 0; }
   .studio-topbar nav button, .studio-topbar nav a { min-width: 44px; justify-content: center; padding: 0 10px; }
