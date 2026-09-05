@@ -1,5 +1,7 @@
 # RevisionProof docs
 
+- [Studio 항목 바로 아래 설정·카드 스타일 — 로컬 수정, 복원 지점, gstack 검증](studio-inline-settings-2026-09-05.md)
+
 - [Studio LIVE 배포·복원 기록 — 실사용 검증, 오류 수정, 재배포](deployment-2026-09-05-studio.md)
 - [Studio LIVE gstack QA — 전체 편집 도구, 차단·복구, 모바일 검증](qa-live-2026-09-05-studio.md)
 - [Studio 재리뷰·gstack QA — 상태 복원, 외부 파일, 모바일 오류 수정](qa-review-2026-09-05-studio.md)

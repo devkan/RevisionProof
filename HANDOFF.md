@@ -6,6 +6,8 @@ Branch: review/qa-hardening
 
 ## Current Status
 
+- Latest local work (not pushed/deployed): [inline Studio settings and card polish](docs/studio-inline-settings-2026-09-05.md). Prior Check plan fix is preserved at `40767f6`; inline settings `1de51ec`, new regression tests `4cd35a4`, card styling `2a2adee`, narrow-screen sizing isolation `c59e2ca`. Local FIXTURE gstack checks passed all eight control types and a full compound render (3/3 PASS); frontend 69 and backend 349 tests passed (pytest cache permission warning only). User's existing in-app draft tab was untouched. Local port 18131 currently runs FIXTURE, not LIVE. Open a separate tab to see the new bundle. Deployment below is the previous release, not these latest changes.
+
 - Separate `/studio` is deployed, preserving classic `/`. Read [Studio LIVE deployment and recovery](docs/deployment-2026-09-05-studio.md) and [hands-on gstack QA](docs/qa-live-2026-09-05-studio.md) first. Google Cloud Shell authorization was completed. Final source `44cc8c0` / revision `revisionproof-staging-00028-n4z` is healthy at 100% traffic; build `660dbd2f-1bf5-4ab1-9cb1-59c41277b340` succeeded. Final browser bundle `index-BmgsfeTd.js` and LIVE status APIs were verified. Full functional LIVE runs below used 00026/00027; 00028 changes only one final-summary plural label.
 - Current-turn backend 349 tests and final frontend 51 tests / 12 files passed, plus lint/build. LIVE gstack tested all eight edit controls across compound and silence runs, smart search, subtitle correction, A/B selection, full checks, external BLOCKED-to-READY recovery, playback, mobile layout, and read-only empty memory. The discovered source-preparation range bug and single-preview instructions were fixed and verified. Delivery approval remains false; no Approved Edit Memory writes.
 - Restoration points: `backup/pre-studio-ui-20260904` at `270d37d` and `backup/pre-studio-reqa-20260905` at `ca87a05`. Preserve both; restore into a separate worktree instead of resetting the active branch.
@@ -44,6 +46,8 @@ Branch: review/qa-hardening
 
 ## Relevant Docs
 
+- [Inline Studio settings and card polish](docs/studio-inline-settings-2026-09-05.md) — latest local source, restore point, browser evidence and no-push/deploy boundary.
+
 - [Studio LIVE deployment and restoration](docs/deployment-2026-09-05-studio.md) — current source, build/revision identities, real workflows, fixes and backup recovery.
 - [Studio hands-on LIVE gstack QA](docs/qa-live-2026-09-05-studio.md) — scope, defects, tests, screenshots and intentional approval boundaries.
 - [KANAPP English promo and three demo scenarios](docs/kanapp-english-demo-video-2026-09-04.md) — source paths, checksums, timeline, narration, exact edit steps, English presenter scripts and local verification boundary.
@@ -68,6 +72,8 @@ Branch: review/qa-hardening
 - [Docs index](docs/README.md) — earlier deployments, source-video/UI changes, MCP retry fix and historical approved proof.
 
 ## Remaining Work
+
+- Latest inline settings/card changes are intentionally local only. Await a new push/deploy instruction; preserve `40767f6` and existing deployment backups. Do not reload the user's draft tab automatically.
 
 1. Rehearse Scenario 2 with the new English MP4 in the LIVE editor: generate English subtitles, correct `KANAPP`, `Medical Check` or `LeanCOO` if needed, select only the main quiet interval, apply 1.25× speed, +6 dB volume and the closing URL, then inspect A/B and full verification.
 2. Rehearse Scenario 1 and Scenario 3 from fresh uploads of the original MP4, then choose the strongest moments for the final recorded demo.
