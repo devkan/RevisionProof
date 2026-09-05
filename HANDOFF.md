@@ -1,11 +1,14 @@
 # Handoff
 
-Last updated: 2026-09-04
+Last updated: 2026-09-05
 Project: RevisionProof — D:\Hackathon\006.Agentic Cinema Hackathon\RevisionProof
 Branch: review/qa-hardening
 
 ## Current Status
 
+- Latest work is the separate `/studio` screen, preserving classic `/`. Read [Studio repeat review and gstack QA](docs/qa-review-2026-09-05-studio.md) first. Source `91ef980` includes navigation/selection recovery, external verification playback and approval wiring, input explanations, and mobile menu/footer fixes. Frontend 29 tests, lint and build passed; real local FIXTURE external correction and uploaded-source speed/volume/logo runs reached READY / 3 PASS without delivery approval.
+- Studio is not claimed deployed. Google reauthentication remained unresolved before this QA pass; no Cloud Run deployment was performed in this pass. Historical LIVE records below refer to the previous classic release, not the new Studio source.
+- Restoration points: `backup/pre-studio-ui-20260904` at `270d37d` and `backup/pre-studio-reqa-20260905` at `ca87a05`. Preserve both; restore into a separate worktree instead of resetting the active branch.
 - A new 30-second English KANAPP promo source is ready for demo editing at `D:\Hackathon\006.Agentic Cinema Hackathon\video\kanapp_promo_english_editable_30s.mp4`; its matching overlay logo is `D:\Hackathon\006.Agentic Cinema Hackathon\video\kanapp_demo_logo.png`. The MP4 is 1280×720, 30 fps, H.264/AAC, 831,549 bytes, with six English scenes, English narration, a deliberately quieter 5–10 second section and a detected quiet interval around 15.19–18.45 seconds. Read [the English promo and three demo scenarios](docs/kanapp-english-demo-video-2026-09-04.md) first.
 - The generated media passed FFmpeg full decode and RevisionProof upload validation locally. Its storyboard was visually inspected. The MP4 has **not** yet been uploaded to LIVE or completed an A/B/full-verification run, so no LIVE success is claimed for this new asset. Generated media stays outside Git; reproducible source and scenarios are tracked in `2186575`.
 - Source-video uploads now accept up to **32,000,000 bytes (32 MB)** and are **deployed and LIVE verified**: source `08113823abbba221a9926799e9f5ae1dc0f33657`, revision `revisionproof-staging-00025-88t`, traffic 100%, all readiness conditions True. Build `98fdd1af-59ca-4300-ae39-c4cca0d334a5` SUCCESS at `2026-09-04T07:17:13.397392Z`; image `sha256:c04b1b1caae3bbd97b3d21741ee12709a468e2fbe49947411b677554d40e4ef4`. Read [the 32 MB upload release record](docs/deployment-2026-09-04-upload-32mb.md) first.
@@ -66,7 +69,7 @@ Branch: review/qa-hardening
 
 1. Rehearse Scenario 2 with the new English MP4 in the LIVE editor: generate English subtitles, correct `KANAPP`, `Medical Check` or `LeanCOO` if needed, select only the main quiet interval, apply 1.25× speed, +6 dB volume and the closing URL, then inspect A/B and full verification.
 2. Rehearse Scenario 1 and Scenario 3 from fresh uploads of the original MP4, then choose the strongest moments for the final recorded demo.
-3. Record the final English presentation. UI redesign is intentionally deferred; keep further code changes limited to concrete rehearsal bugs.
+3. Resolve Google reauthentication, deploy the tested Studio source to the existing service, then run LIVE post-deploy QA. Record the final English presentation afterward. Preserve classic `/` and the human final-delivery approval gate.
 
 ## Watchouts
 
