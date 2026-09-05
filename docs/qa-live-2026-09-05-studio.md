@@ -2,6 +2,29 @@
 
 Date: 2026-09-05 KST. Status: **review, QA fixes, deployment and final canary complete**.
 
+## Follow-up: Check plan disabled without an explanation (local fix, not deployed)
+
+Reported after the deployment below, using screenshot `618.png`. The earlier completion statement describes the earlier release only. This follow-up is verified locally on `http://127.0.0.1:18131/studio` in FIXTURE mode; it has not been committed, pushed or deployed to Cloud Run.
+
+### DEBUG REPORT
+
+- **Symptom:** Plan's Check plan action was disabled, both cut and zoom appeared READY, and the blocking reason was absent from the Plan screen/footer.
+- **Root cause:** Edit 3 cuts original time 0–4s, while Edit 4 zooms that same 0–4s. `planProblem` correctly rejects an edit entirely removed by a cut. Studio only displayed that string in the Edits sidebar and independently marked included rows READY. Disabled pre-check checkboxes and misleading selection instructions added confusion.
+- **Fix:** `frontend/src/editing.ts:44` returns structured issues with original edit indexes and actionable messages. The existing `planProblem` contract still returns the first blocking string. Validation rules and server checks remain enforced. `frontend/src/StudioApp.tsx:177` renders the issue list; Plan, revision badges, and footer use the same issues. `Fix edit N` opens that exact draft editor and moves keyboard focus. Pre-check rows have numbered Edit/Watch actions; selection checkboxes remain available after Check plan. Footer reasons wrap instead of being clipped, and the disabled action references them with `aria-describedby`. Six-step/three-column layout and classic route remain intact.
+- **Regression test:** `frontend/src/studioPlanValidation.regression.test.tsx`, 12 cases. Failed before implementation, passed after. Covers the five-edit screenshot, adjacent cuts, partially retained footage, invalid fields, speed/volume/zoom/overlay conflicts, original row numbering in selected subsets, accessible issue markup and empty selections.
+- **Evidence:** `npm test`: **13 files / 63 passed**; ESLint and TypeScript/Vite build passed. Backend: **349 passed, 1 warning in 127.13s**. Warning is an existing Windows `.pytest_cache` write permission warning, not a test failure. Final local bundle: `index-BZbfM4yW.js`, `index-B4WNcQg1.css`.
+- **Browser QA:** Reproduced the old failure with sample cut 0–4s + zoom 0–4s. Recreated five edits using two subtitles, cut, zoom and a synthetic logo. Plan and footer identify Edit 4 and Edit 3; both rows show NEEDS FIX. At 1440×900 and 390×844 there was no document-width overflow and the footer reason/action was visible. On mobile, Fix edit 4 opened revision 04's Zoom settings. Changing zoom to 4–8s cleared the warning and enabled Check plan. Five edits were preserved. Unchecking every reviewed edit produced a visible minimum-selection message; Review issues focused the notice, and selecting again restored the action. Empty text + reversed times showed both errors; fixing both enabled the action. An unconverted request showed its blocker, which cleared when the request was cleared.
+- **End-to-end:** Local run `01M1RH7XB36WMMWRDMA7P2CN7K` created A/B previews, selected A, rendered the full 26s video from a 30s sample, and reached **READY / PASS / 3 checks PASS**. `delivery_approved=false`. No user draft was changed, no actual KANAPP video was uploaded, and no final delivery or memory write was performed. Browser console errors: none observed.
+- **Related:** This is a missed invalid-combination UX case, separate from the previous preparation-range and preview-count defects. The previous QA score was not exhaustive evidence for every input combination.
+- **Status:** DONE_WITH_CONCERNS: local fix and QA complete; push and cloud deployment are not part of this follow-up's completed results. Existing open tabs still hold the previous JavaScript. Do not reload the user's current draft; to continue immediately, use Back to Edits and move Zoom 04 to retained source footage (for example 4–8s), or remove the conflicting edit.
+
+Local ignored screenshots under `runtime/qa-screenshots/`:
+
+- `plan-block-before-20260905.png`
+- `plan-block-after-20260905.png`
+- `plan-block-mobile-20260905.png`
+- `plan-fixed-full-check-20260905.png` (before the final CSS-only adjustment that keeps read-only revision labels at full opacity)
+
 ## Scope and method
 
 gstack `/review`, `/qa` and `/browse` were used with source inspection, real browser interaction, rendered screenshots, request outcomes, persisted run snapshots and regression tests. `/investigate` traced the upload failure before changing code. The installed QA package lacks its referenced report template and issue taxonomy files, so the repository's existing report structure is used with the skill's scoring rubric.

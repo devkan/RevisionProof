@@ -37,31 +37,53 @@ export function sourceTimeForOutput(plan: EditPlan | undefined, time: number): n
   const span = spans.find(s => t >= s.output && t < s.output + s.duration)
   return span ? span.start + (t - span.output) * span.rate : 0
 }
-export function planProblem(plan: EditPlan): string | null {
-  if (!plan.operations.length) return 'Choose an edit below or turn your request into a plan.'
-  if (plan.operations.length > 24) return 'Use up to 24 edits in one video.'
+export type PlanIssue = { message: string; operationIndexes: number[] }
+
+// Keep validation and its UI locations together, including original row numbers
+// when a reviewed plan is filtered down to the selected edits.
+export function planIssues(plan: EditPlan, operationIndexes = plan.operations.map((_, index) => index)): PlanIssue[] {
+  const issues: PlanIssue[] = []
+  const add = (message: string, indexes: number[] = []) => issues.push({ message, operationIndexes: indexes.map(index => operationIndexes[index]) })
+  const name = (index: number) => `Edit ${operationIndexes[index] + 1}`
+  const describe = (index: number) => `${name(index)}: ${EDIT_LABELS[plan.operations[index].kind]} (${seconds(plan.operations[index].start)}–${seconds(plan.operations[index].end)})`
+  if (!plan.operations.length) return [{ message: 'Select at least one edit in Plan, or add an edit in Edits.', operationIndexes: [] }]
+  if (plan.operations.length > 24) return [{ message: 'Use up to 24 edits in one video. Remove an edit to continue.', operationIndexes: [] }]
   for (const [i, op] of plan.operations.entries()) {
-    if (![op.start, op.end].every(Number.isFinite) || op.start < 0 || op.end > plan.source_duration + 0.001 || op.end - op.start < 0.09) return `Edit ${i + 1}: choose a valid start and end within this video (at least 0.1s).`
-    if (['text', 'subtitle'].includes(op.kind) && (!op.text.trim() || op.text.length > 160 || op.text.split('\n').length > 3)) return `Edit ${i + 1}: enter text, up to 160 characters and 3 lines.`
-    if (op.kind === 'remove_silence' && (!Number.isFinite(op.min_silence) || op.min_silence < 0.3 || op.min_silence > 3)) return `Edit ${i + 1}: choose a minimum pause between 0.3 and 3 seconds.`
-    if (op.kind === 'speed' && (!Number.isFinite(op.rate) || op.rate < 0.5 || op.rate > 2 || Math.abs(op.rate - 1) < 0.001)) return `Edit ${i + 1}: choose a speed from 0.5× to 2×, excluding 1×.`
-    if (op.kind === 'volume' && (!Number.isFinite(op.volume_db) || op.volume_db < -60 || op.volume_db > 12 || Math.abs(op.volume_db) < 0.001)) return `Edit ${i + 1}: choose a volume from −60 dB to +12 dB, excluding 0 dB.`
-    if (op.kind === 'logo' && (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(op.asset_id) || !/^[a-f0-9]{64}$/.test(op.asset_sha256))) return `Edit ${i + 1}: upload a valid logo image.`
+    if (![op.start, op.end].every(Number.isFinite) || op.start < 0 || op.end > plan.source_duration + 0.001 || op.end - op.start < 0.09) add(`${describe(i)}: choose a valid start and end within this video (at least 0.1s).`, [i])
+    if (['text', 'subtitle'].includes(op.kind) && (!op.text.trim() || op.text.length > 160 || op.text.split('\n').length > 3)) add(`${describe(i)}: enter text, up to 160 characters and 3 lines.`, [i])
+    if (op.kind === 'remove_silence' && (!Number.isFinite(op.min_silence) || op.min_silence < 0.3 || op.min_silence > 3)) add(`${describe(i)}: choose a minimum pause between 0.3 and 3 seconds.`, [i])
+    if (op.kind === 'speed' && (!Number.isFinite(op.rate) || op.rate < 0.5 || op.rate > 2 || Math.abs(op.rate - 1) < 0.001)) add(`${describe(i)}: choose a speed from 0.5× to 2×, excluding 1×.`, [i])
+    if (op.kind === 'volume' && (!Number.isFinite(op.volume_db) || op.volume_db < -60 || op.volume_db > 12 || Math.abs(op.volume_db) < 0.001)) add(`${describe(i)}: choose a volume from −60 dB to +12 dB, excluding 0 dB.`, [i])
+    if (op.kind === 'logo' && (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(op.asset_id) || !/^[a-f0-9]{64}$/.test(op.asset_sha256))) add(`${describe(i)}: upload a valid logo image.`, [i])
   }
-  if (outputDuration(plan) < 0.999) return 'Keep at least one second of the original video.'
-  if (outputDuration(plan) > 60.05) return 'The edited video must stay within 60 seconds. Shorten the slow section or choose a faster rate.'
+  // Invalid/empty numeric fields cannot safely participate in timeline math.
+  if (issues.length) return issues
+  if (outputDuration(plan) < 0.999) add('Keep at least one second of the original video. Shorten or remove a cut.', plan.operations.flatMap((op, i) => op.kind === 'cut' ? [i] : []))
+  if (outputDuration(plan) > 60.05) add('The edited video must stay within 60 seconds. Shorten the slow section or choose a faster rate.', plan.operations.flatMap((op, i) => op.kind === 'speed' ? [i] : []))
+  const overlaps = (a: EditOperation, b: { start: number; end: number }) => Math.max(a.start, b.start) < Math.min(a.end, b.end)
   for (const kind of ['speed', 'volume'] as const) {
-    const timed = plan.operations.filter(op => op.kind === kind)
-    for (const [i, a] of timed.entries()) if (timed.slice(i + 1).some(b => Math.max(a.start, b.start) < Math.min(a.end, b.end))) return `Overlapping ${kind} edits conflict. Adjust their times.`
-  }
-  const visual = plan.operations.filter(op => ['zoom', 'text', 'subtitle', 'logo'].includes(op.kind))
-  for (const [i, a] of visual.entries()) {
-    if (!keptSpans(plan).some(s => Math.max(a.start, s.start) < Math.min(a.end, s.end))) return 'A visual edit falls entirely inside a section you are cutting. Adjust its times.'
-    for (const b of visual.slice(i + 1)) {
-      if (Math.max(a.start, b.start) < Math.min(a.end, b.end) && ((a.kind === 'zoom' && b.kind === 'zoom') || (a.kind !== 'zoom' && b.kind !== 'zoom' && a.position === b.position))) return 'Overlapping zooms or overlays at the same position conflict. Adjust the times or position.'
+    const timed = plan.operations.flatMap((op, index) => op.kind === kind ? [index] : [])
+    for (const [i, a] of timed.entries()) for (const b of timed.slice(i + 1)) {
+      if (overlaps(plan.operations[a], plan.operations[b])) add(`${describe(a)} and ${describe(b)} conflict. Change their times so the ${kind} edits do not overlap, or remove one.`, [a, b])
     }
   }
-  return null
+  const visual = plan.operations.flatMap((op, index) => ['zoom', 'text', 'subtitle', 'logo'].includes(op.kind) ? [index] : [])
+  const kept = keptSpans(plan)
+  for (const [i, a] of visual.entries()) {
+    const op = plan.operations[a]
+    if (!kept.some(span => overlaps(op, span))) {
+      const cuts = plan.operations.flatMap((cut, index) => cut.kind === 'cut' && overlaps(op, cut) ? [index] : [])
+      add(`${describe(a)} falls entirely inside footage removed by ${cuts.map(name).join(', ')}. Move it to a section you keep, shorten the cut, or remove this edit.`, [a, ...cuts])
+    }
+    for (const b of visual.slice(i + 1)) {
+      const other = plan.operations[b]
+      if (overlaps(op, other) && ((op.kind === 'zoom' && other.kind === 'zoom') || (op.kind !== 'zoom' && other.kind !== 'zoom' && op.position === other.position))) add(`${describe(a)} and ${describe(b)} conflict. ${op.kind === 'zoom' ? 'Change their times so the zooms do not overlap, or remove one.' : `Both overlays use ${op.position.replaceAll('_', ' ')}. Change their times or move one to another position.`}`, [a, b])
+    }
+  }
+  return issues
+}
+export function planProblem(plan: EditPlan): string | null {
+  return planIssues(plan)[0]?.message ?? null
 }
 export function editDetail(op: EditOperation) {
   const detail = op.text ? ` · “${op.text}” · ${op.position.replace('_', ' ')}` : op.kind === 'speed' ? ` · ${op.rate}×` : op.kind === 'volume' ? ` · ${op.volume_db <= -60 ? 'mute' : `${op.volume_db > 0 ? '+' : ''}${op.volume_db} dB`}` : op.kind === 'logo' ? ` · ${op.position.replace('_', ' ')}` : ''

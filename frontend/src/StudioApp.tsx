@@ -34,7 +34,7 @@ import {
 } from 'lucide-react'
 import { api } from './api'
 import { RequestDraft } from './EditComposer'
-import { candidateTitle, editDetail, EDIT_LABELS, editSummary, operation, outputDuration, planProblem, seconds } from './editing'
+import { candidateTitle, editDetail, EDIT_LABELS, editSummary, operation, outputDuration, planIssues, planProblem, seconds, type PlanIssue } from './editing'
 import { ChangeMap, EditMemory, SaveApprovedMemory } from './RevisionIntelligence'
 import { SourceUpload, type UploadedSource } from './SourceUpload'
 import { StudioOperationEditor } from './StudioOperationEditor'
@@ -174,6 +174,14 @@ function ProofTrace({ run, runtime }: { run: RunSnapshot | null; runtime: Runtim
   )
 }
 
+export function PlanIssueNotice({ issues, onEdit, disabled }: { issues: PlanIssue[]; onEdit?: (index: number) => void; disabled: boolean }) {
+  if (!issues.length) return null
+  return <section id="studio-plan-issues" className="studio-plan-issues" role="status" tabIndex={-1}>
+    <strong><AlertTriangle size={18} />Fix {countedLabel(issues.length, 'issue')} before continuing</strong>
+    <ul>{issues.map((issue, index) => <li key={index}><p>{issue.message}</p>{onEdit && issue.operationIndexes.length > 0 && <button type="button" disabled={disabled} onClick={() => onEdit(issue.operationIndexes[0])}>Fix edit {issue.operationIndexes[0] + 1}<ChevronRight size={15} /></button>}</li>)}</ul>
+  </section>
+}
+
 export default function StudioApp() {
   const [view, setView] = useState<StudioView>('flow')
   const [step, setStep] = useState(1)
@@ -184,6 +192,7 @@ export default function StudioApp() {
   const [run, setRun] = useState<RunSnapshot | null>(null)
   const [operations, setOperations] = useState<EditOperation[]>([])
   const [selectedOperation, setSelectedOperation] = useState<number | null>(null)
+  const [editorFocusRequest, setEditorFocusRequest] = useState(0)
   const [selectedEdits, setSelectedEdits] = useState<number[]>([])
   const [feedback, setFeedback] = useState('')
   const [usedDraftText, setUsedDraftText] = useState('')
@@ -240,12 +249,21 @@ export default function StudioApp() {
     if (window.matchMedia('(max-width: 939px)').matches) window.scrollTo({ top: 0 })
   }, [step, view])
 
+  useEffect(() => {
+    if (!editorFocusRequest) return
+    const editor = rightColumn.current?.querySelector<HTMLElement>('.studio-settings')
+    editor?.scrollIntoView({ block: 'nearest' })
+    editor?.querySelector<HTMLElement>('input:not(:disabled), textarea:not(:disabled), select:not(:disabled)')?.focus({ preventScroll: true })
+  }, [editorFocusRequest])
+
   const selectedAsset = assets.find((asset) => asset.asset_id === selectedAssetId) ?? null
   const activeAsset = run?.asset ?? uploadedSource?.asset ?? selectedAsset
   const displayOperations = run?.edit_plan?.operations ?? operations
   const draftPlan = { source_duration: activeAsset?.duration_seconds ?? 0, operations }
   const pendingWords = feedback.trim().length > 0 && feedback !== usedDraftText
-  const editProblem = activeAsset ? planProblem(draftPlan) ?? (pendingWords ? 'Turn the written request into revision items, or clear it before reviewing the plan.' : null) : 'Select a source video first.'
+  const draftIssues = activeAsset ? planIssues(draftPlan) : [{ message: 'Select a source video first.', operationIndexes: [] }]
+  if (pendingWords) draftIssues.push({ message: 'Turn the written request into revision items, or clear it before reviewing the plan.', operationIndexes: [] })
+  const editProblem = draftIssues[0]?.message ?? null
   const maxStep = !activeAsset ? 1
     : run?.proof?.publish_allowed ? 6
       : run?.spec ? 5
@@ -257,6 +275,26 @@ export default function StudioApp() {
   const selectedPlan = reviewedPlan(run, draftPlan, selectedEdits)
   const checkedVideo = checkedVideoUrl(run, externalVideo)
   const existingPlanAction = planAction(step, run)
+  const selectedIndexes = displayOperations.flatMap((_, index) => selectedEdits.includes(index) ? [index] : [])
+  const validationIssues = run?.candidates.length ? [] : run?.edit_plan ? planIssues(selectedPlan, selectedIndexes) : draftIssues
+  const actionIssues = (step === 2 && !run?.edit_plan) || (step === 3 && !run?.candidates.length) ? validationIssues : []
+  const actionBlocker = !runtime ? 'Checking service availability…' : !runtime.mutable ? runtime.message : actionIssues[0]?.message ?? null
+
+  function openOperation(index: number) {
+    if (busy || run) return
+    setSelectedOperation(index)
+    setStep(2)
+    setEditorFocusRequest(value => value + 1)
+  }
+
+  function showPlanIssues() {
+    if (!run && actionIssues[0]?.operationIndexes.length) openOperation(actionIssues[0].operationIndexes[0])
+    else {
+      const notice = document.getElementById('studio-plan-issues')
+      notice?.scrollIntoView({ block: 'center' })
+      notice?.focus({ preventScroll: true })
+    }
+  }
 
   async function action(phase: ProcessingPhase, work: () => Promise<RunSnapshot>) {
     setProcessing(phase)
@@ -582,7 +620,8 @@ export default function StudioApp() {
         {displayOperations.length ? <ol>{displayOperations.map((item, index) => {
           const selected = step === 2 && !run && selectedOperation === index
           const included = !run?.edit_plan || selectedEdits.includes(index) || Boolean(run.candidates.length)
-          return <li key={`${item.kind}-${index}`} className={selected ? 'is-selected' : ''}><button type="button" onClick={() => { if (step === 2 && !run) setSelectedOperation(index) }}><span className="studio-revision-number">{String(index + 1).padStart(2, '0')}</span><span><strong>{item.detected ? 'Proposed quiet cut' : EDIT_LABELS[item.kind]}</strong><small>{editDetail(item)}</small></span><em className={`studio-tag ${included ? 'is-ready' : 'is-muted'}`}>{included ? item.detected ? 'check' : 'ready' : 'skipped'}</em></button></li>
+          const needsFix = validationIssues.some(issue => issue.operationIndexes.includes(index))
+          return <li key={`${item.kind}-${index}`} className={`${selected ? 'is-selected' : ''} ${needsFix ? 'has-issue' : ''}`}><button type="button" disabled={busy || Boolean(run)} onClick={() => openOperation(index)}><span className="studio-revision-number">{String(index + 1).padStart(2, '0')}</span><span><strong>{item.detected ? 'Proposed quiet cut' : EDIT_LABELS[item.kind]}</strong><small>{editDetail(item)}</small></span><em className={`studio-tag ${needsFix ? 'is-warning' : included ? 'is-ready' : 'is-muted'}`}>{needsFix ? 'needs fix' : included ? item.detected ? 'check' : 'ready' : 'skipped'}</em></button></li>
         })}</ol> : <div className="studio-list-empty"><ListChecks size={28} /><strong>No edits yet</strong><p>Choose a tool or write a request.</p></div>}
       </section>
     )
@@ -609,7 +648,22 @@ export default function StudioApp() {
     if (step === 3) {
       const plan = run?.edit_plan ?? draftPlan
       const chosen = selectedPlan
-      return <section className="studio-center-stage studio-plan-stage"><header><span className="studio-kicker">03 · PLAN</span><h1>Review the plan.</h1><p>Remove any edit you do not want in the previews.</p></header>{run?.edit_warnings?.map((warning, index) => <div className="studio-callout is-warning" key={index}><AlertTriangle size={18} /><p>{warning}</p></div>)}<ol className="studio-plan-list">{plan.operations.map((item, index) => { const checked = !run?.edit_plan || Boolean(run.candidates.length) || selectedEdits.includes(index); return <li key={index} className={checked ? '' : 'is-skipped'}><label><input type="checkbox" checked={checked} disabled={!run?.edit_plan || Boolean(run.candidates.length) || busy} onChange={() => setSelectedEdits(checked ? selectedEdits.filter((value) => value !== index) : [...selectedEdits, index])} /><span><strong>{item.detected ? 'Suggested silence cut' : EDIT_LABELS[item.kind]}</strong><small>{editSummary(item)} · source time</small></span></label><span className={`studio-tag ${checked ? item.detected ? 'is-warning' : 'is-ready' : 'is-muted'}`}>{checked ? item.detected ? 'review' : 'included' : 'skipped'}</span><button type="button" onClick={() => activeAsset && openLarge(activeAsset.source_url, 'Original video', `${EDIT_LABELS[item.kind]} · ${editDetail(item)}`, item.start)}><Film size={14} />Watch</button></li>})}</ol><div className="studio-duration-row"><span>Original <strong>{seconds(plan.source_duration)}</strong></span><ChevronRight size={18} /><span>After edits <strong>{seconds(outputDuration(chosen))}</strong></span></div>{run?.edit_plan && !run.candidates.length && selectedPlan.operations.length === 0 && <div className="studio-callout is-warning" role="status"><Info size={18} /><p>Select at least one edit to create previews.</p></div>}{!run && <div className="studio-callout"><Info size={18} /><p>Select Check plan below before creating previews.</p></div>}</section>
+      return <section className="studio-center-stage studio-plan-stage">
+        <header><span className="studio-kicker">03 · PLAN</span><h1>Review the plan.</h1><p>{!run ? 'Review the times below. Select Edit to change or remove an item, then Check plan.' : run.candidates.length ? 'These edits were used to create your previews.' : 'Uncheck any edit you do not want in the previews.'}</p></header>
+        <PlanIssueNotice issues={actionIssues} onEdit={!run ? openOperation : undefined} disabled={busy} />
+        {run?.edit_warnings?.map((warning, index) => <div className="studio-callout is-warning" key={index}><AlertTriangle size={18} /><p>{warning}</p></div>)}
+        <ol className="studio-plan-list">{plan.operations.map((item, index) => {
+          const checked = !run?.edit_plan || Boolean(run.candidates.length) || selectedEdits.includes(index)
+          const needsFix = validationIssues.some(issue => issue.operationIndexes.includes(index))
+          return <li key={index} className={`${checked ? '' : 'is-skipped'} ${needsFix ? 'has-issue' : ''}`}>
+            <label>{run?.edit_plan ? <input type="checkbox" checked={checked} disabled={Boolean(run.candidates.length) || busy} onChange={() => setSelectedEdits(checked ? selectedEdits.filter((value) => value !== index) : [...selectedEdits, index])} /> : <span className="studio-revision-number">{String(index + 1).padStart(2, '0')}</span>}<span><strong>{item.detected ? 'Suggested silence cut' : EDIT_LABELS[item.kind]}</strong><small>{editSummary(item)} · source time</small></span></label>
+            <span className={`studio-tag ${needsFix ? 'is-warning' : checked ? item.detected ? 'is-warning' : 'is-ready' : 'is-muted'}`}>{needsFix ? 'needs fix' : checked ? item.detected ? 'review' : 'included' : 'skipped'}</span>
+            <div className="studio-plan-actions">{!run && <button type="button" disabled={busy} onClick={() => openOperation(index)} aria-label={`Edit revision ${index + 1}`}>Edit</button>}<button type="button" onClick={() => activeAsset && openLarge(activeAsset.source_url, 'Original video', `${EDIT_LABELS[item.kind]} · ${editDetail(item)}`, item.start)}><Film size={14} />Watch</button></div>
+          </li>
+        })}</ol>
+        <div className="studio-duration-row"><span>Original <strong>{seconds(plan.source_duration)}</strong></span><ChevronRight size={18} /><span>After edits <strong>{seconds(outputDuration(chosen))}</strong></span></div>
+        {!run && !actionIssues.length && <div className="studio-callout"><Info size={18} /><p>Select Check plan below. You can select which edits to include before creating previews.</p></div>}
+      </section>
     }
 
     if (step === 4) return <section className="studio-center-stage studio-ab-stage"><header><span className="studio-kicker">04 · COMPARE</span><h1>{previewGuidance(run?.candidates.length ?? 0).title}</h1><p>{previewGuidance(run?.candidates.length ?? 0).detail}</p></header>{run?.evidence[0] && <div className="studio-evidence-line"><Database size={16} /><span><strong>{formatTime(run.evidence[0].time_range.start_seconds)}–{formatTime(run.evidence[0].time_range.end_seconds)}</strong>{run.evidence[0].visual_summary}</span><em>{run.evidence[0].source}</em></div>}<div className="studio-candidate-grid">{run?.candidates.map((candidate) => <CandidateFrame key={candidate.candidate_id} candidate={candidate} selected={run.spec?.approved_candidate.candidate_id === candidate.candidate_id} disabled={busy || Boolean(run.spec)} onChoose={() => void chooseCandidate(candidate.candidate_id)} onLarge={() => candidate.preview_url && openLarge(candidate.preview_url, `Version ${candidate.candidate_id}`, candidateTitle(candidate))} />)}</div>{run?.spec && <div className="studio-callout is-success"><CheckCircle2 size={19} /><div><strong>Version {run.spec.approved_candidate.candidate_id} selected.</strong><p>Next, build the full video and run checks. Final approval comes later.</p></div></div>}</section>
@@ -663,12 +717,17 @@ export default function StudioApp() {
           <div ref={centerColumn} className="studio-center studio-scroll-column">{renderCenter()}</div>
           <aside ref={rightColumn} className="studio-right studio-scroll-column">
             {step === 2 && <StudioOperationEditor operation={currentOperation} index={selectedOperation} duration={activeAsset?.duration_seconds ?? 0} disabled={busy || Boolean(run)} canMoveDown={selectedOperation !== null && selectedOperation < operations.length - 1} canDuplicate={operations.length < 24} onChange={changeOperation} onDelete={deleteOperation} onDuplicate={duplicateOperation} onMove={moveOperation} onSeek={seekOriginal} />}
-            {step === 2 && !run && editProblem && (operations.length > 0 || pendingWords) && <div className="studio-callout is-warning" role="status"><AlertTriangle size={18} /><p>{editProblem}</p></div>}
+            {step === 2 && !run && <PlanIssueNotice issues={actionIssues} onEdit={openOperation} disabled={busy} />}
             {renderRevisionList()}
             <ProofTrace run={run} runtime={runtime} />
           </aside>
         </main>
-        <footer className="studio-actionbar"><div><span className="studio-kicker">CURRENT STEP</span><p>{step === 1 ? activeAsset ? `File ready · ${activeAsset.title}` : 'Choose a video to begin' : step === 2 ? run ? `${countedLabel(displayOperations.length, 'edit')} in the reviewed plan` : `${operations.length} of 24 edits added · nothing has run` : step === 3 ? `${countedLabel(selectedPlan.operations.length, 'edit')} selected for preview` : step === 4 ? run?.spec ? `Version ${run.spec.approved_candidate.candidate_id} selected · ${run.proof ? verdictLabel(run.proof.verdict) : 'checks not run'}` : previewGuidance(run?.candidates.length ?? 0).hint : step === 5 ? run?.proof ? `${verdictLabel(run.proof.verdict)} · ${run.proof.checks.filter((check) => check.verdict === 'PASS').length} of ${run.proof.checks.length} checks pass` : 'Build the full video to run checks' : 'Final step · only you can approve'}</p></div>{step > 1 && <button type="button" className="studio-back" onClick={goBack} disabled={busy}><ChevronLeft size={16} />Back to {STEPS[step - 2]}</button>}<button type="button" className="studio-primary" onClick={primaryAction} disabled={primaryDisabled}>{primaryLabel}<ChevronRight size={16} /></button></footer>
+        <footer className={`studio-actionbar ${actionBlocker ? 'has-blocker' : ''}`}>
+          {actionBlocker && <div className="studio-action-blocker" id="studio-action-blocker" role="status"><AlertTriangle size={18} /><p>{actionBlocker}{actionIssues.length > 1 ? ` (${actionIssues.length} issues to review.)` : ''}</p>{actionIssues.length > 0 && <button type="button" onClick={showPlanIssues} disabled={busy}>{!run && actionIssues[0].operationIndexes.length ? `Fix edit ${actionIssues[0].operationIndexes[0] + 1}` : 'Review issues'}<ChevronRight size={15} /></button>}</div>}
+          <div><span className="studio-kicker">CURRENT STEP</span><p>{step === 1 ? activeAsset ? `File ready · ${activeAsset.title}` : 'Choose a video to begin' : step === 2 ? run ? `${countedLabel(displayOperations.length, 'edit')} in the reviewed plan` : `${operations.length} of 24 edits added · nothing has run` : step === 3 ? `${countedLabel(selectedPlan.operations.length, 'edit')} selected for preview` : step === 4 ? run?.spec ? `Version ${run.spec.approved_candidate.candidate_id} selected · ${run.proof ? verdictLabel(run.proof.verdict) : 'checks not run'}` : previewGuidance(run?.candidates.length ?? 0).hint : step === 5 ? run?.proof ? `${verdictLabel(run.proof.verdict)} · ${run.proof.checks.filter((check) => check.verdict === 'PASS').length} of ${run.proof.checks.length} checks pass` : 'Build the full video to run checks' : 'Final step · only you can approve'}</p></div>
+          {step > 1 && <button type="button" className="studio-back" onClick={goBack} disabled={busy}><ChevronLeft size={16} />Back to {STEPS[step - 2]}</button>}
+          <button type="button" className="studio-primary" onClick={primaryAction} disabled={primaryDisabled} aria-describedby={actionBlocker ? 'studio-action-blocker' : undefined}>{primaryLabel}<ChevronRight size={16} /></button>
+        </footer>
       </>}
 
       <input ref={logoInput} hidden type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" aria-label="Upload logo image" onChange={(event) => { void uploadLogo(event.target.files?.[0]); event.target.value = '' }} />
