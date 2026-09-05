@@ -2,6 +2,25 @@ import type { EditPlan, RunSnapshot, TimeRange } from './types'
 
 type WorkflowRun = Pick<RunSnapshot, 'edit_plan' | 'candidates' | 'proof' | 'generated_version_url' | 'run_id'>
 
+export function previewGuidance(count: number) {
+  // Cut-only plans intentionally produce one preview, not an A/B pair.
+  return count === 1 ? {
+    title: 'Review your preview.',
+    detail: 'This edit has one version. Watch the cuts and timing before choosing it.',
+    hint: 'Watch the preview before choosing',
+    action: 'Choose the preview above',
+  } : {
+    title: 'Compare both versions.',
+    detail: 'Both include the same edits. Version B uses a stronger visual effect when available.',
+    hint: 'Watch both versions before choosing',
+    action: 'Choose A or B above',
+  }
+}
+
+export function countedLabel(count: number, singular: string) {
+  return `${count} ${singular}${count === 1 ? '' : 's'}`
+}
+
 export function uploadPreparationRange(plan: EditPlan, scene?: TimeRange): TimeRange {
   // The upload preparer still accepts a legacy 4–8s anchor, not the edit range.
   // The complete plan and selected scene IDs are sent separately and stay intact.
