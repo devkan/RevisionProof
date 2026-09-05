@@ -41,6 +41,7 @@ import { StudioOperationEditor } from './StudioOperationEditor'
 import { fileValidation, formatUploadSize, limitsFor } from './uploadValidation'
 import { VideoLightbox, type VideoLightboxContent } from './VideoLightbox'
 import { isTerminalRunState } from './runStream'
+import { checkedVideoUrl, planAction, reviewedPlan, type ExternalVideo } from './studioWorkflow'
 import type {
   DemoAsset,
   EditOperation,
@@ -93,7 +94,7 @@ function verdictLabel(verdict: Verdict) {
   return 'FAILED'
 }
 
-function StepBar({ step, maxStep, count, onStep }: { step: number; maxStep: number; count: number; onStep: (step: number) => void }) {
+function StepBar({ step, maxStep, count, busy, onStep }: { step: number; maxStep: number; count: number; busy: boolean; onStep: (step: number) => void }) {
   return (
     <nav className="studio-stepbar" aria-label="Revision workflow">
       <div className="studio-steps">
@@ -106,7 +107,7 @@ function StepBar({ step, maxStep, count, onStep }: { step: number; maxStep: numb
               key={label}
               className={number === step ? 'is-current' : complete ? 'is-complete' : ''}
               aria-current={number === step ? 'step' : undefined}
-              disabled={number > maxStep}
+              disabled={busy || number > maxStep}
               onClick={() => onStep(number)}
             >
               <span>{complete ? <Check size={13} /> : number}</span>
@@ -192,6 +193,7 @@ export default function StudioApp() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [videoPreview, setVideoPreview] = useState<VideoLightboxContent | null>(null)
+  const [externalVideo, setExternalVideo] = useState<ExternalVideo | null>(null)
   const sourcePlayer = useRef<HTMLVideoElement>(null)
   const logoInput = useRef<HTMLInputElement>(null)
   const externalInput = useRef<HTMLInputElement>(null)
@@ -211,6 +213,10 @@ export default function StudioApp() {
   useEffect(() => () => {
     if (uploadedSource) URL.revokeObjectURL(uploadedSource.asset.source_url)
   }, [uploadedSource])
+
+  useEffect(() => () => {
+    if (externalVideo) URL.revokeObjectURL(externalVideo.url)
+  }, [externalVideo])
 
   useEffect(() => {
     if (!runId) return
@@ -248,10 +254,9 @@ export default function StudioApp() {
             : 2
 
   const currentOperation = selectedOperation === null ? null : operations[selectedOperation] ?? null
-  const selectedPlan = run?.edit_plan ? {
-    ...run.edit_plan,
-    operations: run.edit_plan.operations.filter((_, index) => selectedEdits.includes(index)),
-  } : null
+  const selectedPlan = reviewedPlan(run, draftPlan, selectedEdits)
+  const checkedVideo = checkedVideoUrl(run, externalVideo)
+  const existingPlanAction = planAction(step, run)
 
   async function action(phase: ProcessingPhase, work: () => Promise<RunSnapshot>) {
     setProcessing(phase)
@@ -269,6 +274,7 @@ export default function StudioApp() {
   }
 
   function chooseSource(source: UploadedSource | null) {
+    setExternalVideo(null)
     setError(null)
     setRun(null)
     setOperations([])
@@ -365,6 +371,7 @@ export default function StudioApp() {
 
   async function uploadLogo(file?: File) {
     if (!file || !activeAsset || busy || run) return
+    if (operations.length >= 24) { setError('Use up to 24 edits in one video. Remove an edit before adding a logo.'); return }
     const maxBytes = runtime?.logo_limits?.max_bytes ?? 2 * 1048576
     if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
       setError('Choose a PNG, JPG or WebP logo.')
@@ -410,6 +417,7 @@ export default function StudioApp() {
   }
 
   async function reviewPlan() {
+    if (run?.edit_plan) { setStep(3); return }
     if (!activeAsset || !runtime?.mutable || editProblem) {
       setError(editProblem)
       return
@@ -445,6 +453,7 @@ export default function StudioApp() {
   }
 
   async function createPreviews() {
+    if (run?.candidates.length) { setStep(4); return }
     if (!run?.edit_plan || !selectedPlan) return
     const problem = planProblem(selectedPlan)
     if (problem) { setError(problem); return }
@@ -460,6 +469,7 @@ export default function StudioApp() {
 
   async function verifyFullVideo() {
     if (!run?.spec) return
+    setExternalVideo(null)
     await action('verifying', () => api.renderApprovedVersion(run.run_id))
   }
 
@@ -467,17 +477,23 @@ export default function StudioApp() {
     if (!run?.spec || !file) return
     const problem = fileValidation(file, limitsFor(runtime))
     if (problem) { setError(problem); return }
-    await action('verifying', () => api.uploadVersion(run.run_id, `external-${Date.now()}`, file))
+    setExternalVideo(null)
+    const versionLabel = `external-${Date.now()}`
+    const next = await action('verifying', () => api.uploadVersion(run.run_id, versionLabel, file))
+    if (next?.proof?.version_label === versionLabel) {
+      setExternalVideo({ runId: next.run_id, versionLabel, url: URL.createObjectURL(file) })
+    }
   }
 
   async function approveAndDownload() {
-    if (!run?.proof?.publish_allowed || !run.generated_version_url) return
+    if (!run?.proof?.publish_allowed) return
     if (!run.delivery_approved) {
       const next = await action('delivery', () => api.approveForDelivery(run.run_id))
       if (!next?.delivery_approved) return
     }
+    if (!checkedVideo) return
     const link = document.createElement('a')
-    link.href = run.generated_version_url
+    link.href = checkedVideo
     link.download = `revisionproof-${run.run_id}.mp4`
     link.click()
   }
@@ -490,6 +506,7 @@ export default function StudioApp() {
   }
 
   function editFromRun(index: number | null = null) {
+    setExternalVideo(null)
     if (run?.edit_plan) setOperations([...run.edit_plan.operations.filter((item) => !item.detected)])
     setRun(null)
     setSelectedEdits([])
@@ -500,6 +517,8 @@ export default function StudioApp() {
 
   function newProof() {
     if (busy) return
+    setView('flow')
+    setExternalVideo(null)
     setRun(null)
     setOperations([])
     setSelectedOperation(null)
@@ -573,7 +592,7 @@ export default function StudioApp() {
     if (step === 1) return (
       <section className="studio-center-stage studio-source-stage">
         <header><span className="studio-kicker">01 · VIDEO</span><h1>{activeAsset ? 'Video ready.' : 'Choose a video.'}</h1><p>We check the file before upload.</p></header>
-        {!activeAsset ? <div className="studio-drop-zone registration-frame"><Upload size={34} /><strong>Drop a video here or browse</strong><p>Your original stays unchanged.</p><SourceUpload runtime={runtime} selected={null} disabled={busy || !runtime?.mutable} onSelect={chooseSource} /><span>or</span><button type="button" className="studio-secondary" onClick={useSample} disabled={!assets.length || busy}>Use sample video</button><small>Try every editing tool with the built-in demo.</small></div> : <><VideoFrame asset={activeAsset} label="VIDEO PREVIEW" videoRef={sourcePlayer} onLarge={() => openLarge(activeAsset.source_url, 'Source video', `${activeAsset.title} · ${activeAsset.width}×${activeAsset.height}`)} /><div className="studio-file-check"><div><CheckCircle2 size={20} /><span><strong>File check passed</strong><small>Ready to add edits without changing the original</small></span></div><dl><div><dt>Name</dt><dd>{activeAsset.title}</dd></div><div><dt>Duration</dt><dd>{seconds(activeAsset.duration_seconds)}</dd></div><div><dt>Resolution</dt><dd>{activeAsset.width}×{activeAsset.height}</dd></div><div><dt>Codec</dt><dd>{activeAsset.codec}</dd></div>{uploadedSource && <div><dt>Size</dt><dd>{formatUploadSize(uploadedSource.file.size)}</dd></div>}</dl><SourceUpload runtime={runtime} selected={uploadedSource} disabled={busy || Boolean(run) || !runtime?.mutable} onSelect={chooseSource} /></div></>}
+        {!activeAsset ? <div className="studio-drop-zone registration-frame"><Upload size={34} /><strong>Choose a video to upload</strong><p>Your original stays unchanged.</p><SourceUpload runtime={runtime} selected={null} disabled={busy || !runtime?.mutable} onSelect={chooseSource} /><span>or</span><button type="button" className="studio-secondary" onClick={useSample} disabled={!assets.length || busy}>Use sample video</button><small>Try every editing tool with the built-in demo.</small></div> : <><VideoFrame asset={activeAsset} label="VIDEO PREVIEW" videoRef={sourcePlayer} onLarge={() => openLarge(activeAsset.source_url, 'Source video', `${activeAsset.title} · ${activeAsset.width}×${activeAsset.height}`)} /><div className="studio-file-check"><div><CheckCircle2 size={20} /><span><strong>File check passed</strong><small>Ready to add edits without changing the original</small></span></div><dl><div><dt>Name</dt><dd>{activeAsset.title}</dd></div><div><dt>Duration</dt><dd>{seconds(activeAsset.duration_seconds)}</dd></div><div><dt>Resolution</dt><dd>{activeAsset.width}×{activeAsset.height}</dd></div><div><dt>Codec</dt><dd>{activeAsset.codec}</dd></div>{uploadedSource && <div><dt>Size</dt><dd>{formatUploadSize(uploadedSource.file.size)}</dd></div>}</dl><SourceUpload runtime={runtime} selected={uploadedSource} disabled={busy || Boolean(run) || !runtime?.mutable} onSelect={chooseSource} /></div></>}
       </section>
     )
 
@@ -582,36 +601,37 @@ export default function StudioApp() {
         <header><span className="studio-kicker">02 · EDITS</span><h1>Choose your edits.</h1><p>Add a tool, then adjust its settings.</p></header>
         {activeAsset && <VideoFrame asset={activeAsset} label="SOURCE TIMELINE" videoRef={sourcePlayer} onLarge={() => openLarge(activeAsset.source_url, 'Original video', `${activeAsset.title} · all times use this source`)} />}
         {displayOperations.length > 0 && activeAsset && <div className="studio-timeline" aria-label="Queued revision ranges"><div>{displayOperations.map((item, index) => <button type="button" key={index} title={`${EDIT_LABELS[item.kind]} ${editDetail(item)}`} style={{ left: `${item.start / activeAsset.duration_seconds * 100}%`, width: `${Math.max(1.5, (item.end - item.start) / activeAsset.duration_seconds * 100)}%`, top: `${(index % 3) * 8}px` }} onClick={() => !run && setSelectedOperation(index)} />)}</div><span>0:00</span><span>{formatTime(activeAsset.duration_seconds)}</span></div>}
-        {run ? <div className="studio-callout"><Info size={19} /><div><strong>This plan is already processing.</strong><p>Review it here, or reopen these edits as a new draft.</p></div><button type="button" onClick={() => editFromRun()}>Edit a copy</button></div> : activeAsset ? <RequestDraft key={activeAsset.source_url} text={feedback} onText={setFeedback} duration={activeAsset.duration_seconds} disabled={busy || !runtime?.mutable} onApply={(plan) => { const available = Math.max(0, 24 - operations.length); const additions = plan.operations.slice(0, available); setOperations([...operations, ...additions]); setSelectedOperation(operations.length); setUsedDraftText(feedback); setError(additions.length < plan.operations.length ? 'The draft was clipped at the 24-edit limit.' : null) }} onBusy={(value) => { if (value) setProcessing('analyzing'); else setProcessing(null) }} sourceFile={uploadedSource?.file} assetId={uploadedSource ? undefined : activeAsset.asset_id} mode={runtime?.mode} onSceneSelect={(selection) => setSmartSelection(selection)} /> : null}
-        {!run && <section className="studio-quick-starts"><header><span className="studio-kicker">TEMPLATES</span><p>Replace the list. Edit every field.</p></header><div><button type="button" onClick={() => quickStart('intro')}><strong>Promo highlight</strong><small>Zoom + “AI, made practical.”</small></button><button type="button" onClick={() => quickStart('captions')}><strong>Two captions</strong><small>Separate times and editable text</small></button><button type="button" onClick={() => quickStart('silence')}><strong>Remove silence</strong><small>Review suggested cuts in Plan</small></button><button type="button" onClick={() => quickStart('pace')}><strong>Speed + volume</strong><small>1.5× and −6 dB on one clip</small></button><button type="button" onClick={() => logoInput.current?.click()}><strong>Company logo</strong><small>Full video, bottom right</small></button><button type="button" onClick={() => void generateSubtitles()} disabled={runtime?.mode !== 'LIVE'}><strong>Speech captions</strong><small>Korean + English with Gemini</small></button></div></section>}
+        {run ? <div className="studio-callout"><Info size={19} /><div><strong>This plan has been reviewed.</strong><p>Review it here, or reopen these edits as a new draft.</p></div><button type="button" onClick={() => editFromRun()} disabled={busy}>Edit a copy</button></div> : activeAsset ? <RequestDraft key={activeAsset.source_url} text={feedback} onText={setFeedback} duration={activeAsset.duration_seconds} disabled={busy || !runtime?.mutable} onApply={(plan) => { const available = Math.max(0, 24 - operations.length); const additions = plan.operations.slice(0, available); setOperations([...operations, ...additions]); setSelectedOperation(operations.length); setUsedDraftText(feedback); setError(additions.length < plan.operations.length ? 'The draft was clipped at the 24-edit limit.' : null) }} onBusy={(value) => { if (value) setProcessing('analyzing'); else setProcessing(null) }} sourceFile={uploadedSource?.file} assetId={uploadedSource ? undefined : activeAsset.asset_id} mode={runtime?.mode} onSceneSelect={(selection) => setSmartSelection(selection)} /> : null}
+        {!run && <section className="studio-quick-starts"><header><span className="studio-kicker">TEMPLATES</span><p>Replace the list. Edit every field.</p></header><div><button type="button" onClick={() => quickStart('intro')}><strong>Promo highlight</strong><small>Zoom + “AI, made practical.”</small></button><button type="button" onClick={() => quickStart('captions')}><strong>Two captions</strong><small>Separate times and editable text</small></button><button type="button" onClick={() => quickStart('silence')}><strong>Remove silence</strong><small>Review suggested cuts in Plan</small></button><button type="button" onClick={() => quickStart('pace')}><strong>Speed + volume</strong><small>1.5× and −6 dB on one clip</small></button><button type="button" onClick={() => logoInput.current?.click()} disabled={busy || operations.length >= 24}><strong>Company logo</strong><small>Full video, bottom right</small></button><button type="button" onClick={() => void generateSubtitles()} disabled={runtime?.mode !== 'LIVE'}><strong>Speech captions</strong><small>Korean + English with Gemini</small></button></div></section>}
       </section>
     )
 
     if (step === 3) {
       const plan = run?.edit_plan ?? draftPlan
-      const chosen = run?.edit_plan ? { ...plan, operations: plan.operations.filter((_, index) => selectedEdits.includes(index)) } : plan
-      return <section className="studio-center-stage studio-plan-stage"><header><span className="studio-kicker">03 · PLAN</span><h1>Review the plan.</h1><p>Remove any edit you do not want in the previews.</p></header>{run?.edit_warnings?.map((warning, index) => <div className="studio-callout is-warning" key={index}><AlertTriangle size={18} /><p>{warning}</p></div>)}<ol className="studio-plan-list">{plan.operations.map((item, index) => { const checked = !run?.edit_plan || selectedEdits.includes(index); return <li key={index} className={checked ? '' : 'is-skipped'}><label><input type="checkbox" checked={checked} disabled={!run?.edit_plan || Boolean(run.candidates.length) || busy} onChange={() => setSelectedEdits(checked ? selectedEdits.filter((value) => value !== index) : [...selectedEdits, index])} /><span><strong>{item.detected ? 'Suggested silence cut' : EDIT_LABELS[item.kind]}</strong><small>{editSummary(item)} · source time</small></span></label><span className={`studio-tag ${checked ? item.detected ? 'is-warning' : 'is-ready' : 'is-muted'}`}>{checked ? item.detected ? 'review' : 'included' : 'skipped'}</span><button type="button" onClick={() => activeAsset && openLarge(activeAsset.source_url, 'Original video', `${EDIT_LABELS[item.kind]} · ${editDetail(item)}`, item.start)}><Film size={14} />Watch</button></li>})}</ol><div className="studio-duration-row"><span>Original <strong>{seconds(plan.source_duration)}</strong></span><ChevronRight size={18} /><span>After edits <strong>{seconds(outputDuration(chosen))}</strong></span></div>{!run && <div className="studio-callout"><Info size={18} /><p>Select Check plan below before creating previews.</p></div>}</section>
+      const chosen = selectedPlan
+      return <section className="studio-center-stage studio-plan-stage"><header><span className="studio-kicker">03 · PLAN</span><h1>Review the plan.</h1><p>Remove any edit you do not want in the previews.</p></header>{run?.edit_warnings?.map((warning, index) => <div className="studio-callout is-warning" key={index}><AlertTriangle size={18} /><p>{warning}</p></div>)}<ol className="studio-plan-list">{plan.operations.map((item, index) => { const checked = !run?.edit_plan || Boolean(run.candidates.length) || selectedEdits.includes(index); return <li key={index} className={checked ? '' : 'is-skipped'}><label><input type="checkbox" checked={checked} disabled={!run?.edit_plan || Boolean(run.candidates.length) || busy} onChange={() => setSelectedEdits(checked ? selectedEdits.filter((value) => value !== index) : [...selectedEdits, index])} /><span><strong>{item.detected ? 'Suggested silence cut' : EDIT_LABELS[item.kind]}</strong><small>{editSummary(item)} · source time</small></span></label><span className={`studio-tag ${checked ? item.detected ? 'is-warning' : 'is-ready' : 'is-muted'}`}>{checked ? item.detected ? 'review' : 'included' : 'skipped'}</span><button type="button" onClick={() => activeAsset && openLarge(activeAsset.source_url, 'Original video', `${EDIT_LABELS[item.kind]} · ${editDetail(item)}`, item.start)}><Film size={14} />Watch</button></li>})}</ol><div className="studio-duration-row"><span>Original <strong>{seconds(plan.source_duration)}</strong></span><ChevronRight size={18} /><span>After edits <strong>{seconds(outputDuration(chosen))}</strong></span></div>{run?.edit_plan && !run.candidates.length && selectedPlan.operations.length === 0 && <div className="studio-callout is-warning" role="status"><Info size={18} /><p>Select at least one edit to create previews.</p></div>}{!run && <div className="studio-callout"><Info size={18} /><p>Select Check plan below before creating previews.</p></div>}</section>
     }
 
     if (step === 4) return <section className="studio-center-stage studio-ab-stage"><header><span className="studio-kicker">04 · COMPARE</span><h1>Compare both versions.</h1><p>Both include the same edits. Version B uses a stronger visual effect when available.</p></header>{run?.evidence[0] && <div className="studio-evidence-line"><Database size={16} /><span><strong>{formatTime(run.evidence[0].time_range.start_seconds)}–{formatTime(run.evidence[0].time_range.end_seconds)}</strong>{run.evidence[0].visual_summary}</span><em>{run.evidence[0].source}</em></div>}<div className="studio-candidate-grid">{run?.candidates.map((candidate) => <CandidateFrame key={candidate.candidate_id} candidate={candidate} selected={run.spec?.approved_candidate.candidate_id === candidate.candidate_id} disabled={busy || Boolean(run.spec)} onChoose={() => void chooseCandidate(candidate.candidate_id)} onLarge={() => candidate.preview_url && openLarge(candidate.preview_url, `Version ${candidate.candidate_id}`, candidateTitle(candidate))} />)}</div>{run?.spec && <div className="studio-callout is-success"><CheckCircle2 size={19} /><div><strong>Version {run.spec.approved_candidate.candidate_id} selected.</strong><p>Next, build the full video and run checks. Final approval comes later.</p></div></div>}</section>
 
-    if (step === 5) return <section className="studio-center-stage studio-verify-stage"><header><span className="studio-kicker">05 · CHECK</span><h1>{run?.proof ? run.proof.publish_allowed ? 'Full video passed.' : 'Download is blocked.' : 'Build and check the full video.'}</h1><p>Automated checks decide PASS or BLOCKED. AI does not set the result.</p></header>{!run?.proof ? <div className="studio-verify-idle registration-frame"><ShieldCheck size={42} /><h2>You stay in control.</h2><p>We apply your chosen version, build the full video, and check the edits and protected content.</p><button type="button" className="studio-primary" onClick={() => void verifyFullVideo()} disabled={busy || !run?.spec}><WandSparkles size={18} />Build & check full video</button><button type="button" onClick={() => externalInput.current?.click()} disabled={busy || !run?.spec}><Upload size={17} />Check an external edit</button></div> : <><div className={`studio-verdict ${run.proof.publish_allowed ? 'is-pass' : 'is-blocked'}`}><span>{run.proof.publish_allowed ? <CheckCircle2 size={30} /> : <ShieldAlert size={30} />}</span><div><em>{verdictLabel(run.proof.verdict)}</em><h2>{run.proof.publish_allowed ? 'Your edits are in place and protected content stayed unchanged.' : 'At least one required check failed.'}</h2><p>{run.proof.publish_allowed ? 'Watch the result before approving the download.' : 'See the measured result and required level below.'}</p></div></div>{run.generated_version_url && <div className="studio-final-video registration-frame"><video src={run.generated_version_url} controls playsInline preload="metadata" /><button type="button" onClick={() => openLarge(run.generated_version_url!, 'Checked full video', `Version ${run.spec?.approved_candidate.candidate_id} · ${verdictLabel(run.proof!.verdict)}`)}><ZoomIn size={16} />Open large view</button></div>}<div className="studio-check-grid">{run.proof.checks.map((check) => <article key={check.check_id}><header><strong>{check.label}</strong><span className={`studio-tag ${check.verdict === 'PASS' ? 'is-pass' : 'is-warning'}`}>{check.verdict}</span></header><dl><div><dt>Measured</dt><dd>{JSON.stringify(check.measured)}</dd></div><div><dt>Required</dt><dd>{JSON.stringify(check.threshold)}</dd></div></dl>{check.failure_code && <code>{check.failure_code}</code>}<small>{formatTime(check.evidence_time_range.start_seconds)}–{formatTime(check.evidence_time_range.end_seconds)}</small></article>)}</div><ChangeMap run={run} />{!run.proof.publish_allowed && <div className="studio-callout is-warning"><AlertTriangle size={18} /><div><strong>See what caused the failure.</strong><p>Check whether the issue was already in the source or came from an edit. Approval stays locked.</p></div><button type="button" onClick={() => editFromRun()}>Open edits</button></div>}</>}
+    if (step === 5) return <section className="studio-center-stage studio-verify-stage"><header><span className="studio-kicker">05 · CHECK</span><h1>{run?.proof ? run.proof.publish_allowed ? 'Full video passed.' : 'Download is blocked.' : 'Build and check the full video.'}</h1><p>Automated checks decide PASS or BLOCKED. AI does not set the result.</p></header>{!run?.proof ? <div className="studio-verify-idle registration-frame"><ShieldCheck size={42} /><h2>You stay in control.</h2><p>We apply your chosen version, build the full video, and check the edits and protected content.</p><button type="button" className="studio-primary" onClick={() => void verifyFullVideo()} disabled={busy || !run?.spec}><WandSparkles size={18} />Build & check full video</button><button type="button" onClick={() => externalInput.current?.click()} disabled={busy || !run?.spec}><Upload size={17} />Check an external edit</button></div> : <><div className={`studio-verdict ${run.proof.publish_allowed ? 'is-pass' : 'is-blocked'}`}><span>{run.proof.publish_allowed ? <CheckCircle2 size={30} /> : <ShieldAlert size={30} />}</span><div><em>{verdictLabel(run.proof.verdict)}</em><h2>{run.proof.publish_allowed ? 'Your edits are in place and protected content stayed unchanged.' : 'At least one required check failed.'}</h2><p>{run.proof.publish_allowed ? 'Watch the result before approving the download.' : 'See the measured result and required level below.'}</p></div></div>{run && checkedVideo && <div className="studio-final-video registration-frame"><video src={checkedVideo} controls playsInline preload="metadata" /><button type="button" onClick={() => openLarge(checkedVideo!, 'Checked full video', `Version ${run.spec?.approved_candidate.candidate_id} · ${verdictLabel(run.proof!.verdict)}`)}><ZoomIn size={16} />Open large view</button></div>}<div className="studio-check-grid">{run.proof.checks.map((check) => <article key={check.check_id}><header><strong>{check.label}</strong><span className={`studio-tag ${check.verdict === 'PASS' ? 'is-pass' : 'is-warning'}`}>{check.verdict}</span></header><dl><div><dt>Measured</dt><dd>{JSON.stringify(check.measured)}</dd></div><div><dt>Required</dt><dd>{JSON.stringify(check.threshold)}</dd></div></dl>{check.failure_code && <code>{check.failure_code}</code>}<small>{formatTime(check.evidence_time_range.start_seconds)}–{formatTime(check.evidence_time_range.end_seconds)}</small></article>)}</div><ChangeMap run={run} />{!run.proof.publish_allowed && <div className="studio-callout is-warning"><AlertTriangle size={18} /><div><strong>See what caused the failure.</strong><p>Check whether the issue was already in the source or came from an edit. Approval stays locked.</p></div><button type="button" onClick={() => editFromRun()} disabled={busy}>Open edits</button><button type="button" onClick={() => externalInput.current?.click()} disabled={busy}>Upload corrected edit</button></div>}</>}
       </section>
 
-    return <section className="studio-center-stage studio-approve-stage"><header><span className="studio-kicker">06 · APPROVE</span><h1>Review, then approve.</h1><p>Watch the result. Only your approval unlocks the download.</p></header>{run?.generated_version_url && <div className="studio-approval-layout"><div className="studio-final-video registration-frame"><video src={run.generated_version_url} controls playsInline preload="metadata" /><button type="button" onClick={() => openLarge(run.generated_version_url!, 'Final checked video', run.asset.title)}><ZoomIn size={16} />Open large view</button></div><dl className="studio-result-table"><div><dt>Check</dt><dd><span className="studio-tag is-pass">PASS</span></dd></div><div><dt>Applied</dt><dd>{run.spec?.approved_candidate.patch_type === 'EDIT_PLAN' ? run.spec.approved_candidate.plan.operations.length : 1} edits</dd></div><div><dt>Selected</dt><dd>Version {run.spec?.approved_candidate.candidate_id}</dd></div><div><dt>Duration</dt><dd>{seconds(run.asset.duration_seconds)} → {run.spec?.approved_candidate.patch_type === 'EDIT_PLAN' ? seconds(outputDuration(run.spec.approved_candidate.plan)) : seconds(run.asset.duration_seconds)}</dd></div><div><dt>Approval</dt><dd>{run.delivery_approved ? 'Approved by you' : 'Waiting for you'}</dd></div></dl></div>}{run && runtime?.intelligence_enabled && <SaveApprovedMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} onSaved={() => setRun((current) => current ? { ...current, memory_saved: true } : current)} />}</section>
+    return <section className="studio-center-stage studio-approve-stage"><header><span className="studio-kicker">06 · APPROVE</span><h1>Review, then approve.</h1><p>{checkedVideo ? 'Watch the result. Only your approval unlocks the download.' : 'Approve the verified external file for delivery. Keep your original uploaded copy.'}</p></header>{run && checkedVideo && <div className="studio-approval-layout"><div className="studio-final-video registration-frame"><video src={checkedVideo} controls playsInline preload="metadata" /><button type="button" onClick={() => openLarge(checkedVideo!, 'Final checked video', run.asset.title)}><ZoomIn size={16} />Open large view</button></div><dl className="studio-result-table"><div><dt>Check</dt><dd><span className="studio-tag is-pass">PASS</span></dd></div><div><dt>Applied</dt><dd>{run.spec?.approved_candidate.patch_type === 'EDIT_PLAN' ? run.spec.approved_candidate.plan.operations.length : 1} edits</dd></div><div><dt>Selected</dt><dd>Version {run.spec?.approved_candidate.candidate_id}</dd></div><div><dt>Duration</dt><dd>{seconds(run.asset.duration_seconds)} → {run.spec?.approved_candidate.patch_type === 'EDIT_PLAN' ? seconds(outputDuration(run.spec.approved_candidate.plan)) : seconds(run.asset.duration_seconds)}</dd></div><div><dt>Approval</dt><dd>{run.delivery_approved ? 'Approved by you' : 'Waiting for you'}</dd></div></dl></div>}{run && runtime?.intelligence_enabled && <SaveApprovedMemory key={run.run_id} run={run} runtime={runtime} disabled={busy} onSaved={() => setRun((current) => current ? { ...current, memory_saved: true } : current)} />}</section>
   }
 
-  const primaryLabel = step === 1 ? 'Continue to edits'
+  const primaryLabel = existingPlanAction?.label ?? (step === 1 ? 'Continue to edits'
     : step === 2 ? `Check plan (${operations.length})`
       : step === 3 ? run?.edit_plan ? 'Create previews' : 'Check plan'
         : step === 4 ? run?.spec ? 'Continue to checks' : 'Choose A or B above'
           : step === 5 ? run?.proof?.publish_allowed ? 'Continue to approval' : run?.proof ? 'Run checks again' : 'Build & check full video'
-            : run?.delivery_approved ? 'Download approved video' : 'Approve & download'
+            : run?.delivery_approved ? checkedVideo ? 'Download approved video' : 'Delivery approved' : checkedVideo ? 'Approve & download' : 'Approve for delivery')
 
-  const primaryDisabled = busy || !runtime?.mutable || (step === 1 && !activeAsset) || (step === 2 && Boolean(editProblem)) || (step === 3 && (run?.edit_plan ? Boolean(planProblem(selectedPlan ?? { source_duration: 0, operations: [] })) : Boolean(editProblem))) || (step === 4 && !run?.spec) || (step === 5 && !run?.spec) || (step === 6 && !run?.proof?.publish_allowed)
+  const primaryDisabled = busy || !runtime?.mutable || (step === 1 && !activeAsset) || (step === 2 && !run?.edit_plan && Boolean(editProblem)) || (step === 3 && (run?.edit_plan ? Boolean(planProblem(selectedPlan ?? { source_duration: 0, operations: [] })) : Boolean(editProblem))) || (step === 4 && !run?.spec) || (step === 5 && !run?.spec) || (step === 6 && (!run?.proof?.publish_allowed || (run.delivery_approved && !checkedVideo)))
 
   function primaryAction() {
-    if (step === 1) setStep(2)
+    if (existingPlanAction) setStep(existingPlanAction.nextStep)
+    else if (step === 1) setStep(2)
     else if (step === 2) void reviewPlan()
     else if (step === 3) {
       if (run?.edit_plan) void createPreviews()
@@ -626,12 +646,12 @@ export default function StudioApp() {
   return (
     <div className="rp-studio">
       <header className="studio-topbar">
-        <button type="button" className="studio-brand" onClick={() => { setView('flow'); setStep(1) }} aria-label="RevisionProof Studio home"><span><Fingerprint size={19} /></span><strong>RevisionProof</strong></button>
+        <button type="button" className="studio-brand" onClick={() => { setView('flow'); setStep(1) }} aria-label="RevisionProof Studio home" disabled={busy}><span><Fingerprint size={19} /></span><strong>RevisionProof</strong></button>
         <span className={`studio-env env-${(run?.mode ?? runtime?.mode ?? 'unavailable').toLowerCase()}`}><CircleDot size={11} />{run?.mode ?? runtime?.mode ?? 'CHECKING'}</span>
-        <nav><button type="button" className={view === 'library' ? 'is-active' : ''} onClick={() => setView('library')}><BookOpen size={15} />Approved edits</button><a href="/"><ExternalLink size={14} />Classic UI</a><button type="button" onClick={newProof} disabled={busy}><RefreshCw size={15} />New review</button></nav>
+        <nav aria-label="Studio navigation"><button type="button" aria-label="Approved edits" title="Approved edits" className={view === 'library' ? 'is-active' : ''} onClick={() => setView('library')} disabled={busy}><BookOpen size={18} /><span>Approved edits</span></button><a href="/" aria-label="Classic UI" title="Classic UI"><ExternalLink size={18} /><span>Classic UI</span></a><button type="button" aria-label="New review" title="New review" onClick={newProof} disabled={busy}><RefreshCw size={18} /><span>New review</span></button></nav>
       </header>
 
-      {view === 'flow' ? <StepBar step={step} maxStep={maxStep} count={displayOperations.length} onStep={setStep} /> : <div className="studio-sideview-title"><button type="button" onClick={() => setView('flow')}><ChevronLeft size={16} />Back to workflow</button><span>Approved edits</span></div>}
+      {view === 'flow' ? <StepBar step={step} maxStep={maxStep} count={displayOperations.length} busy={busy} onStep={setStep} /> : <div className="studio-sideview-title"><button type="button" onClick={() => setView('flow')}><ChevronLeft size={16} />Back to workflow</button><span>Approved edits</span></div>}
 
       {processing && <div className="studio-processing" role="status" aria-live="polite" aria-busy="true"><span className="studio-spinner" /><div><strong>{PROCESSING_COPY[processing].title}</strong><p>{PROCESSING_COPY[processing].detail}{processing === 'analyzing' && uploadedSource && uploadProgress > 0 ? ` Upload ${uploadProgress}%.` : ''}</p></div></div>}
       {error && <div className="studio-error" role="alert"><ShieldAlert size={19} /><div><strong>That step could not finish.</strong><p>{error}</p></div><button type="button" onClick={() => setError(null)} aria-label="Dismiss error"><XCircle size={17} /></button></div>}
@@ -643,11 +663,12 @@ export default function StudioApp() {
           <div ref={centerColumn} className="studio-center studio-scroll-column">{renderCenter()}</div>
           <aside ref={rightColumn} className="studio-right studio-scroll-column">
             {step === 2 && <StudioOperationEditor operation={currentOperation} index={selectedOperation} duration={activeAsset?.duration_seconds ?? 0} disabled={busy || Boolean(run)} canMoveDown={selectedOperation !== null && selectedOperation < operations.length - 1} canDuplicate={operations.length < 24} onChange={changeOperation} onDelete={deleteOperation} onDuplicate={duplicateOperation} onMove={moveOperation} onSeek={seekOriginal} />}
+            {step === 2 && !run && editProblem && (operations.length > 0 || pendingWords) && <div className="studio-callout is-warning" role="status"><AlertTriangle size={18} /><p>{editProblem}</p></div>}
             {renderRevisionList()}
             <ProofTrace run={run} runtime={runtime} />
           </aside>
         </main>
-        <footer className="studio-actionbar"><div><span className="studio-kicker">CURRENT STEP</span><p>{step === 1 ? activeAsset ? `File ready · ${activeAsset.title}` : 'Choose a video to begin' : step === 2 ? `${operations.length} of 24 edits added · nothing has run` : step === 3 ? `${selectedEdits.length || displayOperations.length} edits selected for preview` : step === 4 ? run?.spec ? `Version ${run.spec.approved_candidate.candidate_id} selected · checks not run` : 'Watch both versions before choosing' : step === 5 ? run?.proof ? `${verdictLabel(run.proof.verdict)} · ${run.proof.checks.filter((check) => check.verdict === 'PASS').length} of ${run.proof.checks.length} checks pass` : 'Build the full video to run checks' : 'Final step · only you can approve'}</p></div>{step > 1 && <button type="button" className="studio-back" onClick={goBack} disabled={busy}><ChevronLeft size={16} />Back to {STEPS[step - 2]}</button>}<button type="button" className="studio-primary" onClick={primaryAction} disabled={primaryDisabled}>{primaryLabel}<ChevronRight size={16} /></button></footer>
+        <footer className="studio-actionbar"><div><span className="studio-kicker">CURRENT STEP</span><p>{step === 1 ? activeAsset ? `File ready · ${activeAsset.title}` : 'Choose a video to begin' : step === 2 ? run ? `${displayOperations.length} edits in the reviewed plan` : `${operations.length} of 24 edits added · nothing has run` : step === 3 ? `${selectedPlan.operations.length} edits selected for preview` : step === 4 ? run?.spec ? `Version ${run.spec.approved_candidate.candidate_id} selected · ${run.proof ? verdictLabel(run.proof.verdict) : 'checks not run'}` : 'Watch both versions before choosing' : step === 5 ? run?.proof ? `${verdictLabel(run.proof.verdict)} · ${run.proof.checks.filter((check) => check.verdict === 'PASS').length} of ${run.proof.checks.length} checks pass` : 'Build the full video to run checks' : 'Final step · only you can approve'}</p></div>{step > 1 && <button type="button" className="studio-back" onClick={goBack} disabled={busy}><ChevronLeft size={16} />Back to {STEPS[step - 2]}</button>}<button type="button" className="studio-primary" onClick={primaryAction} disabled={primaryDisabled}>{primaryLabel}<ChevronRight size={16} /></button></footer>
       </>}
 
       <input ref={logoInput} hidden type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" aria-label="Upload logo image" onChange={(event) => { void uploadLogo(event.target.files?.[0]); event.target.value = '' }} />
