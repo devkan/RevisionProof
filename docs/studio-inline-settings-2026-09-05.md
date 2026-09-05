@@ -2,6 +2,8 @@
 
 ## Current state
 
+Release update: the user subsequently authorized push and deployment. Source `8e63093` is now LIVE as `revisionproof-staging-00029-2t2` at 100% traffic. See [deployment, canary and recovery evidence](deployment-2026-09-05-inline-studio.md). The local-only statements below describe the original implementation session, not the current release status.
+
 User request: settings directly below the selected revision, less rigid surfaces, existing three-column / six-step layout and classic page preserved. User approved saving the preceding Check plan fix as a local commit, then continuing UI work. This update is **local only: no push/deployment**.
 
 Restore point before this redesign: `40767f6` (`fix(studio): explain blocked plans with actionable edit links`). Earlier deployment references remain in [deployment record](deployment-2026-09-05-studio.md); this document does not claim a new LIVE release.

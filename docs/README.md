@@ -1,5 +1,6 @@
 # RevisionProof docs
 
+- [Studio 인라인 설정 LIVE 배포 — 새 카드, Check plan 복구, 복원 백업](deployment-2026-09-05-inline-studio.md)
 - [Studio 항목 바로 아래 설정·카드 스타일 — 로컬 수정, 복원 지점, gstack 검증](studio-inline-settings-2026-09-05.md)
 
 - [Studio LIVE 배포·복원 기록 — 실사용 검증, 오류 수정, 재배포](deployment-2026-09-05-studio.md)
