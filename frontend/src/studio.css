@@ -33,6 +33,7 @@
 .rp-studio button, .rp-studio input, .rp-studio select, .rp-studio textarea { font: inherit; }
 .rp-studio button, .rp-studio a { color: inherit; }
 .rp-studio button { border-radius: 0; }
+.rp-studio footer { font-family: inherit; letter-spacing: normal; }
 .rp-studio button:focus-visible, .rp-studio a:focus-visible, .rp-studio input:focus-visible, .rp-studio select:focus-visible, .rp-studio textarea:focus-visible, .rp-studio summary:focus-visible { outline: 2px solid var(--studio-accent-bright); outline-offset: 2px; }
 .rp-studio button:disabled { cursor: not-allowed; opacity: 0.42; }
 .rp-studio h1, .rp-studio h2, .rp-studio h3, .rp-studio p { margin: 0; }
@@ -457,7 +458,8 @@
 @media (max-width: 939px) {
   .rp-studio { position: relative; min-width: 0; min-height: 100dvh; height: auto; overflow: visible; }
   .studio-topbar { position: sticky; top: 0; }
-  .studio-topbar nav button:first-child, .studio-topbar nav a { display: none; }
+  .studio-topbar nav button, .studio-topbar nav a { min-width: 44px; justify-content: center; padding: 0 10px; }
+  .studio-topbar nav span { display: none; }
   .studio-stepbar { position: sticky; top: 56px; overflow-x: auto; }
   .studio-stepbar > span { position: sticky; right: 0; background: var(--studio-panel); white-space: nowrap; }
   .studio-steps { width: max-content; grid-template-columns: repeat(6, 124px); }
@@ -466,7 +468,7 @@
   .studio-center { order: 1; padding: 24px 14px 30px; }
   .studio-left { order: 2; padding: 18px 14px; border-top: 1px solid var(--studio-line); border-right: 0; }
   .studio-right { order: 3; padding: 14px 14px 80px; border-top: 1px solid var(--studio-line); border-left: 0; }
-  .studio-actionbar { position: sticky; bottom: 0; flex-wrap: wrap; }
+  .studio-actionbar { position: sticky; bottom: 0; flex-basis: auto; flex-shrink: 0; flex-wrap: wrap; }
   .studio-actionbar > div { width: 100%; }
   .studio-actionbar > button { flex: 1; }
   .studio-actionbar > button.studio-primary { min-width: 210px; }
@@ -474,7 +476,7 @@
 }
 
 @media (max-width: 620px) {
-  .studio-env, .studio-topbar nav button span { display: none; }
+  .studio-env { display: none; }
   .studio-topbar nav button { padding: 0 8px; }
   .studio-candidate-grid, .studio-approval-layout { grid-template-columns: 1fr; }
   .studio-quick-starts > div { grid-template-columns: 1fr; }
