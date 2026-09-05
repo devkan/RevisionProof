@@ -41,7 +41,7 @@ import { StudioOperationEditor } from './StudioOperationEditor'
 import { fileValidation, formatUploadSize, limitsFor } from './uploadValidation'
 import { VideoLightbox, type VideoLightboxContent } from './VideoLightbox'
 import { isTerminalRunState } from './runStream'
-import { checkedVideoUrl, planAction, reviewedPlan, type ExternalVideo } from './studioWorkflow'
+import { checkedVideoUrl, planAction, reviewedPlan, uploadPreparationRange, type ExternalVideo } from './studioWorkflow'
 import type {
   DemoAsset,
   EditOperation,
@@ -427,12 +427,12 @@ export default function StudioApp() {
     if (uploadedSource) {
       const fileProblem = fileValidation(uploadedSource.file, limitsFor(runtime))
       if (fileProblem) { setError(fileProblem); return }
-      const first = smartSelection?.hit ?? { start_seconds: operations[0]?.start ?? 0, end_seconds: operations[0]?.end ?? Math.min(6, activeAsset.duration_seconds) }
+      const preparationRange = uploadPreparationRange(draftPlan, smartSelection?.hit)
       setUploadProgress(0)
       next = await action('analyzing', () => api.uploadSource(
         uploadedSource.file,
         notes,
-        { start_seconds: first.start_seconds, end_seconds: first.end_seconds },
+        preparationRange,
         setUploadProgress,
         draftPlan,
         smartSelection ? { searchId: smartSelection.searchId, segmentId: smartSelection.hit.segment_id } : undefined,
