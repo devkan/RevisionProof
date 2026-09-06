@@ -1,12 +1,14 @@
 # Handoff
 
-Last updated: 2026-09-05
+Last updated: 2026-09-06
 Project: RevisionProof — D:\Hackathon\006.Agentic Cinema Hackathon\RevisionProof
 Branch: review/qa-hardening
 
 ## Current Status
 
-- Latest LIVE release: [inline Studio deployment, canary and recovery](docs/deployment-2026-09-05-inline-studio.md). Source `8e63093` pushed to `review/qa-hardening`; Cloud Build `7ec59d25-6506-4953-b0f3-970455c263f8` SUCCESS; revision `revisionproof-staging-00029-2t2` healthy at 100% traffic. New JS `index-BNLptUXK.js` / CSS `index-BaYy-LUs.css` verified. Fresh frontend 69 and backend 349 tests passed. LIVE gstack verified inline settings, cut/zoom conflict explanation -> Fix edit -> corrected times -> enabled Check plan, keyboard/value preservation, responsive sizing and classic route. No new LIVE render/provider execution is claimed. Prior full FIXTURE/eight-control QA is in [the implementation report](docs/studio-inline-settings-2026-09-05.md). User's draft tab was untouched; local port 18131 remains a separate FIXTURE environment. Open LIVE in a separate tab.
+- Latest LIVE release: English request-form examples, source `f18570f`; frontend 72 tests, lint and build passed. Build `af06b685-03a4-4f85-9629-b7d4591e0c0b` SUCCESS; revision `revisionproof-staging-00030-gnz` Ready at 100% traffic. Browser verified the new `index-BYBHYv_J.js`, both English placeholders in Studio and classic UI, English/Korean time recognition, empty-request blocking, and no captured console warnings/errors. Health/ready/runtime return 200. Read [the release record](docs/deployment-2026-09-06-english-placeholders.md). Backup `backup/pre-english-placeholders-20260906` points to `05983f3`; previous LIVE `00029-2t2` is preserved. No fresh paid provider/render execution is claimed. Always pass the documented media-bucket `--gcs-source-staging-dir`; the default bucket is not readable by the build account.
+
+- Previous LIVE release and recovery point: [inline Studio deployment, canary and recovery](docs/deployment-2026-09-05-inline-studio.md). Source `8e63093` pushed to `review/qa-hardening`; Cloud Build `7ec59d25-6506-4953-b0f3-970455c263f8` SUCCESS; revision `revisionproof-staging-00029-2t2` was healthy at 100% traffic before the English-copy release. JS `index-BNLptUXK.js` / CSS `index-BaYy-LUs.css` verified then. Frontend 69 and backend 349 tests passed in that release. LIVE gstack verified inline settings, cut/zoom conflict explanation -> Fix edit -> corrected times -> enabled Check plan, keyboard/value preservation, responsive sizing and classic route. No new LIVE render/provider execution was claimed. Prior full FIXTURE/eight-control QA is in [the implementation report](docs/studio-inline-settings-2026-09-05.md). User's draft tab was untouched. Local port 18131 was a separate FIXTURE environment and was not listening at the 2026-09-06 check; do not assume it is running. Open LIVE in a separate tab.
 
 - Previous Studio release, now a recovery point: source `44cc8c0` / revision `revisionproof-staging-00028-n4z`; build `660dbd2f-1bf5-4ab1-9cb1-59c41277b340` succeeded. Read [previous Studio deployment and recovery](docs/deployment-2026-09-05-studio.md) and [hands-on gstack QA](docs/qa-live-2026-09-05-studio.md) for full functional LIVE runs on 00026/00027; 00028 changed only one final-summary plural label. These provider runs are historical evidence, not runs on 00029.
 - Previous full Studio QA: backend 349 tests and frontend 51 tests / 12 files passed, plus lint/build. LIVE gstack tested all eight edit controls across compound and silence runs, smart search, subtitle correction, A/B selection, full checks, external BLOCKED-to-READY recovery, playback, mobile layout, and read-only empty memory. The discovered source-preparation range bug and single-preview instructions were fixed and verified. Delivery approval remained false; no Approved Edit Memory writes.
@@ -73,6 +75,8 @@ Branch: review/qa-hardening
 - [Docs index](docs/README.md) — earlier deployments, source-video/UI changes, MCP retry fix and historical approved proof.
 
 ## Remaining Work
+
+- English placeholders are fixed, pushed, deployed and LIVE verified. No additional release action is pending for this request.
 
 - Inline settings/card push and deployment are complete. Preserve `40767f6`, the previous LIVE revision and backup branches. Do not reload the user's draft tab automatically. No further release action is pending.
 
