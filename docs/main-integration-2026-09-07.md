@@ -20,6 +20,7 @@ The new documentation commit adds the actual demo recordings and English/Korean 
 ## Changes made during integration preparation
 
 - Added root `ruff.toml`, extending the existing `backend/pyproject.toml` with `src = ["backend/src"]`. Root-level `ruff check backend scripts` previously applied fallback settings to `scripts/`: two import-order errors and nine formatting failures. Explicit discovery applies the existing Python style without reformatting application or operational code.
+- The first PR CI run passed isolated ClickHouse/MCP integration but failed three of 349 backend tests because the Ubuntu runner lacked `NotoSansCJK-Regular.ttc`. Added `fonts-noto-cjk` alongside FFmpeg and a file-existence check in CI, matching the renderer's required Linux font and the existing production image. No renderer fallback, skipped test or application behavior change was introduced. First-run evidence: [Actions 34096772251](https://github.com/devkan/RevisionProof/actions/runs/34096772251).
 - Corrected the stale engineering-guide statement that speech transcription was outside scope. The existing implementation already supports editable Korean/English/mixed-speech subtitle drafts; unsupported object/background edits remain excluded.
 - Added explicit Antigravity attribution to its review report and separated its findings from implemented changes. Existing source/commit attribution is preserved.
 
