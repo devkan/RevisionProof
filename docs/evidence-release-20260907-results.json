@@ -1,0 +1,296 @@
+{
+  "release_source": "b13d8b0e2a1e20e6fb51afdc06e281bb03ea34c3",
+  "revision": "revisionproof-staging-00031-5bl",
+  "run_id": "01M1XX9TGX9DZQG5MPD2Y7E3EB",
+  "source_file": "kanapp_promo_english_editable_30s.mp4",
+  "operations": "Zoom and long English text, 4-10 seconds, candidate B",
+  "blocked": {
+    "state": "BLOCKED",
+    "verdict": "FAIL",
+    "delivery_approved": false,
+    "analysis_id": "01M1XXG2T3TDJFJJQHZBHKAJY6",
+    "map_source": "mcp-clickhouse.run_query",
+    "review_flags": 6,
+    "frame_pairs": 60,
+    "checks": [
+      {
+        "check_id": "approved_patch",
+        "label": "Export matches your approved preview",
+        "verdict": "FAIL",
+        "failure_code": "APPROVED_PATCH_MISMATCH",
+        "measured": {
+          "normalized_similarity": 0,
+          "ratio": 0,
+          "minimum_winner_margin_observed": 0,
+          "exact_file_match": 0,
+          "mcp_normalized_similarity": 0.0,
+          "mcp_passing_ratio": 0.0,
+          "mcp_winner_margin": 0.0
+        },
+        "threshold": {
+          "minimum_similarity": 0.95,
+          "minimum_winner_margin": 0.0005,
+          "minimum_passing_ratio": 0.8
+        },
+        "evidence_time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "evidence_urls": []
+      },
+      {
+        "check_id": "locked_cta",
+        "label": "Kept scenes follow the approved timeline",
+        "verdict": "FAIL",
+        "failure_code": "UNEXPECTED_VIDEO_CHANGE",
+        "measured": {
+          "ratio": 0.8333333333333334,
+          "passing_frames": 50,
+          "sampled_frames": 60,
+          "mcp_passing_ratio": 0.8333333333333334
+        },
+        "threshold": {
+          "minimum_frame_similarity": 0.94,
+          "minimum_passing_ratio": 1.0
+        },
+        "evidence_time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "evidence_urls": [
+          "/media/runs/01M1XX9TGX9DZQG5MPD2Y7E3EB/evidence/baseline-cta.png",
+          "/media/runs/01M1XX9TGX9DZQG5MPD2Y7E3EB/evidence/external-1788784108652-cta.png"
+        ]
+      },
+      {
+        "check_id": "locked_audio",
+        "label": "Approved audio timeline is preserved",
+        "verdict": "PASS",
+        "failure_code": null,
+        "measured": {
+          "source_rms_dbfs": -21.45,
+          "candidate_rms_dbfs": -21.43,
+          "source_peak_dbfs": -2.57,
+          "candidate_peak_dbfs": -2.5,
+          "rms_delta_db": 0.02,
+          "peak_delta_db": 0.06,
+          "mcp_source_rms_dbfs": -21.45,
+          "mcp_candidate_rms_dbfs": -21.43,
+          "mcp_rms_delta_db": 0.019999999999999574,
+          "mcp_candidate_peak_dbfs": -2.5,
+          "mcp_source_peak_dbfs": -2.57,
+          "mcp_peak_delta_db": 0.06999999999999984
+        },
+        "threshold": {
+          "maximum_rms_delta_db": 3.0,
+          "maximum_peak_delta_db": 0.1
+        },
+        "evidence_time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "evidence_urls": []
+      }
+    ],
+    "detail_window": {
+      "second": 5,
+      "sample_count": 2,
+      "visual_delta": 0.0005838836692084737,
+      "residual_delta": 0.07815895061728395,
+      "cta_delta": 0.07815895061728395,
+      "audio_delta_db": 1.4991053543411681e-05,
+      "requested": true,
+      "status": "review"
+    }
+  },
+  "pass": {
+    "state": "READY",
+    "verdict": "PASS",
+    "delivery_approved": false,
+    "analysis_id": "01M1XXKR7TDK0ZV1XE3KZM0GTR",
+    "map_source": "mcp-clickhouse.run_query",
+    "review_flags": 0,
+    "frame_pairs": 60,
+    "checks": [
+      {
+        "check_id": "approved_patch",
+        "label": "Export matches your approved preview",
+        "verdict": "PASS",
+        "failure_code": null,
+        "measured": {
+          "normalized_similarity": 1,
+          "ratio": 1,
+          "minimum_winner_margin_observed": 1,
+          "exact_file_match": 1,
+          "mcp_normalized_similarity": 1.0,
+          "mcp_passing_ratio": 1.0,
+          "mcp_winner_margin": 1.0
+        },
+        "threshold": {
+          "minimum_similarity": 0.95,
+          "minimum_winner_margin": 0.0005,
+          "minimum_passing_ratio": 0.8
+        },
+        "evidence_time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "evidence_urls": []
+      },
+      {
+        "check_id": "locked_cta",
+        "label": "Kept scenes follow the approved timeline",
+        "verdict": "PASS",
+        "failure_code": null,
+        "measured": {
+          "ratio": 1.0,
+          "passing_frames": 60,
+          "sampled_frames": 60,
+          "mcp_passing_ratio": 1.0
+        },
+        "threshold": {
+          "minimum_frame_similarity": 0.94,
+          "minimum_passing_ratio": 1.0
+        },
+        "evidence_time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "evidence_urls": [
+          "/media/runs/01M1XX9TGX9DZQG5MPD2Y7E3EB/evidence/baseline-cta.png",
+          "/media/runs/01M1XX9TGX9DZQG5MPD2Y7E3EB/evidence/approved-b-cta.png"
+        ]
+      },
+      {
+        "check_id": "locked_audio",
+        "label": "Approved audio timeline is preserved",
+        "verdict": "PASS",
+        "failure_code": null,
+        "measured": {
+          "source_rms_dbfs": -21.45,
+          "candidate_rms_dbfs": -21.45,
+          "source_peak_dbfs": -2.57,
+          "candidate_peak_dbfs": -2.57,
+          "rms_delta_db": 0.0,
+          "peak_delta_db": 0.0,
+          "mcp_source_rms_dbfs": -21.45,
+          "mcp_candidate_rms_dbfs": -21.45,
+          "mcp_rms_delta_db": 0.0,
+          "mcp_candidate_peak_dbfs": -2.57,
+          "mcp_source_peak_dbfs": -2.57,
+          "mcp_peak_delta_db": 0.0
+        },
+        "threshold": {
+          "maximum_rms_delta_db": 3.0,
+          "maximum_peak_delta_db": 0.1
+        },
+        "evidence_time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "evidence_urls": []
+      }
+    ],
+    "detail_window": {
+      "second": 4,
+      "sample_count": 2,
+      "visual_delta": 0.05977195811773783,
+      "residual_delta": 0.0,
+      "cta_delta": 0.0,
+      "audio_delta_db": 0.0,
+      "requested": true,
+      "status": "requested"
+    }
+  },
+  "browser_observations": {
+    "external_compare_enabled": true,
+    "external_compare_revised_source": "blob URL for selected external upload",
+    "both_players": {
+      "readyState": 4,
+      "paused": false,
+      "error": null,
+      "observed_original_seconds": 5.216672,
+      "observed_revised_seconds": 5.216673
+    },
+    "before_detail": "0:05-0:06 Review needed; residual 7.82%",
+    "after_detail": "0:04-0:05 Requested edit; residual 0.00%",
+    "stale_failure_detail_present_after": false,
+    "studio_console_errors_or_warnings": 0,
+    "classic_reload_console_errors_or_warnings": 0
+  },
+  "operational_observation": {
+    "at": "2026-09-07T12:29:15.155825Z",
+    "path": "/",
+    "status": 429,
+    "cloud_run_reason": "The request was aborted because there was no available instance.",
+    "resolution": "Classic reloaded successfully after verification completed; final HTTP canary returned 200 on all five routes.",
+    "config_changed": false
+  },
+  "final_http_canary": {
+    "at": "2026-09-07T12:33:01.154807+00:00",
+    "checks": [
+      {
+        "path": "/health",
+        "status": 200,
+        "bytes": 47,
+        "body": {
+          "status": "ok",
+          "version": "0.1.0",
+          "mode": "LIVE"
+        }
+      },
+      {
+        "path": "/ready",
+        "status": 200,
+        "bytes": 106,
+        "body": {
+          "status": "ready",
+          "mode": "LIVE",
+          "live_credentials_configured": true,
+          "integration_execution_verified": false
+        }
+      },
+      {
+        "path": "/api/runtime",
+        "status": 200,
+        "bytes": 360,
+        "body": {
+          "mode": "LIVE",
+          "mutable": true,
+          "live_ready": true,
+          "missing_settings": [],
+          "intelligence_enabled": true,
+          "upload_limits": {
+            "max_bytes": 32000000,
+            "max_duration_seconds": 60,
+            "min_duration_seconds": 4
+          },
+          "logo_limits": {
+            "max_bytes": 2097152,
+            "max_dimension": 2048
+          },
+          "memory_save_policy": "read_only",
+          "message": "Live integrations are configured; successful calls are proven per run"
+        }
+      },
+      {
+        "path": "/studio",
+        "status": 200,
+        "bytes": 578,
+        "assets": [
+          "/assets/index-mB8AWTRx.js",
+          "/assets/index-BaYy-LUs.css"
+        ]
+      },
+      {
+        "path": "/",
+        "status": 200,
+        "bytes": 578,
+        "assets": [
+          "/assets/index-mB8AWTRx.js",
+          "/assets/index-BaYy-LUs.css"
+        ]
+      }
+    ]
+  }
+}
