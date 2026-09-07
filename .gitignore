@@ -12,6 +12,7 @@ runtime/
 *.pyc
 *.pyo
 *.log
+docs/qa-recordings/page@*.webm
 *.tsbuildinfo
 frontend/vite.config.js
 frontend/vite.config.d.ts

@@ -29,19 +29,40 @@ def font_path() -> Path:
     raise ValueError("The Korean/English caption font is missing. Install Noto Sans CJK.")
 
 
+def wrap_text_lines(text: str, font: ImageFont.ImageFont, max_width: float = 1080) -> list[str]:
+    draw = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    lines = []
+    for paragraph in text.split("\n"):
+        words = paragraph.split(" ")
+        current_line = ""
+        for word in words:
+            candidate = f"{current_line} {word}" if current_line else word
+            if draw.textlength(candidate, font=font) <= max_width:
+                current_line = candidate
+            else:
+                if current_line:
+                    lines.append(current_line)
+                    current_line = ""
+                if draw.textlength(word, font=font) > max_width:
+                    for char in word:
+                        if (
+                            current_line
+                            and draw.textlength(current_line + char, font=font) > max_width
+                        ):
+                            lines.append(current_line)
+                            current_line = ""
+                        current_line += char
+                else:
+                    current_line = word
+        lines.append(current_line)
+    return lines
+
+
 def text_layer(op: EditOperation, destination: Path, appearance: str) -> None:
     font = ImageFont.truetype(str(font_path()), 34 if appearance == "A" else 44)
     image = Image.new("RGBA", (1280, 720), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    lines = []
-    for paragraph in op.text.split("\n"):
-        line = ""
-        for char in paragraph:
-            if line and draw.textlength(line + char, font=font) > 1080:
-                lines.append(line)
-                line = ""
-            line += char
-        lines.append(line)
+    lines = wrap_text_lines(op.text, font=font, max_width=1080)
     if len(lines) > 5:
         raise ValueError("This caption is too tall. Split it into shorter timed captions.")
     content = "\n".join(lines)

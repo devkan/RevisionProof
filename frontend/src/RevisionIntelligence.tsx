@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, LockKeyhole, Pause, Play, RefreshCw, Save, X, ZoomIn } from 'lucide-react'
 import { api } from './api'
-import type { ChangeWindow, EditMemorySearch, EditPlan, RunSnapshot, RuntimeStatus, SearchEngine } from './types'
+import type { EditMemorySearch, EditPlan, RunSnapshot, RuntimeStatus, SearchEngine } from './types'
 import { sourceTimeForOutput, seconds } from './editing'
 
 function timeLabel(seconds: number) {
@@ -10,13 +10,17 @@ function timeLabel(seconds: number) {
 
 const WINDOW_LABEL = { requested: 'Requested edit', unchanged: 'Unchanged', review: 'Review needed' }
 
-export function ChangeMap({ run }: { run: RunSnapshot }) {
+export function ChangeMap({ run, revisedVideoUrl }: { run: RunSnapshot; revisedVideoUrl?: string }) {
   const map = run.change_map
-  const [selected, setSelected] = useState<ChangeWindow | null>(null)
+  const [selection, setSelection] = useState<{ analysisId?: string; second: number } | null>(null)
   const [comparing, setComparing] = useState(false)
+
   if (!map) return null
-  const active = selected ?? map.windows.find((w) => w.status === 'review') ?? map.windows.find((w) => w.requested) ?? map.windows[0]
+  const selectedSecond = selection && selection.analysisId === map.analysis_id ? selection.second : null
+  const selectedWindow = selectedSecond !== null ? map.windows.find((w) => w.second === selectedSecond) : undefined
+  const active = selectedWindow ?? map.windows.find((w) => w.status === 'review') ?? map.windows.find((w) => w.requested) ?? map.windows[0]
   const flags = map.windows.filter((w) => w.status === 'review').length
+  const videoUrl = revisedVideoUrl ?? run.generated_version_url
   return (
     <section className="change-map" aria-labelledby="change-map-title">
       <div className="intelligence-heading">
@@ -30,7 +34,7 @@ export function ChangeMap({ run }: { run: RunSnapshot }) {
             className={`map-window map-${window.status} ${active?.second === window.second ? 'map-selected' : ''}`}
             aria-pressed={active?.second === window.second}
             aria-label={`${timeLabel(window.second)} to ${timeLabel(window.second + 1)}: ${WINDOW_LABEL[window.status]}`}
-            onClick={() => setSelected(window)}>
+            onClick={() => setSelection({ analysisId: map.analysis_id, second: window.second })}>
             <span>{timeLabel(window.second)}</span>
             {window.status === 'requested' ? <ZoomIn size={17} /> : window.status === 'review' ? <AlertTriangle size={17} /> : <Check size={15} />}
           </button>)}
@@ -38,13 +42,13 @@ export function ChangeMap({ run }: { run: RunSnapshot }) {
         {active && <div className={`map-detail map-detail-${active.status}`} aria-live="polite">
           <div><strong>{timeLabel(active.second)}–{timeLabel(Math.min(active.second + 1, map.duration_seconds))} · {WINDOW_LABEL[active.status]}</strong>
             <p>{active.status === 'review' ? 'The observed result differs from the approved edit, protected video content, or audio. Watch this moment.' : active.requested ? 'This moment contains an approved visual edit. Compare it side by side.' : 'These samples match the expected kept scenes.'}</p></div>
-          <button type="button" className="secondary-button" disabled={!run.generated_version_url} onClick={() => setComparing(true)}><ZoomIn size={18} />Compare this moment</button>
+          <button type="button" className="secondary-button" disabled={!videoUrl} onClick={() => setComparing(true)}><ZoomIn size={18} />Compare this moment</button>
         </div>}
         <details className="intelligence-technical"><summary>How this map was measured</summary><p>{map.message}</p><p>{map.source} · {map.windows.reduce((n, w) => n + w.sample_count, 0)} frame pairs · 1-second windows</p>
           {active && <dl><div><dt>Visual change</dt><dd>{(active.visual_delta * 100).toFixed(2)}%</dd></div><div><dt>Difference from expected edit</dt><dd>{(active.residual_delta * 100).toFixed(2)}%</dd></div><div><dt>Audio level difference</dt><dd>{active.audio_delta_db.toFixed(2)} dB</dd></div></dl>}
         </details>
       </>}
-      {comparing && active && run.generated_version_url && <ComparisonDialog original={run.asset.source_url} revised={run.generated_version_url} second={active.second} duration={map.duration_seconds} plan={run.spec?.approved_candidate.patch_type === 'EDIT_PLAN' ? run.spec.approved_candidate.plan : undefined} onClose={() => setComparing(false)} />}
+      {comparing && active && videoUrl && <ComparisonDialog original={run.asset.source_url} revised={videoUrl} second={active.second} duration={map.duration_seconds} plan={run.spec?.approved_candidate.patch_type === 'EDIT_PLAN' ? run.spec.approved_candidate.plan : undefined} onClose={() => setComparing(false)} />}
     </section>
   )
 }

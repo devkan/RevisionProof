@@ -1,5 +1,10 @@
 # RevisionProof docs
 
+- [Antigravity 수정 배포 — 자막 줄바꿈·외부 영상 비교·재검사 상태 갱신](deployment-2026-09-07-antigravity-fixes.md)
+- [Antigravity 보완 독립 재검수 — 두 지적사항 해결, 회귀 테스트 실증](review-2026-09-07-antigravity-supplement.md)
+- [Antigravity 수정 후 최초 독립 검수](review-2026-09-07-antigravity-fixes.md)
+- [Antigravity 보완 보고서](fix-supplement-2026-09-07.md) / [수정 보고서](fix-report-2026-09-07.md) / [스테이징 결함 재현](qa-review-2026-09-07.md)
+
 - [Main 통합 — 기존 구현·영상 기록·Antigravity QA 보고서, 검증과 병합 범위](main-integration-2026-09-07.md)
 
 - [코드 리뷰 및 QA 분석 보고서 — 자막 줄바꿈, 외부 검증 비교, Change Map 상태 동기화 분석](qa-report-2026-09-07-code-qa.md)
