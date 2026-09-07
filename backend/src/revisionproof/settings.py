@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,14 +19,32 @@ class Settings(BaseSettings):
 
     mode: ExecutionMode = ExecutionMode.FIXTURE
     runtime_dir: Path = Path("runtime")
-    max_upload_mib: int = Field(default=24, ge=1, le=100)
+    # Keep the complete multipart request below Cloud Run's 32 MiB HTTP/1 limit.
+    # The user-facing file limit is decimal MB, leaving room for form fields and
+    # the multipart envelope handled by UploadBodyLimit.
+    max_upload_mb: int = Field(default=32, ge=1, le=32)
+    max_logo_mib: int = Field(default=2, ge=1, le=5)
     max_duration_seconds: int = Field(default=60, ge=1, le=600)
     ffmpeg_timeout_seconds: int = Field(default=90, ge=5, le=600)
+    gemini_timeout_seconds: int = Field(default=60, ge=5, le=300)
+    mcp_timeout_seconds: int = Field(default=30, ge=5, le=120)
+    mcp_max_attempts: int = Field(default=3, ge=1, le=5)
+    max_in_memory_runs: int = Field(default=64, ge=1, le=256)
+    max_new_runs_per_minute: int = Field(default=12, ge=1, le=60)
+    max_verification_attempts_per_run: int = Field(default=6, ge=1, le=20)
+    intelligence_enabled: bool = False
+    memory_workspace: str = Field(
+        default="revisionproof-demo", pattern=r"^[a-z0-9][a-z0-9_-]{2,63}$"
+    )
+    memory_search_engine: Literal["exact", "hnsw", "qbit"] = "hnsw"
+    memory_hnsw_min_rows: int = Field(default=1000, ge=1)
+    memory_qbit_precision: int = Field(default=16, ge=12, le=32)
+    memory_write_token: str | None = Field(default=None, min_length=32, repr=False)
 
-    gemini_model: str = "gemini-flash-latest"
+    gemini_model: str = "gemini-3.5-flash-lite"
     embedding_model: str = "text-embedding-005"
     google_cloud_project: str | None = None
-    google_cloud_location: str = "us-central1"
+    google_cloud_location: str = "global"
     gcs_bucket: str | None = None
 
     clickhouse_host: str | None = None
@@ -42,7 +61,11 @@ class Settings(BaseSettings):
 
     @property
     def max_upload_bytes(self) -> int:
-        return self.max_upload_mib * 1024 * 1024
+        return self.max_upload_mb * 1_000_000
+
+    @property
+    def max_logo_bytes(self) -> int:
+        return self.max_logo_mib * 1024 * 1024
 
     @property
     def live_missing_settings(self) -> list[str]:

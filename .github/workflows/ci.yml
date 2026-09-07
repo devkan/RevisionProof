@@ -24,10 +24,13 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install media dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto-cjk
+          test -f /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc
       - name: Install backend
-        run: uv sync --project backend --frozen --extra dev
+        run: uv sync --project backend --frozen --extra dev --extra live
       - name: Install frontend
         run: npm ci --prefix frontend
       - name: Generate deterministic fixtures
@@ -40,9 +43,54 @@ jobs:
         run: backend/.venv/bin/pytest backend --cov=revisionproof --cov-report=term-missing
       - name: Rehearse the release gate three times
         run: backend/.venv/bin/python scripts/rehearse_demo.py --runs 3
+      - name: Frontend tests
+        run: npm test --prefix frontend
       - name: Frontend lint
         run: npm run lint --prefix frontend
       - name: Frontend build
         run: npm run build --prefix frontend
       - name: Container build
         run: docker build --tag revisionproof:ci .
+
+  clickhouse-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.6.14"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend with LIVE adapters
+        run: uv sync --project backend --frozen --extra dev --extra live
+      - name: Start isolated ClickHouse 26.2
+        run: |
+          docker compose -p revisionproof up -d clickhouse
+          for attempt in $(seq 1 30); do
+            if docker compose -p revisionproof exec -T clickhouse clickhouse-client --query "SELECT 1"; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -p revisionproof logs clickhouse
+          exit 1
+      - name: Verify append-only migration is converged
+        env:
+          REVISIONPROOF_CLICKHOUSE_ADMIN_PASSWORD: revisionproof-local
+        run: >-
+          backend/.venv/bin/python scripts/migrate_clickhouse_append_only.py
+          --host localhost --port 8123 --username revisionproof --insecure-local
+          --confirm revisionproof --confirm-host localhost --confirm-project local
+      - name: Verify exact writer and MCP roles
+        run: backend/.venv/bin/python scripts/verify_local_clickhouse.py
+      - name: Verify official mcp-clickhouse boundary
+        run: backend/.venv/bin/python scripts/verify_local_mcp.py
+      - name: Verify real HNSW, QBit, and retry-safe Change Map aggregation
+        run: backend/.venv/bin/python scripts/verify_intelligence_clickhouse.py --port 8123
+      - name: Show ClickHouse logs after failure
+        if: failure()
+        run: docker compose -p revisionproof logs clickhouse
+      - name: Stop isolated ClickHouse
+        if: always()
+        run: docker compose -p revisionproof down --volumes

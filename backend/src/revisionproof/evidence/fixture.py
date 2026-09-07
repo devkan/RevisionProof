@@ -1,17 +1,86 @@
-from revisionproof.contracts import EvidenceAnchor, ParsedFeedback, TimeRange
+import re
+
+from revisionproof.contracts import (
+    EvidenceAnchor,
+    ParsedFeedback,
+    RevisionNote,
+    SafetyClassification,
+    TimeRange,
+)
 
 
 class FixtureInterpreter:
     source = "fixture.interpreter"
 
+    def interpret_many(self, raw_text: str) -> list[RevisionNote]:
+        raw_notes = [
+            re.sub(r"^\s*(?:[-*]|\d+[.)])\s*", "", line).strip()
+            for line in raw_text.splitlines()
+            if line.strip()
+        ]
+        if not raw_notes:
+            raw_notes = [raw_text.strip()]
+        return [self._classify(text, index) for index, text in enumerate(raw_notes, start=1)]
+
+    def _classify(self, text: str, index: int) -> RevisionNote:
+        normalized = text.casefold()
+        manual_markers = ("b-roll", "b roll", "on-brand", "on brand", "new footage")
+        clarification_markers = (
+            "middle",
+            "dynamic",
+            "cinematic",
+            "feel premium",
+            "more premium",
+            "less generic",
+        )
+        if any(marker in normalized for marker in manual_markers):
+            classification = SafetyClassification.MANUAL_CREATIVE
+            intent = "Add new creative footage with a premium brand treatment."
+            confidence = 0.96
+            rationale = "B-roll creation is outside the constrained punch-in operation."
+            question = None
+            target_phrase = None
+        elif any(marker in normalized for marker in clarification_markers):
+            classification = SafetyClassification.NEEDS_CLARIFICATION
+            intent = "Increase energy, but the target moment or permitted change is ambiguous."
+            confidence = 0.68
+            rationale = "The request needs a precise scene and edit operation before automation."
+            question = "Which exact moment should change, and is a center punch-in acceptable?"
+            target_phrase = None
+        else:
+            classification = SafetyClassification.AUTO_PREVIEWABLE
+            intent = "Emphasize the product reveal without changing the edit structure."
+            confidence = 0.97
+            rationale = "A short center punch-in preserves timing, audio, and continuity."
+            question = None
+            target_phrase = "RevisionProof" if "revisionproof" in normalized else "product reveal"
+        return RevisionNote(
+            note_id=f"note_{index:02d}",
+            raw_text=text,
+            intent=intent,
+            classification=classification,
+            confidence=confidence,
+            target_phrase=target_phrase,
+            rationale=rationale,
+            clarification_question=question,
+        )
+
     def interpret(self, raw_text: str) -> ParsedFeedback:
-        return ParsedFeedback(
-            raw_text=raw_text,
-            intent="Emphasize the product reveal without changing the edit structure.",
-            target_phrase="product reveal",
-            rationale=(
-                "A short center punch-in adds emphasis while preserving timing and continuity."
+        note = next(
+            (
+                item
+                for item in self.interpret_many(raw_text)
+                if item.classification is SafetyClassification.AUTO_PREVIEWABLE
             ),
+            None,
+        )
+        if note is None or note.target_phrase is None:
+            raise ValueError("feedback has no AUTO_PREVIEWABLE note")
+        return ParsedFeedback(
+            raw_text=note.raw_text,
+            intent=note.intent,
+            target_phrase=note.target_phrase,
+            rationale=note.rationale,
             interpreter_source="fixture.interpreter",
         )
 

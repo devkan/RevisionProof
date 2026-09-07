@@ -1,3 +1,4 @@
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -39,3 +40,58 @@ async def test_concurrent_approval_cannot_replace_frozen_spec(
     assert frozen.spec is not None
     approved_id = frozen.spec.approved_candidate.candidate_id
     assert all(result.spec.approved_candidate.candidate_id == approved_id for result in results)
+
+
+@pytest.mark.asyncio
+async def test_second_media_pipeline_request_fails_fast(
+    service: RevisionProofService,
+) -> None:
+    snapshot = await service.create_run(
+        CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback="Make the reveal more intentional")
+    )
+    assert service._media_slot.acquire(blocking=False)  # noqa: SLF001
+    try:
+        with pytest.raises(ValueError, match="media pipeline is busy"):
+            service.generate_previews(snapshot.run_id)
+    finally:
+        service._media_slot.release()  # noqa: SLF001
+
+
+@pytest.mark.asyncio
+async def test_idempotency_replays_same_mutation_and_rejects_key_reuse(
+    service: RevisionProofService,
+) -> None:
+    request = CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback="Make the reveal more intentional")
+    first = await service.create_run(request, "create:stable-demo-key")
+    replay = await service.create_run(request, "create:stable-demo-key")
+    assert replay.run_id == first.run_id
+
+    with pytest.raises(ValueError, match="different request"):
+        await service.create_run(
+            CreateRunRequest(asset_id=DEMO_ASSET_ID, feedback="Bring the product reveal closer"),
+            "create:stable-demo-key",
+        )
+
+    rendered = service.generate_previews(first.run_id, f"{first.run_id}:previews")
+    event_count = len(rendered.events)
+    replayed_render = service.generate_previews(first.run_id, f"{first.run_id}:previews")
+    assert replayed_render.run_id == first.run_id
+    assert len(replayed_render.events) == event_count
+
+
+@pytest.mark.asyncio
+async def test_concurrent_same_key_create_run_returns_one_run(
+    service: RevisionProofService,
+) -> None:
+    request = CreateRunRequest(
+        asset_id=DEMO_ASSET_ID,
+        feedback="Make the reveal more intentional",
+    )
+    results = await asyncio.gather(
+        *(service.create_run(request, "create:concurrent-demo-key") for _ in range(20))
+    )
+
+    assert len({snapshot.run_id for snapshot in results}) == 1
+    assert len(service.repository._runs) == 1  # noqa: SLF001
+    assert service._create_idempotency_locks == {}  # noqa: SLF001
+    assert service._create_idempotency_waiters == {}  # noqa: SLF001

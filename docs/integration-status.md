@@ -1,17 +1,17 @@
 # Integration status
 
-Updated: 2026-08-25
+Updated: 2026-09-02
 
 | Integration | Code path | Local verification | Credential verification |
 |---|---|---:|---:|
 | FFmpeg / FFprobe | fixed-array commands, timeout, cleanup | PASS | n/a |
 | OpenCV checks | punch-in and CTA frame evidence | PASS | n/a |
 | Fixture interpreter/index | explicit fixture source labels | PASS | n/a |
-| Google ADK + Vertex Gemini | structured interpretation only | package/API contract verified | NOT RUN |
-| Vertex text embedding | `text-embedding-005`, exactly 768 dimensions | contract implemented | NOT RUN |
-| ClickHouse direct writer | append audit facts/spec/checks | adapter INSERT + writer-only role PASS | NOT RUN |
-| official `mcp-clickhouse` reader | evidence search and version feature diff | real `run_query` + view-only role PASS | NOT RUN |
-| Google Cloud Storage | version upload object boundary | contract implemented | NOT RUN |
-| Cloud Run | single-container contract and health routes | Docker build + probes/static serving PASS | NOT DEPLOYED |
+| Google ADK + Vertex Gemini | structured interpretation only | package/API contract and mocked service path PASS | PASS; final run source `google.vertex.gemini` |
+| Vertex text embedding | `text-embedding-005`, exactly 768 dimensions | contract and client-close test PASS | Vertex endpoint PASS in `global`, 768 dimensions |
+| ClickHouse direct writer | append audit facts/spec/checks | adapter INSERT + writer-only role PASS | PASS; final run has 1 spec, 24 features, 6 checks |
+| official `mcp-clickhouse` reader | evidence search and version feature diff; bounded fresh-process timeout recovery | real `run_query` + view-only role and 3-attempt regression PASS | PASS; recovery run timed out on attempt 1/3 and then anchored three evidence matches |
+| Google Cloud Storage | private media and build-source boundary | local contract PASS | PASS; visual source, uploaded candidates, and generated full video are private and persisted |
+| Cloud Run | single-container contract and health routes | final non-root image PASS | LIVE PASS; revision `revisionproof-staging-00014-r4l`, concurrency 4, min/max 1 |
 
-`NOT RUN` and `NOT DEPLOYED` are deliberate: this repository contains no hackathon cloud credentials. Do not convert those cells to PASS until the trace and persisted records are observed in the target project. Local ClickHouse verification used 25.6.13 with separate reader/writer users and TLS disabled only for localhost.
+The deployed LIVE build is `c0c3c928-fd5a-47a3-9b04-14ec5fbcbc20` from commit `6012e9f`; its pushed image digest is `sha256:d434e6fbe4e5d9e5be2ea47af590aaf4ffec5cc868cce36238db59d64458aef7`. Run `01M1H4MDB7NQBDFQF1YNNFM0EB` is the latest complete Gemini/MCP/A-B/full-video proof: Option B produced a 30.016-second MP4 and all three checks passed. The generated object is private in GCS; delivery approval was not granted. Historical run `01M0Z3338TYVHWHK4FZRGADTKZ` remains the delivery-approved proof. `/ready` keeps `integration_execution_verified=false` because verification is per run, not a process-wide promise.

@@ -1,23 +1,57 @@
 substitutions:
+  _CONFIRM_LIVE: "NO"
   _REGION: us-central1
-  _SERVICE: revisionproof
-  _REPOSITORY: hackathon
-  _GCS_BUCKET: revisionproof-media
+  _VERTEX_LOCATION: global
+  _GEMINI_MODEL: gemini-3.5-flash-lite
+  _SERVICE: revisionproof-staging
+  _REPOSITORY: revisionproof
+  _GCS_BUCKET: ${PROJECT_ID}-media
   _CLICKHOUSE_HOST: replace-me.clickhouse.cloud
+  _WRITER_SECRET_VERSION: "0"
+  _MCP_SECRET_VERSION: "0"
+  # Enable only after the additive intelligence migration has been verified.
+  _INTELLIGENCE_ENABLED: "false"
 
 steps:
+  - id: live-preflight
+    name: bash
+    entrypoint: bash
+    env:
+      - CONFIRM_LIVE=${_CONFIRM_LIVE}
+      - CLICKHOUSE_HOST=${_CLICKHOUSE_HOST}
+      - VERTEX_LOCATION=${_VERTEX_LOCATION}
+      - GEMINI_MODEL=${_GEMINI_MODEL}
+      - WRITER_SECRET_VERSION=${_WRITER_SECRET_VERSION}
+      - MCP_SECRET_VERSION=${_MCP_SECRET_VERSION}
+      - INTELLIGENCE_ENABLED=${_INTELLIGENCE_ENABLED}
+    args:
+      - -ceu
+      - |
+        test "$${CONFIRM_LIVE}" = "YES" || {
+          echo "Refusing LIVE deploy. Use cloudbuild.foundation.yaml until Gemini and ClickHouse credentials are verified."
+          exit 2
+        }
+        test "$${CLICKHOUSE_HOST}" != "replace-me.clickhouse.cloud"
+        [[ "$${CLICKHOUSE_HOST}" =~ ^[a-z0-9][a-z0-9.-]*\.clickhouse\.cloud$ ]]
+        test "$${VERTEX_LOCATION}" = "global"
+        test "$${GEMINI_MODEL}" = "gemini-3.5-flash-lite"
+        [[ "$${WRITER_SECRET_VERSION}" =~ ^[1-9][0-9]*$ ]]
+        [[ "$${MCP_SECRET_VERSION}" =~ ^[1-9][0-9]*$ ]]
+        [[ "$${INTELLIGENCE_ENABLED}" =~ ^(true|false)$ ]]
   - id: build
     name: gcr.io/cloud-builders/docker
     args:
       - build
+      - --build-arg
+      - REVISIONPROOF_INSTALL_LIVE=true
       - --tag
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
       - .
   - id: push
     name: gcr.io/cloud-builders/docker
     args:
       - push
-      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
@@ -25,19 +59,30 @@ steps:
       - run
       - deploy
       - ${_SERVICE}
-      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}
+      - --project=${PROJECT_ID}
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
       - --region=${_REGION}
       - --platform=managed
       - --allow-unauthenticated
-      - --memory=2Gi
+      - --service-account=revisionproof-runtime@${PROJECT_ID}.iam.gserviceaccount.com
+      - --memory=4Gi
       - --cpu=2
-      - --concurrency=1
+      # Keep one process-local state owner, but leave room for the long-lived
+      # SSE trace, health probes, and one foreground mutation at the same time.
+      - --concurrency=4
+      - --max=1
+      - --min=1
       - --timeout=300
-      - --set-env-vars=REVISIONPROOF_MODE=LIVE,REVISIONPROOF_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},REVISIONPROOF_GCS_BUCKET=${_GCS_BUCKET},REVISIONPROOF_CLICKHOUSE_HOST=${_CLICKHOUSE_HOST}
-      - --set-secrets=REVISIONPROOF_CLICKHOUSE_WRITER_PASSWORD=revisionproof-clickhouse-writer-password:latest,REVISIONPROOF_CLICKHOUSE_MCP_PASSWORD=revisionproof-clickhouse-mcp-password:latest
+      - --startup-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=0,failureThreshold=3,timeoutSeconds=3,periodSeconds=10
+      - --liveness-probe=httpGet.path=/health,httpGet.port=8080,initialDelaySeconds=5,failureThreshold=3,timeoutSeconds=3,periodSeconds=30
+      - --readiness-probe=httpGet.path=/ready,httpGet.port=8080,failureThreshold=3,successThreshold=1,timeoutSeconds=3,periodSeconds=10
+      - --set-env-vars=REVISIONPROOF_MODE=LIVE,REVISIONPROOF_GOOGLE_CLOUD_PROJECT=${PROJECT_ID},REVISIONPROOF_GOOGLE_CLOUD_LOCATION=${_VERTEX_LOCATION},REVISIONPROOF_GEMINI_MODEL=${_GEMINI_MODEL},REVISIONPROOF_GCS_BUCKET=${_GCS_BUCKET},REVISIONPROOF_CLICKHOUSE_HOST=${_CLICKHOUSE_HOST},REVISIONPROOF_CLICKHOUSE_PORT=8443,REVISIONPROOF_CLICKHOUSE_SECURE=true,REVISIONPROOF_CLICKHOUSE_VERIFY=true,REVISIONPROOF_INTELLIGENCE_ENABLED=${_INTELLIGENCE_ENABLED}
+      - --set-secrets=REVISIONPROOF_CLICKHOUSE_WRITER_PASSWORD=revisionproof-clickhouse-writer-password:${_WRITER_SECRET_VERSION},REVISIONPROOF_CLICKHOUSE_MCP_PASSWORD=revisionproof-clickhouse-mcp-password:${_MCP_SECRET_VERSION}
 
 images:
-  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${SHORT_SHA}
+  - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPOSITORY}/${_SERVICE}:${BUILD_ID}
+
+serviceAccount: projects/${PROJECT_ID}/serviceAccounts/revisionproof-build@${PROJECT_ID}.iam.gserviceaccount.com
 
 options:
   logging: CLOUD_LOGGING_ONLY

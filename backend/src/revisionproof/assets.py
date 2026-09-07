@@ -6,7 +6,7 @@ from revisionproof.contracts import DemoAsset
 from revisionproof.media.executor import MediaExecutor
 from revisionproof.media.probe import probe_media
 
-DEMO_ASSET_ID = "01J00000000000000000000000"
+DEMO_ASSET_ID = "01M00000000000000000000000"
 
 
 def demo_asset_path(runtime_dir: Path) -> Path:

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import os
+import tempfile
 from pathlib import Path
 
 import cv2
@@ -9,16 +11,25 @@ import numpy as np
 from revisionproof.media.executor import MediaExecutor
 
 
-def read_frame(path: Path, seconds: float) -> np.ndarray:
+def read_frame(path: Path, seconds: float, *, frame_index: int | None = None) -> np.ndarray:
     capture = cv2.VideoCapture(str(path))
     try:
-        capture.set(cv2.CAP_PROP_POS_MSEC, seconds * 1000)
+        if frame_index is None:
+            capture.set(cv2.CAP_PROP_POS_MSEC, seconds * 1000)
+        else:
+            capture.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
         ok, frame = capture.read()
     finally:
         capture.release()
     if not ok or frame is None:
         raise ValueError(f"could not decode frame at {seconds:.3f}s")
     return frame
+
+
+def write_frame_png(path: Path, seconds: float, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not cv2.imwrite(str(destination), read_frame(path, seconds)):
+        raise ValueError(f"could not write evidence frame: {destination}")
 
 
 def apply_punch_in(frame: np.ndarray, scale: float) -> np.ndarray:
@@ -50,7 +61,12 @@ def roi_similarity(
 def audio_levels_db(
     path: Path, *, start_seconds: float, duration_seconds: float, executor: MediaExecutor
 ) -> tuple[float, float]:
-    raw_path = path.with_suffix(f".{start_seconds:.0f}.f32le")
+    descriptor, raw_name = tempfile.mkstemp(
+        prefix=f"{path.stem}-audio-", suffix=".f32le", dir=path.parent
+    )
+    os.close(descriptor)
+    raw_path = Path(raw_name)
+    raw_path.unlink()
     try:
         executor.run(
             [

@@ -1,5 +1,14 @@
 CREATE DATABASE IF NOT EXISTS revisionproof;
 
+CREATE TABLE IF NOT EXISTS revisionproof.deployment_metadata
+(
+    project_id String,
+    clickhouse_host String,
+    created_at DateTime64(3, 'UTC')
+)
+ENGINE = MergeTree
+ORDER BY (project_id, clickhouse_host, created_at);
+
 CREATE TABLE IF NOT EXISTS revisionproof.assets
 (
     asset_id FixedString(26),
@@ -58,8 +67,8 @@ CREATE TABLE IF NOT EXISTS revisionproof.revision_specs
     canonical_json String,
     approved_at DateTime64(3, 'UTC')
 )
-ENGINE = ReplacingMergeTree(approved_at)
-ORDER BY run_id;
+ENGINE = MergeTree
+ORDER BY (run_id, spec_hash, approved_at);
 
 CREATE TABLE IF NOT EXISTS revisionproof.version_features
 (
@@ -71,8 +80,8 @@ CREATE TABLE IF NOT EXISTS revisionproof.version_features
     time_end Float32,
     extracted_at DateTime64(3, 'UTC')
 )
-ENGINE = ReplacingMergeTree(extracted_at)
-ORDER BY (run_id, version_label, feature_name, time_start);
+ENGINE = MergeTree
+ORDER BY (run_id, version_label, feature_name, time_start, extracted_at);
 
 CREATE TABLE IF NOT EXISTS revisionproof.version_checks
 (
@@ -85,8 +94,8 @@ CREATE TABLE IF NOT EXISTS revisionproof.version_checks
     threshold_json String,
     checked_at DateTime64(3, 'UTC')
 )
-ENGINE = ReplacingMergeTree(checked_at)
-ORDER BY (run_id, version_label, check_id);
+ENGINE = MergeTree
+ORDER BY (run_id, version_label, check_id, checked_at);
 
 CREATE TABLE IF NOT EXISTS revisionproof.run_events
 (
@@ -99,13 +108,28 @@ CREATE TABLE IF NOT EXISTS revisionproof.run_events
 ENGINE = MergeTree
 ORDER BY (run_id, sequence);
 
+CREATE ROLE IF NOT EXISTS revisionproof_view_definer;
+REVOKE ALL ON *.* FROM revisionproof_view_definer;
+GRANT SELECT ON revisionproof.segments TO revisionproof_view_definer;
+GRANT SELECT ON revisionproof.version_features TO revisionproof_view_definer;
+
+CREATE USER IF NOT EXISTS revisionproof_view_definer_user
+IDENTIFIED WITH sha256_hash BY 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+HOST NONE;
+ALTER USER revisionproof_view_definer_user
+IDENTIFIED WITH sha256_hash BY 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+HOST NONE;
+REVOKE ALL ON *.* FROM revisionproof_view_definer_user;
+GRANT revisionproof_view_definer TO revisionproof_view_definer_user;
+SET DEFAULT ROLE revisionproof_view_definer TO revisionproof_view_definer_user;
+
 CREATE VIEW IF NOT EXISTS revisionproof.search_segments
-DEFINER = CURRENT_USER SQL SECURITY DEFINER AS
+DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS
 SELECT segment_id, asset_id, start_seconds, end_seconds, transcript, visual_summary, embedding
 FROM revisionproof.segments;
 
 CREATE VIEW IF NOT EXISTS revisionproof.version_feature_diff
-DEFINER = CURRENT_USER SQL SECURITY DEFINER AS
+DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER AS
 SELECT
     current.run_id,
     current.version_label AS current_version,
@@ -142,3 +166,12 @@ INNER JOIN
     AND current.feature_name = baseline.feature_name
     AND current.time_start = baseline.time_start
     AND current.time_end = baseline.time_end;
+
+-- Do not use CREATE OR REPLACE for these security-definer views. ClickHouse 26.2 can
+-- leave stale in-memory definer dependencies after replacement. ALTER updates the
+-- dependency registry in place while preserving the view object and its grants.
+ALTER TABLE revisionproof.search_segments
+MODIFY DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER;
+
+ALTER TABLE revisionproof.version_feature_diff
+MODIFY DEFINER = revisionproof_view_definer_user SQL SECURITY DEFINER;

@@ -1,0 +1,293 @@
+[
+  {
+    "schema_version": "2.0",
+    "run_id": "01J00000000000000000000000",
+    "asset_id": "demo_revisionproof_v1",
+    "approved_candidate": {
+      "candidate_id": "B",
+      "patch_type": "PUNCH_IN",
+      "scale": 1.12,
+      "time_range": {
+        "start_seconds": 8.0,
+        "end_seconds": 14.0
+      },
+      "preview_url": null
+    },
+    "evidence": [
+      {
+        "segment_id": "seg_008_014",
+        "time_range": {
+          "start_seconds": 8.0,
+          "end_seconds": 14.0
+        },
+        "score": 0.97,
+        "transcript": "Reveal",
+        "visual_summary": "Product card",
+        "source": "fixture.segment_index"
+      }
+    ],
+    "locked_elements": [
+      {
+        "element_id": "cta",
+        "kind": "CTA_OVERLAY",
+        "time_range": {
+          "start_seconds": 24.0,
+          "end_seconds": 29.0
+        },
+        "description": "CTA stays visible"
+      },
+      {
+        "element_id": "audio",
+        "kind": "AUDIO",
+        "time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "description": "Audio stays in bounds"
+      }
+    ],
+    "verification_manifest": [
+      {
+        "check_id": "approved_patch",
+        "required": true,
+        "time_range": {
+          "start_seconds": 8.0,
+          "end_seconds": 14.0
+        },
+        "roi": null,
+        "threshold": {
+          "minimum_similarity": 0.95,
+          "minimum_winner_margin": 0.0005,
+          "minimum_passing_ratio": 0.8
+        }
+      },
+      {
+        "check_id": "locked_cta",
+        "required": true,
+        "time_range": {
+          "start_seconds": 24.0,
+          "end_seconds": 29.0
+        },
+        "roi": [
+          840,
+          570,
+          340,
+          90
+        ],
+        "threshold": {
+          "minimum_frame_similarity": 0.94,
+          "minimum_passing_ratio": 0.6
+        }
+      },
+      {
+        "check_id": "locked_audio",
+        "required": true,
+        "time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "roi": null,
+        "threshold": {
+          "maximum_rms_delta_db": 3.0,
+          "maximum_peak_dbfs": -1.0
+        }
+      }
+    ],
+    "approved_at": "2026-08-25T12:00:00Z",
+    "spec_hash": "164335325c4e986883e769571e921fc3ab83e32b67a50d2600f90dca099f64cb"
+  },
+  {
+    "schema_version": "2.1",
+    "run_id": "01J00000000000000000000000",
+    "asset_id": "demo_revisionproof_v1",
+    "approved_candidate": {
+      "candidate_id": "B",
+      "patch_type": "PUNCH_IN",
+      "scale": 1.12,
+      "time_range": {
+        "start_seconds": 8.0,
+        "end_seconds": 14.0
+      },
+      "preview_url": null
+    },
+    "evidence": [
+      {
+        "segment_id": "seg_008_014",
+        "time_range": {
+          "start_seconds": 8.0,
+          "end_seconds": 14.0
+        },
+        "score": 0.97,
+        "transcript": "Reveal",
+        "visual_summary": "Product card",
+        "source": "fixture.segment_index"
+      }
+    ],
+    "locked_elements": [
+      {
+        "element_id": "cta",
+        "kind": "VIDEO_CONTENT",
+        "time_range": {
+          "start_seconds": 24.0,
+          "end_seconds": 29.0
+        },
+        "description": "CTA stays visible"
+      },
+      {
+        "element_id": "audio",
+        "kind": "AUDIO",
+        "time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "description": "Audio stays in bounds"
+      }
+    ],
+    "verification_manifest": [
+      {
+        "check_id": "approved_patch",
+        "required": true,
+        "time_range": {
+          "start_seconds": 8.0,
+          "end_seconds": 14.0
+        },
+        "roi": null,
+        "threshold": {
+          "minimum_similarity": 0.95,
+          "minimum_winner_margin": 0.0005,
+          "minimum_passing_ratio": 0.8
+        }
+      },
+      {
+        "check_id": "locked_cta",
+        "required": true,
+        "time_range": {
+          "start_seconds": 24.0,
+          "end_seconds": 29.0
+        },
+        "roi": [
+          840,
+          570,
+          340,
+          90
+        ],
+        "threshold": {
+          "minimum_frame_similarity": 0.94,
+          "minimum_passing_ratio": 0.6
+        }
+      },
+      {
+        "check_id": "locked_audio",
+        "required": true,
+        "time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "roi": null,
+        "threshold": {
+          "maximum_rms_delta_db": 3.0,
+          "maximum_peak_dbfs": -1.0
+        }
+      }
+    ],
+    "approved_at": "2026-08-25T12:00:00Z",
+    "spec_hash": "9bd801ebc203754584f78302232e384bcc71517acae99bd104b8e797a70a19d6"
+  },
+  {
+    "schema_version": "2.2",
+    "run_id": "01J00000000000000000000000",
+    "asset_id": "demo_revisionproof_v1",
+    "approved_candidate": {
+      "candidate_id": "B",
+      "patch_type": "PUNCH_IN",
+      "scale": 1.12,
+      "time_range": {
+        "start_seconds": 8.0,
+        "end_seconds": 14.0
+      },
+      "preview_url": null
+    },
+    "evidence": [
+      {
+        "segment_id": "seg_008_014",
+        "time_range": {
+          "start_seconds": 8.0,
+          "end_seconds": 14.0
+        },
+        "score": 0.97,
+        "transcript": "Reveal",
+        "visual_summary": "Product card",
+        "source": "fixture.segment_index"
+      }
+    ],
+    "locked_elements": [
+      {
+        "element_id": "cta",
+        "kind": "VIDEO_CONTENT",
+        "time_range": {
+          "start_seconds": 24.0,
+          "end_seconds": 29.0
+        },
+        "description": "CTA stays visible"
+      },
+      {
+        "element_id": "audio",
+        "kind": "AUDIO",
+        "time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "description": "Audio stays in bounds"
+      }
+    ],
+    "verification_manifest": [
+      {
+        "check_id": "approved_patch",
+        "required": true,
+        "time_range": {
+          "start_seconds": 8.0,
+          "end_seconds": 14.0
+        },
+        "roi": null,
+        "threshold": {
+          "minimum_similarity": 0.95,
+          "minimum_winner_margin": 0.0005,
+          "minimum_passing_ratio": 0.8
+        }
+      },
+      {
+        "check_id": "locked_cta",
+        "required": true,
+        "time_range": {
+          "start_seconds": 24.0,
+          "end_seconds": 29.0
+        },
+        "roi": [
+          840,
+          570,
+          340,
+          90
+        ],
+        "threshold": {
+          "minimum_frame_similarity": 0.94,
+          "minimum_passing_ratio": 0.6
+        }
+      },
+      {
+        "check_id": "locked_audio",
+        "required": true,
+        "time_range": {
+          "start_seconds": 0.0,
+          "end_seconds": 30.0
+        },
+        "roi": null,
+        "threshold": {
+          "maximum_rms_delta_db": 3.0,
+          "maximum_peak_delta_db": 0.1
+        }
+      }
+    ],
+    "approved_at": "2026-08-25T12:00:00Z",
+    "spec_hash": "65044911a1eaed182faafdf3309cf0d181126848f42a490a3e356e4a74e9b4e1"
+  }
+]

@@ -1,0 +1,53 @@
+from pathlib import Path
+
+import pytest
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+GCP_SCRIPTS = sorted((PROJECT_ROOT / "infra" / "gcp").glob("*.sh"))
+
+
+@pytest.mark.parametrize("script_path", GCP_SCRIPTS, ids=lambda path: path.name)
+def test_every_gcp_script_pins_the_locked_account_and_project(
+    script_path: Path,
+) -> None:
+    source = script_path.read_text(encoding="utf-8")
+
+    assert "secureis@gmail.com" in source
+    assert "gcloud config get-value account" in source
+    assert '"${active_gcloud_account}" != "${GCLOUD_ACCOUNT}"' in source
+    assert 'export CLOUDSDK_CORE_ACCOUNT="${GCLOUD_ACCOUNT}"' not in source
+    assert 'export CLOUDSDK_CORE_PROJECT="${PROJECT_ID}"' in source
+
+
+def test_cleanup_requires_exact_identity_labels_and_execute_flag() -> None:
+    source = (PROJECT_ROOT / "infra" / "gcp" / "cleanup.sh").read_text(encoding="utf-8")
+
+    assert '[[ "${CONFIRM_PROJECT}" != "${PROJECT_ID}" ]]' in source
+    assert '[[ "${actual_project_number}" != "${EXPECTED_PROJECT_NUMBER}" ]]' in source
+    assert '[[ "${managed_label}" != "revisionproof-gcp" ]]' in source
+    assert '[[ "${MODE}" != "--execute" ]]' in source
+    assert '[[ "${GCS_BUCKET}" != "${PROJECT_ID}-media" ]]' in source
+
+
+@pytest.mark.parametrize(
+    "script_name",
+    ["bootstrap-live.sh", "create-live-secrets.sh", "deploy-live.sh"],
+)
+def test_live_mutation_scripts_require_exact_project_confirmation(
+    script_name: str,
+) -> None:
+    source = (PROJECT_ROOT / "infra" / "gcp" / script_name).read_text(encoding="utf-8")
+
+    assert '"${CONFIRM_PROJECT}" != "${PROJECT_ID}"' in source
+    assert '"${actual_project_number}" != "${EXPECTED_PROJECT_NUMBER}"' in source
+
+
+@pytest.mark.parametrize("config_name", ["cloudbuild.yaml", "cloudbuild.foundation.yaml"])
+def test_cloud_run_keeps_one_state_owner_without_starving_sse(
+    config_name: str,
+) -> None:
+    source = (PROJECT_ROOT / config_name).read_text(encoding="utf-8")
+
+    assert "--max=1" in source
+    assert "--concurrency=4" in source
+    assert "--concurrency=1" not in source

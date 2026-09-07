@@ -1,10 +1,13 @@
 import pytest
 
 from revisionproof.evidence.live import (
+    McpClickHouseReader,
     build_segment_search_query,
     build_version_diff_query,
     decode_clickhouse_result,
+    normalize_clickhouse_fixed_string,
 )
+from revisionproof.settings import Settings
 
 ULID = "01J00000000000000000000000"
 
@@ -37,3 +40,68 @@ def test_mcp_clickhouse_result_decoder_supports_current_envelope() -> None:
 def test_mcp_clickhouse_result_decoder_rejects_malformed_rows() -> None:
     with pytest.raises(RuntimeError, match="malformed row"):
         decode_clickhouse_result({"columns": ["one", "two"], "rows": [[1]]})
+
+
+def test_clickhouse_fixed_string_normalizer_supports_mcp_encodings() -> None:
+    segment_id = "01J00000000000000000000002"
+
+    assert normalize_clickhouse_fixed_string(segment_id) == segment_id
+    assert normalize_clickhouse_fixed_string(segment_id.encode()) == segment_id
+    assert normalize_clickhouse_fixed_string(f"b'{segment_id}\\x00'") == segment_id
+
+
+@pytest.mark.asyncio
+async def test_mcp_reader_retries_one_timeout(monkeypatch) -> None:
+    calls = 0
+
+    async def fake_run_once(_self, query: str):
+        nonlocal calls
+        assert query == "SELECT 1"
+        calls += 1
+        if calls == 1:
+            raise TimeoutError
+        return [{"1": 1}]
+
+    monkeypatch.setattr(McpClickHouseReader, "_run_query_once", fake_run_once)
+
+    rows = await McpClickHouseReader(Settings()).run_query("SELECT 1")
+
+    assert rows == [{"1": 1}]
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_mcp_reader_recovers_after_two_timeouts(monkeypatch) -> None:
+    calls = 0
+
+    async def fake_run_once(_self, query: str):
+        nonlocal calls
+        assert query == "SELECT 1"
+        calls += 1
+        if calls < 3:
+            raise TimeoutError
+        return [{"1": 1}]
+
+    monkeypatch.setattr(McpClickHouseReader, "_run_query_once", fake_run_once)
+
+    rows = await McpClickHouseReader(Settings()).run_query("SELECT 1")
+
+    assert rows == [{"1": 1}]
+    assert calls == 3
+
+
+@pytest.mark.asyncio
+async def test_mcp_reader_propagates_third_timeout(monkeypatch) -> None:
+    calls = 0
+
+    async def fake_run_once(_self, _query: str):
+        nonlocal calls
+        calls += 1
+        raise TimeoutError
+
+    monkeypatch.setattr(McpClickHouseReader, "_run_query_once", fake_run_once)
+
+    with pytest.raises(TimeoutError):
+        await McpClickHouseReader(Settings()).run_query("SELECT 1")
+
+    assert calls == 3

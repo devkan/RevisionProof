@@ -22,13 +22,17 @@ ROOT = Path(__file__).resolve().parents[1]
 async def rehearse(index: int) -> dict[str, str | int]:
     runtime = ROOT / "runtime"
     service = RevisionProofService(
-        Settings(mode=ExecutionMode.OFFLINE_REHEARSAL, runtime_dir=runtime),
+        Settings(mode=ExecutionMode.FIXTURE, runtime_dir=runtime),
         InMemoryRunRepository(),
     )
     snapshot = await service.create_run(
         CreateRunRequest(
             asset_id=DEMO_ASSET_ID,
-            feedback="Can we make the product reveal feel more intentional?",
+            feedback=(
+                '1. When the presenter says "RevisionProof," push in slightly.\n'
+                "2. Make the middle feel more dynamic.\n"
+                "3. Add B-roll that feels more premium and on-brand."
+            ),
         )
     )
     snapshot = service.generate_previews(snapshot.run_id)
@@ -53,6 +57,9 @@ async def rehearse(index: int) -> dict[str, str | int]:
         )
     if snapshot.state is not RunState.READY or not snapshot.proof:
         raise RuntimeError(f"rehearsal {index}: v3 was not ready")
+    snapshot = service.approve_for_delivery(snapshot.run_id)
+    if not snapshot.delivery_approved:
+        raise RuntimeError(f"rehearsal {index}: delivery was not approved")
     return {
         "rehearsal": index,
         "run_id": snapshot.run_id,
