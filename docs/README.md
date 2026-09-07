@@ -1,5 +1,33 @@
 # RevisionProof docs
 
+- [Main 통합 — 기존 구현·영상 기록·Antigravity QA 보고서, 검증과 병합 범위](main-integration-2026-09-07.md)
+
+- [코드 리뷰 및 QA 분석 보고서 — 자막 줄바꿈, 외부 검증 비교, Change Map 상태 동기화 분석](qa-report-2026-09-07-code-qa.md)
+
+- [한국어 요약 자막 영상 v3 — 짧은 37개 자막, 고유명사·숫자 정리, 음성 패킷 보존](demo-korean-summary-subtitles-2026-09-07.md)
+
+- [한국어 구술형 영상 v2 완료 — 14개 문단 보존, 발화 누락·감쇄·재생 검사](demo-korean-conversational-audio-2026-09-07.md)
+
+- [한국어 구술형 대본 v2 — 자연스럽게 이어 말하는 14개 문단, 강조·쉼과 편집 기준](demo-narration-ko-conversational-v2-2026-09-07.md)
+
+- [한국어판 영상 완료 — v4 영어 음성 교체, 45개 실제 음성 배치와 검증](demo-korean-audio-sync-2026-09-07.md)
+
+- [한국어 내레이션 대본 — v4 기준 3분 14초, 타임라인·녹음용 본문, 한국어 음성 대기](demo-narration-ko-2026-09-07.md)
+
+- [영어 자막 영상 v5 — 흰색 Arial Bold, 검정 테두리·배경, 최대 두 줄](demo-subtitles-2026-09-07.md)
+
+- [최종 데모 v4 — 소개·시연 연결 멘트 반영, 3분 14초와 자막용 타임라인](demo-final-video-2026-09-06.md)
+
+- [18초 제품 소개 추가 — 전체 3분 14초, 소개 대본과 음성 대기](demo-intro-edit-2026-09-06.md)
+
+- [음성 합성 완료 — 2분 56초 최종 영상, 실제 음성 배치·검증·자막용 자료](demo-audio-sync-2026-09-06.md)
+
+- [영어 내레이션 타임라인 — 참조 음성 약 153 WPM, 2분 56초 화면별 대본](demo-narration-timeline-2026-09-06.md)
+
+- [2분 56초 무음 데모 편집본 — 원본 4개, 화면 구성, 편집 시각과 검증](demo-visual-edit-2026-09-06.md)
+
+- [LIVE 녹화 3회 완료 — 실제 시나리오, 차단·복구 증거, ClickHouse 추가 촬영 안내](kanapp-english-demo-video-2026-09-04.md#2026-09-06-recording-record)
+
 - [English request placeholders — source, deployment and recovery](deployment-2026-09-06-english-placeholders.md)
 
 - [Studio 인라인 설정 LIVE 배포 — 새 카드, Check plan 복구, 복원 백업](deployment-2026-09-05-inline-studio.md)
