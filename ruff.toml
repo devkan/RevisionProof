@@ -1,0 +1,3 @@
+# Apply the existing Python style to root-level scripts and CI commands too.
+extend = "backend/pyproject.toml"
+src = ["backend/src"]
