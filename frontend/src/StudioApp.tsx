@@ -33,6 +33,7 @@ import {
   ZoomIn,
 } from 'lucide-react'
 import { api } from './api'
+import { sampleAsset } from './sampleAssets'
 import { RequestDraft } from './EditComposer'
 import { candidateTitle, editDetail, EDIT_LABELS, editSummary, operation, outputDuration, planIssues, planProblem, seconds, type PlanIssue } from './editing'
 import { ChangeMap, EditMemory, SaveApprovedMemory } from './RevisionIntelligence'
@@ -332,16 +333,14 @@ export default function StudioApp() {
       setSelectedAssetId(null)
     } else {
       setUploadedSource(null)
-      setSelectedAssetId(assets[0]?.asset_id ?? null)
+      setSelectedAssetId(sampleAsset(assets)?.asset_id ?? null)
     }
   }
 
   function useSample() {
-    const sample = assets[0]
+    const sample = sampleAsset(assets)
     if (!sample) return
-    setUploadedSource(null)
-    setSelectedAssetId(sample.asset_id)
-    setError(null)
+    chooseSource(null)
   }
 
   function addOperation(kind: EditOperation['kind']) {

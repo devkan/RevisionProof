@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -510,6 +511,9 @@ def main() -> None:
     args = parser.parse_args()
 
     DEMO_DIR.mkdir(parents=True, exist_ok=True)
+    # Bundle the exact clip used in the public walkthrough, without re-encoding it.
+    sample_name = "kanapp_promo_english_editable_30s.mp4"
+    shutil.copyfile(ROOT / "assets" / "demo" / sample_name, DEMO_DIR / sample_name)
     source = DEMO_DIR / "revisionproof_v1.mp4"
     generate_source(source)
     demo_cases = [

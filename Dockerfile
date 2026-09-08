@@ -27,6 +27,7 @@ RUN if [ "${REVISIONPROOF_INSTALL_LIVE}" = "true" ]; then \
       uv sync --project backend --frozen --no-dev --no-editable; \
     fi
 COPY scripts ./scripts
+COPY assets/demo ./assets/demo
 RUN backend/.venv/bin/python scripts/generate_demo_assets.py --demo-only
 RUN useradd --create-home --uid 10001 revisionproof \
     && chown -R revisionproof:revisionproof /app

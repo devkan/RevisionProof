@@ -22,6 +22,7 @@ import {
   ZoomIn,
 } from 'lucide-react'
 import { api } from './api'
+import { sampleAsset } from './sampleAssets'
 import { EditComposer, PlanReview, RequestDraft } from './EditComposer'
 import { candidateTitle, editSummary, planProblem, seconds } from './editing'
 import './editing.css'
@@ -282,7 +283,7 @@ export default function App() {
     return () => stream.close()
   }, [runId])
 
-  const activeAsset = run?.asset ?? uploadedSource?.asset ?? assets[0]
+  const activeAsset = run?.asset ?? uploadedSource?.asset ?? sampleAsset(assets, !guided)
   const draftPlan = { source_duration: activeAsset?.duration_seconds ?? 0, operations }
   const pendingWords = guided && feedback.trim().length > 0 && usedDraftText !== feedback
   const editProblem = guided ? planProblem(draftPlan) ?? (pendingWords ? 'Turn your request into an edit plan and use the draft, or clear the text to use the controls alone.' : null) : null
@@ -544,7 +545,7 @@ export default function App() {
                 />
                 <div className="section-action-bar"><div><strong>{operations.length ? `${operations.length} edits in your plan` : 'Start with an edit or an example'}</strong><p>{editProblem ?? 'Next: review the exact edits and any detected quiet pauses.'}</p></div><button type="button" className="primary-button" disabled={busy || !activeAsset || !runtime?.mutable || Boolean(editProblem)} onClick={start}><Sparkles size={18} />Review edit plan</button></div>
               </>}
-              {!run && (!uploadedSource || !guided) && <button type="button" className="classic-toggle" disabled={busy} onClick={() => { setGuided(!guided); setFeedback(guided ? DEFAULT_FEEDBACK : ''); setOperations([]); setUsedDraftText('') }}>{guided ? 'Try the original scene-search proof demo' : 'Return to the video editor'}</button>}
+              {!run && (!uploadedSource || !guided) && <button type="button" className="classic-toggle" disabled={busy} onClick={() => { setGuided(!guided); setFeedback(guided ? DEFAULT_FEEDBACK : ''); setOperations([]); setUsedDraftText(''); setSmartSelection(null) }}>{guided ? 'Try the original scene-search proof demo' : 'Return to the video editor'}</button>}
             </section>
 
             {run?.edit_plan && <PlanReview plan={run.edit_plan} warnings={run.edit_warnings ?? []} selected={selectedEdits} onSelect={setSelectedEdits} onPreview={renderPreviews} onEdit={editRequest} onSeek={watchOriginal} disabled={busy} rendered={Boolean(run.candidates.length)} />}

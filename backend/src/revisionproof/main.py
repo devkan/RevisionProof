@@ -44,6 +44,7 @@ app.add_middleware(
 settings.runtime_dir.mkdir(parents=True, exist_ok=True)
 
 PUBLIC_MEDIA_PATTERNS = (
+    re.compile(r"demo/kanapp_promo_english_editable_30s\.mp4"),
     re.compile(r"demo/revisionproof_(?:v1|v2_blocked|v3_ready)\.mp4"),
     re.compile(r"runs/[0-9A-HJKMNP-TV-Z]{26}/previews/[AB]\.mp4"),
     re.compile(r"runs/[0-9A-HJKMNP-TV-Z]{26}/evidence/[A-Za-z0-9._-]{1,96}\.png"),
