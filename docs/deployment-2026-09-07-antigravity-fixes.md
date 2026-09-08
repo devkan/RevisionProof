@@ -87,3 +87,15 @@ The regenerated PASS applies to the new approved B output, not to the earlier wr
 During external verification, a separate Classic navigation returned HTTP 429 at `12:29:15Z`. Cloud Run logged that no instance was available. This occurred with the preserved single-instance/concurrency-4 configuration. After the active check finished, Classic reloaded normally and all final HTTP checks returned 200. This release makes no scaling change; handling overlapping long-running requests remains an operational follow-up if concurrent use is required.
 
 The application source deployed is `b13d8b0`; the subsequent release-record commit changes only documentation/evidence. Existing source/backup branches and private repository visibility are preserved. No application-code changes were needed after the accepted Antigravity re-review.
+
+## Closing handoff check
+
+- Latest pushed release-record commit: `a04b70bb58365834c33cb26d60f777486956e95e`; local and remote main match, and GitHub reports no open PRs.
+- [Final release-record CI 34122820916](https://github.com/devkan/RevisionProof/actions/runs/34122820916) is completed / SUCCESS on head `a04b70bb58365834c33cb26d60f777486956e95e`; both quality and ClickHouse integration passed. This closed the final release check.
+- Handoff-only checks: `/health` and `/ready` returned HTTP 200 / LIVE; the retained Studio page showed Full video passed, no sampled review flags, updated requested-edit detail, and 0.00% residual. Existing browser workspace was preserved without reload or mutation.
+
+## Final Documentation Harmonization Note (2026-09-08)
+
+- **Deployed Application Code**: Remains strictly **`b13d8b0`** on Cloud Run revision **`revisionproof-staging-00031-5bl`**.
+- **Documentation Updates**: Subsequent documentation commits (including release-record commit `a04b70b` and the 2026-09-08 Antigravity final documentation synchronization) update only user-facing documentation (`README.md`, `HANDOFF.md`, `docs/README.md`, `docs/submission-pack-2026-08-27.md`, and this record).
+- **No Application Re-Deployment**: These documentation changes do not alter application source code, dependencies, or container images. No new container build or Cloud Run deployment is triggered or required. The active running service remains revision `revisionproof-staging-00031-5bl`.

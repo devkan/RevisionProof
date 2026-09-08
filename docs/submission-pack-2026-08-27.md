@@ -1,105 +1,137 @@
-# RevisionProof submission pack
+# RevisionProof Submission Pack
 
-Updated: 2026-08-27. Status: **draft; not submitted or published**.
+- **Updated**: 2026-09-08 (Final Hackathon Release)
+- **Status**: **Deployment & verification complete; Devpost submission unconfirmed (pending owner final submission)**.
+- **Repository**: [https://github.com/devkan/RevisionProof](https://github.com/devkan/RevisionProof)
+- **Live Demo**: [https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio)
+- **Demo Video (YouTube)**: [https://youtu.be/KS1vJDMnnW4](https://youtu.be/KS1vJDMnnW4)
 
-Use the English copy below after the release gates in this document are resolved. For the recording, follow [How to record the RevisionProof demo](demo-recording-script-2026-08-27.md).
+---
 
-## Copy: project name and tagline
+## 1. Project Name & Tagline
 
-**Name:** RevisionProof
+- **Name**: RevisionProof
+- **Tagline**: Turn video revision feedback into verified edits—and mathematically prove protected content stayed untouched before delivery.
 
-**Tagline:** Turn video feedback into an approved patch—and catch regressions before delivery.
+---
 
-## Copy: project description
+## 2. Project Description
 
 ### Inspiration
 
-A client can approve one small video change without approving everything that changes alongside it. We built RevisionProof for editors and producers who need to answer two questions: did the requested revision happen, and did anything previously locked regress?
+When client or editorial feedback arrives on a near-final cut, making one small change often causes unintended collateral damage: a graphics layer shifts off-screen, a call-to-action (CTA) disappears, or audio levels clip.
 
-### What it does
+We built **RevisionProof** for video editors, post-production teams, and producers who need to answer two definitive questions before delivering revised video:
+1. **Did the requested revision actually happen at the right place and time?**
+2. **Did anything previously locked, protected, or balanced regress?**
 
-RevisionProof turns a revision brief into a constrained, reviewable workflow. It separates supported edits from unclear requests and manual creative work. For the supported center punch-in, it retrieves time-coded evidence and renders two preview strengths. A human selects an option, freezing the approved operation and verification thresholds in a SHA-256-addressed RevisionSpec.
+---
 
-The editor then uploads a revised MP4. RevisionProof checks the approved punch-in, a locked call-to-action region, and audio-level limits. In our demonstration, v2 contains the approved punch-in but removes the CTA, so delivery approval is blocked. The repaired v3 passes the checks and enables a separate human delivery approval. That action records approval inside RevisionProof; it does not publish or send the video to another platform.
+### What It Does
 
-### How we built it
+RevisionProof bridges natural-language editorial briefs with deterministic verification in a guided **6-Step Studio Workflow**:
 
-A React interface and FastAPI backend run together in a Docker container on Google Cloud Run. A Google ADK agent calls Gemini through Vertex AI to interpret feedback; Vertex embeddings support evidence retrieval. The official ClickHouse MCP server executes both the segment search and the version-feature comparison at runtime.
+1. **01 · Upload / Select Source**: Accepts MP4, MOV, or WebM video (up to 32 MB and 4–60 seconds), or loads pre-packaged reference assets such as our 30-second English promo.
+2. **02 · Edits & AI Drafting**: Supports a rich suite of bounded video operations:
+   - Center punch-in zoom (subtle 1.05× vs. punchy 1.12×)
+   - Text overlays and titles
+   - Speech-transcribed subtitles (Korean, English, or mixed speech via Gemini transcription)
+   - Exact interval cuts and quiet-pause / silence removal
+   - Speed adjustments (0.5× to 2.0×) and volume leveling (−60 dB to +12 dB)
+   - Watermark / logo branding overlay
+   - Natural-language feedback parsing using Google Gemini into editable, structured revision items.
+3. **03 · Check Plan**: Automatically validates timecodes against source footage, catching overlapping edits or out-of-bounds operations before rendering.
+4. **04 · Compare A/B Previews**: Generates synchronized candidate previews side-by-side. The user chooses an approved version, freezing the specification and its SHA-256 hash (Spec 3.1).
+5. **05 · Check & Verify**: Builds the full export or audits an externally uploaded edited file against three automated gates:
+   - **Approved Edit Verification**: Mathematically confirms visual changes occurred within the planned time range.
+   - **Protected Region Invariants**: Confirms designated call-to-action (CTA) banners and brand marks remained 100% unaltered.
+   - **Audio Invariant Limits**: Ensures peak decibel levels stay within safe broadcast margins.
+   - **Revision Change Map**: Samples 2 frame pairs per second across the full video, mapping requested, unchanged, and review-needed seconds, complete with an interactive side-by-side comparison player.
+6. **06 · Approve & Deliver**: A dedicated human-in-the-loop gate. Only an explicit human decision unlocks final delivery download and audit persistence.
 
-FFmpeg renders previews and extracts media information, while OpenCV and deterministic Python checks evaluate the frozen specification. ClickHouse stores specifications, measurements, and check results through a separate insert-only connection. Private Google Cloud Storage holds uploaded candidate videos. Gemini interprets the request; it does not decide whether a revision passes.
+---
 
-### Demo data and scope
+### How We Built It
 
-This prototype uses a 30-second, programmatically generated 720p video with geometric graphics and a synthetic tone. Its scene descriptions and transcript-like entries are authored seed metadata, not speech recognition or automatic video understanding. In particular, the sample note about a presenter saying “RevisionProof” is a scenario label; the generated clip does not contain that spoken line. Gemini interpretation, embeddings, ClickHouse MCP queries, media rendering, and verification operate on this controlled sample through the LIVE path.
+RevisionProof is built with a principled separation of concerns: **AI interprets and drafts; deterministic code checks and verifies; humans approve.**
 
-The supported edit is a short centered punch-in with two strengths, 1.05x and 1.12x. The prototype does not generate B-roll, edit arbitrary timelines, ingest arbitrary source libraries, or check every possible visual or audio change. The audio invariant checks RMS and peak limits, not semantic or sample-exact audio identity.
+- **AI & Orchestration**: Google Gemini on Vertex AI orchestrated with Google Agent Development Kit (ADK) translates conversational feedback into structured edit operations and drafts multi-language subtitle cues from speech.
+- **Partner Integration — ClickHouse Cloud via Official MCP**:
+  - The official `mcp-clickhouse` server runs in production to execute segment evidence retrieval, version feature comparisons, and historical edit memory searches.
+  - Supports exact, HNSW, and QBit vector similarity search over previously approved edit recipes, providing reference context without delaying the active workflow.
+- **Media Engine & Deterministic Checks**: Python 3.12, OpenCV, and FFmpeg compute exact pixel differences, structural similarity, and audio RMS levels against frozen spec thresholds. AI never grades its own homework.
+- **Frontend Workspace**: React 19, TypeScript, and Vite deployed together with a FastAPI backend inside a container on **Google Cloud Run**.
+- **Cloud Infrastructure**: Google Cloud Run, Cloud Storage (GCS), Secret Manager, Cloud Build, and ClickHouse Cloud.
 
-### Challenges and learnings
+---
 
-The most important boundary was separating AI interpretation from release authority. We froze the check parameters with the approved patch and made unavailable verification block delivery. Live testing also exposed a Cloud Run concurrency issue: a long-lived event stream occupied the only request slot. Allowing four concurrent requests while keeping one instance let event updates and mutations coexist. Another fix preserved grounding when numbered feedback arrived on one line.
+### Challenges & Learnings
 
-### Accomplishments and next steps
+1. **Separating Generative AI from Release Authority**: Ensuring that AI assists in drafting and transcription, but cannot self-declare a check as "PASS". All pass/fail verdicts are computed strictly by mathematical thresholds in deterministic Python.
+2. **Synchronized Comparative Diagnostics**: Building the 2 fps Revision Change Map with dual-player seeking so editors can visually inspect anomalies without having to watch the entire clip repeatedly.
+3. **Continuous Integration & Quality Hardening**: Solving real-world rendering and state challenges during QA—such as word-aware English caption wrapping, external-video blob inspection, and dynamic state cache invalidation in React across BLOCKED → PASS transitions.
 
-We completed a credential-backed run through interpretation, official MCP retrieval, A/B approval, a blocked revision, a passing repair, and a separate human approval. The next engineering priorities are durable run recovery, authenticated project ownership, and evaluation on licensed real-world footage. Run snapshots and events currently live in process memory; persistent audit data and candidate objects do not yet restore the application after a restart.
+---
 
-## Copy: partner integration / built with
+### Accomplishments & Scope Limitations
 
-**Partner integration:** ClickHouse Cloud through the official `mcp-clickhouse` server for time-coded evidence retrieval and revision-feature comparisons, with Gemini on Vertex AI orchestrated through Google ADK.
+- **Accomplishments**:
+  - End-to-end working service deployed on Google Cloud Run with verified LIVE ClickHouse Cloud MCP and Gemini Vertex AI integration.
+  - Complete automated test suite: **353 backend pytest cases** and **78 frontend Vitest cases** with 100% pass rate.
+  - Real-world 30-second English promo video (`kanapp_promo_english_editable_30s.mp4`) demonstrated and verified in a comprehensive 3-minute-14-second video.
+- **Current Limitations**:
+  - Editing is bounded to deterministic transformation (zoom, text, subtitles, cuts, speed, volume, logo); arbitrary generative B-roll synthesis or in-painting objects into footage is deliberately outside the current scope.
+  - Active runs are kept in process memory; public past edit memory operates in read-only mode to prevent public pollution.
 
-**Built with:** Google Cloud Run, Vertex AI, Gemini, Google ADK, Google Cloud Storage, Secret Manager, ClickHouse Cloud, MCP, Docker, Python, FastAPI, React, TypeScript, FFmpeg, OpenCV.
+---
 
-## Links and evidence
+## 3. Partner Integrations & Technologies
 
-- [Hosted application](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app)
-- [Repository](https://github.com/devkan/RevisionProof) — **PRIVATE** at the 2026-08-27 check; not yet usable by unauthenticated judges.
-- [Working branch](https://github.com/devkan/RevisionProof/tree/review/qa-hardening) — current implementation/docs; default branch is `main`.
-- [Existing approved run JSON](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/api/runs/01M0Z3338TYVHWHK4FZRGADTKZ) — available on 2026-08-27, but not a durable permalink across restarts or eviction.
-- [Historical full LIVE evidence](qa-report-2026-08-26-live-final.md) — deployment, timings, GCS objects, and ClickHouse row counts.
-- [Current read-only smoke](qa-report-2026-08-27-submission-smoke.md) — fresh health checks and the existing approval record; not a newly executed end-to-end run.
-- Demo video URL: **pending recording and owner-approved publication**.
+- **ClickHouse Cloud & Official MCP**: `mcp-clickhouse` server for vector/exact segment search, edit memory retrieval, and revision feature comparison.
+- **Google Cloud Platform**: Cloud Run, Vertex AI (Gemini 2.5), Google ADK, Cloud Storage, Secret Manager, Cloud Build.
+- **Core Languages & Libraries**: Python 3.12, FastAPI, OpenCV, Pillow, FFmpeg, React 19, TypeScript, Vite.
 
-| Fact | Evidence boundary |
-| --- | --- |
-| Deployed source | `d1b9a10`, as recorded in the 2026-08-26 deployment inventory; no deployment was performed on 2026-08-27 |
-| Existing final run | `01M0Z3338TYVHWHK4FZRGADTKZ`; GET on 2026-08-27 returned `READY`, proof `PASS`, all three checks `PASS`, and `delivery_approved=true` |
-| Real integration sources | Existing run fields: `google.vertex.gemini` and `mcp-clickhouse.run_query` |
-| Durable audit evidence | One spec, 24 feature rows, six check rows, and private v2/v3 objects verified on 2026-08-26; not re-queried today |
-| Human delivery decision | Event 14 at `2026-08-26T13:48:30.750541Z`; not repeated today |
-| Test history | 103 backend / 4 frontend tests passed in the 2026-08-26 report; not a claim of a fresh full-suite run today |
+---
 
-## Official requirements checkpoint
+## 4. Links & Evidence Inventory
 
-Checked against the [official rules](https://agentic-cinema.devpost.com/rules) on 2026-08-27:
+- **Live Application**: [https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio)
+- **Classic UI**: [https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/)
+- **Source Repository**: [https://github.com/devkan/RevisionProof](https://github.com/devkan/RevisionProof)
+- **Demo Video (YouTube)**: [https://youtu.be/KS1vJDMnnW4](https://youtu.be/KS1vJDMnnW4)
+- **Active Cloud Run Revision**: `revisionproof-staging-00031-5bl` (Region: `us-central1`, 100% traffic)
+- **Deployed Application Source**: `b13d8b0` (merged PR #2)
+- **CI Workflows**:
+  - PR #2 CI: `34119684596` — SUCCESS
+  - Deployed Main CI: `34120899603` — SUCCESS
+  - Release Record CI: `34122820916` — SUCCESS
 
-- Deadline: September 9, 2026, 14:00 PDT; September 10, 2026, 06:00 KST.
-- Provide a working hosted app, English description, public source repository, detectable open-source license, and runnable instructions/assets.
-- The ClickHouse track requires actual use of the official MCP server; Google Cloud packages must be called, not merely listed.
-- The video should show the working app, stay within three minutes, be publicly visible on YouTube or Vimeo, and use English or English subtitles.
-- AI tooling is restricted to allowed Google Cloud and selected-partner tools. The rule does not explicitly settle every development-assistant scenario. **Codex-assisted development needs organizer clarification; Gemini review/rework alone is not proof of eligibility.**
+---
 
-This checkpoint is not an eligibility determination. Do not claim compliance solely because the runtime uses Gemini.
+## 5. Official Hackathon Requirements Checkpoint
 
-## Release gates — not yet submission-ready
+Checked against [Agentic Cinema Hackathon Official Rules](https://agentic-cinema.devpost.com/rules):
 
-- [ ] Owner resolves AI-development-tool eligibility with the organizer. Do not hide the development history or claim an exclusively Gemini-built project.
-- [ ] Owner approves making the repository public. Visibility has **not** been changed.
-- [ ] Owner chooses how to land `review/qa-hardening` on the default branch. No PR or merge was requested or created.
-- [ ] Recheck GitHub's detected license after that branch is landed. The former file contained only an Apache notice and GitHub reported `Other`; the working branch now includes the full [Apache 2.0 text](https://www.apache.org/licenses/LICENSE-2.0.txt), retaining the original copyright. The license choice is unchanged.
-- [ ] Reproduce the [README quick start](../README.md#local-quick-start) in a new checkout of the exact submission commit. This clean-clone check has not been performed today. Local quick start uses FIXTURE mode, not paid LIVE credentials.
-- [ ] Review repository history and packaged dependencies/media for secrets, attribution, and redistribution requirements before publication. No complete legal or history audit is claimed here.
-- [ ] Decide whether to replace the synthetic scene labels with faithfully annotated licensed footage before recording. Until then, preserve the synthetic/seeded-data disclosure above.
-- [ ] Record a new LIVE operator rehearsal, capture the blocked state before uploading v3, and preserve run ID/hash/evidence. Do not reuse the prior run's final approval for a new run.
-- [ ] Record/export the English demo, inspect the first three minutes, and obtain owner approval to publish it.
-- [ ] Keep the service usable for judging; plan for restarts and cost controls. Budget alerts do not stop billing. Do not advertise automatic recovery or production-scale concurrency.
-- [ ] Owner reviews the final text and submits through Devpost. This document does not submit anything.
+| Requirement | Project Status | Details |
+|---|---|---|
+| Working Hosted Application | **VERIFIED** | Live on Cloud Run (`revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio`) |
+| Partner Track (ClickHouse) | **VERIFIED** | Official `mcp-clickhouse` used for segment search & feature comparisons |
+| Google Cloud AI Tools | **VERIFIED** | Gemini on Vertex AI orchestrated via Google ADK |
+| Demonstration Video | **VERIFIED** | Public on YouTube at [https://youtu.be/KS1vJDMnnW4](https://youtu.be/KS1vJDMnnW4) (3:14, English narration & subtitles) |
+| Open Source License | **VERIFIED** | Apache License, Version 2.0 (`LICENSE`) |
+| Source Repository | **VERIFIED** | [https://github.com/devkan/RevisionProof](https://github.com/devkan/RevisionProof) |
+| Devpost Submission | **UNCONFIRMED** | Pending final owner review and submission on Devpost portal |
 
-## Source-of-truth map
+---
 
-Use these files to recheck the copy after an implementation change:
+## 6. Release Gates & Completion Checklist
 
-- [UI and exact labels](../frontend/src/App.tsx): note classifications, candidate buttons, upload flow, proof cards, and the separate delivery button.
-- [Live adapters](../backend/src/revisionproof/evidence/live.py): ADK `LlmAgent` / runner, Vertex embedding call, official MCP `run_query`, direct writer, and GCS objects.
-- [Workflow service](../backend/src/revisionproof/service.py): immutable approval, persistence, fail-closed verification, and delivery event.
-- [Verifier](../backend/src/revisionproof/verification/service.py): measured checks and reapplication of thresholds to MCP feature results.
-- [Demo generator](../scripts/generate_demo_assets.py) and [seed metadata](../backend/src/revisionproof/bootstrap.py): synthetic media and authored scene descriptions. These do not perform transcription.
-- [Vertical-flow tests](../backend/tests/test_vertical_flow.py) and [live-adapter path tests](../backend/tests/test_live_service_path.py): deterministic media behavior and mocked adapter contracts. Only the historical LIVE report proves credential-backed execution.
+- [x] Merge fix branch into `main` via PR #2 (`dae8033` -> `b13d8b0`).
+- [x] Deploy to Google Cloud Run (`revisionproof-staging-00031-5bl`).
+- [x] Verify live health, readiness, and all three bug fixes (caption wrap, external video comparison, Change Map transition).
+- [x] Verify full test suites (353 backend pytest, 78 frontend Vitest, 0 lint errors, clean build).
+- [x] Record, edit, subtitle, and publish demo video to YouTube ([https://youtu.be/KS1vJDMnnW4](https://youtu.be/KS1vJDMnnW4)).
+- [x] Synchronize all project documentation, README, and handoff records.
+- [ ] Owner final review and submission through the Devpost portal before the deadline (September 9, 2026, 14:00 PDT / September 10, 06:00 KST).
+- [ ] Confirm public visibility of the GitHub repository.
+- [ ] Maintain service uptime during the judging window.

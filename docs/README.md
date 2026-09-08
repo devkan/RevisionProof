@@ -1,81 +1,83 @@
-# RevisionProof docs
+# RevisionProof Documentation Index
 
-- [Antigravity 수정 배포 — 자막 줄바꿈·외부 영상 비교·재검사 상태 갱신](deployment-2026-09-07-antigravity-fixes.md)
-- [Antigravity 보완 독립 재검수 — 두 지적사항 해결, 회귀 테스트 실증](review-2026-09-07-antigravity-supplement.md)
-- [Antigravity 수정 후 최초 독립 검수](review-2026-09-07-antigravity-fixes.md)
-- [Antigravity 보완 보고서](fix-supplement-2026-09-07.md) / [수정 보고서](fix-report-2026-09-07.md) / [스테이징 결함 재현](qa-review-2026-09-07.md)
+Quick Links:
+- **GitHub Repository**: [https://github.com/devkan/RevisionProof](https://github.com/devkan/RevisionProof)
+- **Live Studio Demo**: [https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio)
+- **Demo Video (YouTube)**: [https://youtu.be/KS1vJDMnnW4](https://youtu.be/KS1vJDMnnW4)
 
-- [Main 통합 — 기존 구현·영상 기록·Antigravity QA 보고서, 검증과 병합 범위](main-integration-2026-09-07.md)
+---
 
-- [코드 리뷰 및 QA 분석 보고서 — 자막 줄바꿈, 외부 검증 비교, Change Map 상태 동기화 분석](qa-report-2026-09-07-code-qa.md)
+## 1. Project Handoff & Hackathon Submission
 
-- [한국어 요약 자막 영상 v3 — 짧은 37개 자막, 고유명사·숫자 정리, 음성 패킷 보존](demo-korean-summary-subtitles-2026-09-07.md)
+- [현재 핸드오프 (HANDOFF.md)](../HANDOFF.md) — 배포·검수·최종 CI 완료 상태, 운영 주의점, 세션 완료 내역.
+- [Submission Pack & Release Gates (2026-09-08 갱신)](submission-pack-2026-08-27.md) — 해커톤 제출용 영문 프로젝트 소개, 기능, 아키텍처, 파트너 연동, 링크 및 릴리스 게이트 상태.
 
-- [한국어 구술형 영상 v2 완료 — 14개 문단 보존, 발화 누락·감쇄·재생 검사](demo-korean-conversational-audio-2026-09-07.md)
+---
 
-- [한국어 구술형 대본 v2 — 자연스럽게 이어 말하는 14개 문단, 강조·쉼과 편집 기준](demo-narration-ko-conversational-v2-2026-09-07.md)
+## 2. Latest Deployment & Verification (Antigravity Fixes)
 
-- [한국어판 영상 완료 — v4 영어 음성 교체, 45개 실제 음성 배치와 검증](demo-korean-audio-sync-2026-09-07.md)
+- [Antigravity 수정 배포 기록 (revision 00031 / source b13d8b0)](deployment-2026-09-07-antigravity-fixes.md) — PR #2 병합, Cloud Run 배포, 라이브 검증 및 회귀 증거.
+- [Antigravity 보완 독립 재검수 보고서](review-2026-09-07-antigravity-supplement.md) — Ruff 검사 및 실 DOM 회귀 테스트 통과 검수.
+- [Antigravity 보완 보고서 (Ruff 포맷팅 & 실 DOM 회귀 테스트 실증)](fix-supplement-2026-09-07.md) — 미사용 import 정리, 문자열 줄바꿈, happy-dom 실 DOM 테스트.
+- [Antigravity 최초 수정 보고서](fix-report-2026-09-07.md) — Issue A/B/C 원인 분석, 코드 diff 및 단위 검증.
+- [Antigravity 최초 독립 검수 보고서](review-2026-09-07-antigravity-fixes.md) — 독립 검수팀의 초기 점검 및 피드백.
+- [스테이징 브라우저 QA 및 결함 재현 보고서](qa-review-2026-09-07.md) — Issue B/C 라이브 결함 재현 스크린샷 및 녹화 자료.
+- [Main 브랜치 통합 계획](main-integration-2026-09-07.md) — 브랜치 통합 및 증거 보존 범위.
+- [코드 리뷰 및 QA 분석 보고서](qa-report-2026-09-07-code-qa.md) — 자막 줄바꿈, 외부 검증 비교, Change Map 상태 동기화 분석.
 
-- [한국어 내레이션 대본 — v4 기준 3분 14초, 타임라인·녹음용 본문, 한국어 음성 대기](demo-narration-ko-2026-09-07.md)
+---
 
-- [영어 자막 영상 v5 — 흰색 Arial Bold, 검정 테두리·배경, 최대 두 줄](demo-subtitles-2026-09-07.md)
+## 3. Demo Video & Audio Production
 
-- [최종 데모 v4 — 소개·시연 연결 멘트 반영, 3분 14초와 자막용 타임라인](demo-final-video-2026-09-06.md)
+- **최종 시연 영상 (YouTube)**: [https://youtu.be/KS1vJDMnnW4](https://youtu.be/KS1vJDMnnW4)
+- [영어 자막 영상 v5 (최종 완성본, 3분 14초)](demo-subtitles-2026-09-07.md) — 흰색 Arial Bold, 검정 테두리·배경 자막 타임라인.
+- [한국어 요약 자막 영상 v3](demo-korean-summary-subtitles-2026-09-07.md) — 37개 짧은 요약 자막, 고유명사·숫자 정리.
+- [한국어 구술형 음성 영상 v2](demo-korean-conversational-audio-2026-09-07.md) — 자연스러운 한국어 구술형 음성 배치 및 검증.
+- [한국어 구술형 대본 v2](demo-narration-ko-conversational-v2-2026-09-07.md) — 14개 문단 대본, 강조·쉼 편집 기준.
+- [한국어판 오디오 싱크 v4](demo-korean-audio-sync-2026-09-07.md) — 45개 실제 음성 배치와 검증.
+- [한국어 내레이션 대본 v4](demo-narration-ko-2026-09-07.md) — 3분 14초 타임라인 및 녹음 대본.
+- [최종 데모 v4 타임라인](demo-final-video-2026-09-06.md) — 소개·시연 연결 멘트 반영 3분 14초 화면 구성.
+- [18초 제품 소개 추가본](demo-intro-edit-2026-09-06.md) — 전체 3분 14초 확장 편집.
+- [영어 음성 합성 완료본 (2분 56초)](demo-audio-sync-2026-09-06.md) — 음성 배치 및 검증 자료.
+- [영어 내레이션 타임라인](demo-narration-timeline-2026-09-06.md) — 153 WPM 기준 화면별 대본.
+- [무음 데모 영상 편집본](demo-visual-edit-2026-09-06.md) — 4개 원본 영상 화면 구성 및 검증.
+- [KANAPP 30초 영어 프로모 영상 및 시나리오](kanapp-english-demo-video-2026-09-04.md) — 라이브 녹화 시나리오 및 차단/복구 증거.
 
-- [18초 제품 소개 추가 — 전체 3분 14초, 소개 대본과 음성 대기](demo-intro-edit-2026-09-06.md)
+---
 
-- [음성 합성 완료 — 2분 56초 최종 영상, 실제 음성 배치·검증·자막용 자료](demo-audio-sync-2026-09-06.md)
+## 4. Studio Interface & Editing Features
 
-- [영어 내레이션 타임라인 — 참조 음성 약 153 WPM, 2분 56초 화면별 대본](demo-narration-timeline-2026-09-06.md)
+- [Studio 인라인 설정 배포 (revision 00028)](deployment-2026-09-05-inline-studio.md) — 항목 바로 아래 펼침 설정 카드 및 Check plan 복구.
+- [Studio 항목별 인라인 설정 설계](studio-inline-settings-2026-09-05.md) — 카드 스타일, 포커스 복원, gstack 검증.
+- [Studio 6단계 워크플로 UI 설계](studio-ui-2026-09-04.md) — 01~06 단계별 워크플로 및 기능 매핑.
+- [Studio 최초 배포 및 QA (revision 00026)](deployment-2026-09-05-studio.md) — 실사용 검증 및 재배포 기록.
+- [Studio LIVE QA](qa-live-2026-09-05-studio.md) / [Studio 재리뷰 QA](qa-review-2026-09-05-studio.md) — 모바일 뷰포트 및 차단·복구 검증.
+- [Advanced Editing 가이드](advanced-editing-guide-2026-09-04.md) — 한국어/영어/혼합 음성 자막 생성, 0.5~2× 배속, 볼륨 조절, 로고 오버레이.
+- [Advanced Editing 최초 배포 (revision 00023)](deployment-2026-09-04-advanced-editing.md) — 혼합 음성 자막 및 고급 편집 파이프라인.
+- [Basic Editing 가이드](basic-editing-guide-2026-09-03.md) — 줌, 텍스트 오버레이, 구간 컷, 침묵 구간 자동 제안.
+- [Basic Editing 배포 (revision 00021~00022)](deployment-2026-09-03-basic-editor.md) 및 [QA 리뷰](qa-review-2026-09-03-basic-editor.md).
+- [32 MB 원본 업로드 확장 배포](deployment-2026-09-04-upload-32mb.md) — 4~60초, 최대 32 MB 미디어 수용.
+- [스마트 장면 찾기 및 편집 레시피 메모리 UI](smart-scene-and-recipe-memory-2026-09-04.md).
 
-- [2분 56초 무음 데모 편집본 — 원본 4개, 화면 구성, 편집 시각과 검증](demo-visual-edit-2026-09-06.md)
+---
 
-- [LIVE 녹화 3회 완료 — 실제 시나리오, 차단·복구 증거, ClickHouse 추가 촬영 안내](kanapp-english-demo-video-2026-09-04.md#2026-09-06-recording-record)
+## 5. ClickHouse MCP Intelligence & Cloud Infrastructure
 
-- [English request placeholders — source, deployment and recovery](deployment-2026-09-06-english-placeholders.md)
+- [ClickHouse 인텔리전스 런북](clickhouse-intelligence-runbook.md) — Change Map, 벡터 검색, 백업, 마이그레이션, 롤백 절차.
+- [ClickHouse MCP 최초 연동 배포 (revision 00020)](deployment-2026-09-03-clickhouse-intelligence.md).
+- [ClickHouse MCP 복구 및 gstack QA](qa-report-2026-09-02-mcp-recovery.md).
+- [ClickHouse MCP QA 및 리소스 목록](qa-report-2026-09-03-clickhouse-intelligence.md).
+- [시스템 아키텍처 및 신뢰 경계](architecture.md) — AI 해석 vs 결정론적 검증의 명확한 분리.
+- [보안 및 실패 정책](security.md) — 비밀 관리, 무단 배포 차단.
+- [GCP 인프라 프로비저닝 런북](gcp-foundation-runbook.md).
+- [통합 상태 점검표](integration-status.md).
 
-- [Studio 인라인 설정 LIVE 배포 — 새 카드, Check plan 복구, 복원 백업](deployment-2026-09-05-inline-studio.md)
-- [Studio 항목 바로 아래 설정·카드 스타일 — 로컬 수정, 복원 지점, gstack 검증](studio-inline-settings-2026-09-05.md)
+---
 
-- [Studio LIVE 배포·복원 기록 — 실사용 검증, 오류 수정, 재배포](deployment-2026-09-05-studio.md)
-- [Studio LIVE gstack QA — 전체 편집 도구, 차단·복구, 모바일 검증](qa-live-2026-09-05-studio.md)
-- [Studio 재리뷰·gstack QA — 상태 복원, 외부 파일, 모바일 오류 수정](qa-review-2026-09-05-studio.md)
-- [별도 6단계 Studio UI — 기존 화면 보존, 기능 매핑, FIXTURE E2E](studio-ui-2026-09-04.md)
-- [KANAPP 30-second English promo and three RevisionProof demo scenarios](kanapp-english-demo-video-2026-09-04.md)
-- [32 MB upload limit — source, Cloud Run deployment and boundary proof](deployment-2026-09-04-upload-32mb.md)
-- [스마트 장면 찾기, 편집 레시피 메모리, 압축 자막 UI — 2026-09-04](smart-scene-and-recipe-memory-2026-09-04.md)
-- [Advanced editing LIVE release — source, Cloud Run, mixed-speech gstack proof](deployment-2026-09-04-advanced-editing.md)
-- [Advanced editing — speed, volume, logo, Korean/English speech subtitles](advanced-editing-guide-2026-09-04.md)
-- [QA 수정본 LIVE 배포 완료 — revision 00022, 컷·복합 편집 검증](deployment-2026-09-03-qa-fixes.md)
-- [기본 편집 gstack 리뷰·QA — 오류 3건 수정, 330/22 테스트](qa-review-2026-09-03-basic-editor.md)
-- [기본 영상 편집 — 사용법, 요청 예시, 최종 LIVE 배포·검증 (revision 00021)](basic-editing-guide-2026-09-03.md)
-- [기본 편집 확장 gstack 설계·검토](basic-editing-plan-2026-09-03.md)
+## 6. Historical QA & Early Foundations
 
-- [KANAPP 실제 영상 BLOCKED·요청 해석 오류 수정](kanapp-demo-fix-2026-09-03.md)
-
-- [원본 업로드 GitHub 푸시·Cloud Run 배포·LIVE 검증](deployment-2026-09-03-source-upload.md)
-- [원본 영상 업로드와 승인 기록 UX — 사용법, 제한, 검증](source-upload-and-memory-ux-2026-09-03.md)
-- [새 창에서 이어가기 — 현재 상태, 다음 작업, 승인 경계](handoff-2026-09-03.md)
-- [ClickHouse intelligence GitHub push and Cloud rollout — 2026-09-03](deployment-2026-09-03-clickhouse-intelligence.md)
-- [ClickHouse intelligence implementation and rollout plan — 2026-09-03](clickhouse-intelligence-plan-2026-09-03.md)
-- [Change Map, approved memory, backup, and migration runbook](clickhouse-intelligence-runbook.md)
-- [ClickHouse intelligence QA and resource inventory — 2026-09-03](qa-report-2026-09-03-clickhouse-intelligence.md)
-- [Automatic full-video workflow, UI redesign, deployment, and gstack QA — 2026-09-02](qa-report-2026-09-02-automatic-full-video-ui.md)
-- [Visual demo asset upgrade and gstack QA — 2026-09-02](qa-report-2026-09-02-visual-demo-asset.md)
-- [ClickHouse MCP recovery deployment and gstack QA — 2026-09-02](qa-report-2026-09-02-mcp-recovery.md)
-- [Submission copy and release gates — 2026-08-27](submission-pack-2026-08-27.md)
-- [How to record the English demo — 2026-08-27](demo-recording-script-2026-08-27.md)
-- [Read-only LIVE submission smoke — 2026-08-27](qa-report-2026-08-27-submission-smoke.md)
-- [Architecture and trust boundaries](architecture.md)
-- [Demo runbook](demo-runbook.md)
-- [Integration status](integration-status.md)
-- [Security and failure policy](security.md)
-- [GCP foundation provisioning, inventory, and cleanup](gcp-foundation-runbook.md)
-- [Docker and GCP deployment inventory delta — 2026-08-26](infrastructure-inventory-2026-08-26.md)
-- [Final LIVE deployment and gstack QA evidence — 2026-08-26](qa-report-2026-08-26-live-final.md)
-- [LIVE hardening status — 2026-08-26](live-hardening-progress-2026-08-26.md)
-- [Docker and GCP resource inventory — 2026-08-25](infrastructure-inventory-2026-08-25.md)
-- [Historical FIXTURE cloud QA evidence — 2026-08-26](qa-report-2026-08-26-cloud-deploy.md)
-- [QA evidence — v2 hardening, 2026-08-25](qa-report-2026-08-25-v2-hardening.md)
-- [Original fixture-slice QA evidence, 2026-08-25](qa-report-2026-08-25.md)
+- [영어 프롬프트 플레이스홀더 배포 (revision 00030)](deployment-2026-09-06-english-placeholders.md).
+- [원본 업로드 및 승인 메모리 UX 배포 (revision 00019)](deployment-2026-09-03-source-upload.md).
+- [초기 풀비디오 자동화 워크플로 QA](qa-report-2026-09-02-automatic-full-video-ui.md).
+- [최초 LIVE 배포 및 최종 검증 (2026-08-26)](qa-report-2026-08-26-live-final.md).
+- [초기 인프라 리소스 목록](infrastructure-inventory-2026-08-26.md) 및 [초기 제출 스모크](qa-report-2026-08-27-submission-smoke.md).
