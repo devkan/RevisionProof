@@ -23,6 +23,8 @@ By maintaining a strict boundary between **AI-assisted drafting** (Google Gemini
 
 ### Studio 6-Step Workflow
 
+**Use sample video** loads the exact KANAPP clip shown in the walkthrough, with no upload required. The [bundled sample record](assets/demo/README.md) includes its checksum and packaging details. The original scene-search proof demo keeps its separate Product Reveal source and scene index.
+
 1. **01 · UPLOAD / SOURCE**: Upload MP4, MOV, or WebM footage (up to 32 MB and 4–60 seconds), or select the pre-loaded 30-second English promo asset (`kanapp_promo_english_editable_30s.mp4`).
 2. **02 · EDITS & AI DRAFT**: Combine center punch-in zoom, text overlays, timed or speech-transcribed subtitles (Korean, English, or mixed speech), exact interval cuts, reviewed silence removal, speed adjustments (0.5–2×), volume adjustments (−60 to +12 dB), and a bounded logo overlay. You can write natural-language briefs into structured, editable revision items with Gemini.
 3. **03 · CHECK PLAN**: Review original-video timecodes and exact parameters. Incompatible or overlapping edits are flagged before preview rendering.

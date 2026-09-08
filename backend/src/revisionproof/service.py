@@ -629,14 +629,15 @@ class RevisionProofService:
         replay = self.repository.recall_idempotent("create_run", key, fingerprint)
         if replay is not None:
             return replay
-        if request.asset_id != DEMO_ASSET_ID:
-            raise ValueError("asset is not in the RevisionProof demo allowlist")
         asset, source_path = await asyncio.to_thread(
             require_demo_asset,
             request.asset_id,
             self.settings.runtime_dir,
             self.executor,
         )
+        if request.asset_id != DEMO_ASSET_ID and request.edit_plan is None:
+            # The original scene-search index belongs only to the Product Reveal fixture.
+            raise ValueError("This sample requires an edit plan. Use the Studio video editor.")
         source_key = await asyncio.to_thread(_file_sha256, source_path)
         smart_evidence = self._smart_evidence(
             search_id=request.scene_search_id,
