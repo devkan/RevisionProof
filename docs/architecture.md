@@ -4,7 +4,7 @@
 
 RevisionProof combines bounded video edits with human approval and deterministic export verification. The guided editor supports center zoom, literal text overlays, timed subtitle cues, exact interval cuts, reviewed silence removal, 0.5–2× speed, −60 to +12 dB volume, and a frozen uploaded logo. A dedicated LIVE Gemini step can draft timed subtitles from Korean, English, or mixed speech; users edit every word and time before it becomes part of a preview. Sources remain MP4/MOV/WebM, <=32 MB (32,000,000 bytes), 4–60 seconds; prepared media is aspect-preserving 1280×720, 30 fps H.264/AAC. There are at most 24 selected operations and the result remains between 1 and 60 seconds. Object/background manipulation, generated scenes, burned-in text removal, translation, and semantic correction are outside scope.
 
-See the [advanced editing guide](advanced-editing-guide-2026-09-04.md), [original editing guide](basic-editing-guide-2026-09-03.md), and [engineering review](basic-editing-plan-2026-09-03.md). The original scene-search proof remains an explicit alternate demo; its legacy PUNCH_IN contracts and 4–8 second previews retain their behavior.
+See the [editing guide](advanced-editing-guide-2026-09-04.md) and [judge walkthrough](demo-runbook.md). The [original editing guide](basic-editing-guide-2026-09-03.md) and [engineering review](basic-editing-plan-2026-09-03.md) are historical Korean records. The original scene-search proof remains an explicit alternate demo; its legacy PUNCH_IN contracts and 4–8 second previews retain their behavior. Studio defaults to the bundled KANAPP source, which has a separate asset ID and cannot use the Product Reveal demo's legacy scene index.
 
 ## Runtime and editing path
 
@@ -29,15 +29,15 @@ All operations use original time. Cuts and speed boundaries form kept spans; sou
 
 Expanded EDIT_PLAN candidates use spec 3.1 so speed, volume, and logo identity are included in the canonical approval hash. Historical spec 3.0 plans remain readable, but validation rejects expanded fields in that older hash domain. The approved full preview is hashed and rechecked at use. Export is byte-identical, so short or small missing overlays cannot slip through sampled frame checks. Kept, unedited scenes compare against speed-aware mapped original frames, while intended visual changes compare against the approved reference. Audio levels compare against the approved edited timeline. The existing three ClickHouse check IDs remain compatible; the feature-diff baseline is labelled `approved-reference`, not legacy `v1`. Change Map remains sampled diagnostics, not a semantic or every-frame verdict.
 
-Legacy spec 2.0 retains CTA/absolute audio limits, 2.1 retains uploaded full-video/absolute audio limits, and 2.2 retains original-relative audio RMS/peak deltas. Their original canonical JSON/hash is covered by pinned pre-expansion fixtures. The external-editor verification UI remains available only for the legacy approximate-check contract; new plans require the exact approved export.
+Legacy spec 2.0 retains CTA/absolute audio limits, 2.1 retains uploaded full-video/absolute audio limits, and 2.2 retains original-relative audio RMS/peak deltas. Their original canonical JSON/hash is covered by pinned pre-expansion fixtures. External MP4 checking is available in Studio and the classic UI. Acceptance depends on the frozen contract: Studio plans require the exact approved export, while legacy specs use their defined approximate checks. A mismatched external file can be inspected without being accepted for delivery.
 
-Guided controls report `user.structured`. Natural language returns a reviewable draft and warnings, never executable commands or approval. Ambiguity preserves input and the manual controls. The edit library currently accepts only legacy zoom proofs, so multi-edit save is rejected rather than encoded as a false zoom.
+Guided controls report `user.structured`. Natural language returns a reviewable draft and warnings, never executable commands or approval. Ambiguity preserves input and the manual controls. The edit library has separate storage and query paths for legacy zoom proofs and multi-edit recipes. A retrieved recipe can populate an editable draft, but cannot choose a preview or approve delivery. Public memory remains read-only; private saves require the workspace key and all proof/approval gates.
 
 ## Trust boundaries
 
 - Gemini may turn natural language into structured intent. It never returns a verification verdict.
 - The fixture interpreter and segment index use explicit `fixture.*` source names.
-- Live ClickHouse reads use only approved views through the official MCP tool: `search_segments`, `version_feature_diff`, and (when the intelligence extension is enabled) `revision_change_map`, `approved_edit_memory`, and `approved_edit_neighbors`.
+- Live ClickHouse reads use only approved views through the official MCP tool: `search_segments`, `version_feature_diff`, and (when the intelligence extension is enabled) `revision_change_map`, `approved_edit_memory`, `approved_edit_neighbors`, `approved_edit_recipe_memory`, `approved_edit_recipe_neighbors`, and `smart_scene_search`.
 - ClickHouse writes use a separate insert-only credential.
 - ClickHouse provisioning records exactly one deployment sentinel containing the dedicated GCP project ID and ClickHouse Cloud host. Bootstrap, cloud migration, and cleanup refuse a mismatch.
 - Human approval is the only operation that creates a `RevisionSpec`; Pydantic freezes it and canonical content is SHA-256-addressed.

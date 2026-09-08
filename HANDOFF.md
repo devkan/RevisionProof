@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-08
 Project: RevisionProof — `D:\Hackathon\006.Agentic Cinema Hackathon\RevisionProof`
-Branch: `main`. Latest deployed application merge: `a0c589ba10a241722f6301dec68e365041039249`; later documentation commits may follow.
+Documentation branch: `docs/judge-facing-english-20260908`, based on `main`. Latest deployed application merge: `a0c589ba10a241722f6301dec68e365041039249`; documentation-only changes do not redeploy the application.
 
 ## Core Links
 
@@ -27,6 +27,16 @@ Branch: `main`. Latest deployed application merge: `a0c589ba10a241722f6301dec68e
 - Verified the public sample's exact SHA-256, HTTP 206 seeking, browser playback, and A/B previews for a 4–8 second zoom. QA run `01M1ZV6NGH6HQGXT4T0G1G6365` stopped at `PREVIEWS_READY`; no final delivery approval or public memory save.
 - See the [KANAPP sample deployment record](docs/deployment-2026-09-08-kanapp-sample.md) for exact Git, build, revision, and verification evidence.
 
+## Judge-Facing Documentation Review (2026-09-08)
+
+- Used the gstack document-release workflow to compare current instructions with the shipped code, release evidence, live UI, and official rules. README and submission copy now follow the Korean narration's intent: AI drafts, code checks, and the reviewer makes the final decision.
+- Corrected the missing basic-editor deployment link and mislabeled historical revisions. The English index separates the judging path from dated engineering and Korean video-production records; original attribution and historical evidence remain intact.
+- Updated the submission pack to PR #3 / revision `00032-np7`, 357 backend and 82 frontend tests, and the pinned `gemini-3.5-flash-lite` setting. Removed blanket preservation/broadcast guarantees and clarified exact preview identity versus sampled diagnostics.
+- Corrected architecture/security descriptions of external-file checks, current edit-plan limits, and multi-edit recipe memory. A previous statement that recipe saving was unsupported was stale; public LIVE saving is still read-only.
+- Read-only checks confirmed GitHub is **PRIVATE**, the existing `main` documentation CI `34195316415` succeeded, and the live runtime reports LIVE readiness with read-only memory. This task does not make the repository public, submit Devpost, grant delivery approval, or change cloud/billing settings.
+- The supplied YouTube page opened signed out in gstack with an English title/description and a displayed 3:14 duration. This confirms page access, not a new full audio/subtitle review. Official rules evaluate only the first three minutes of a longer video; the final 14 seconds cannot be relied on for judging.
+- Documentation checks: 68 Markdown files, 235 relative links, zero missing targets, and no Markdown file unreachable from the root README/engineering entry points. The seven primary judge-facing documents have no Hangul characters or visible Claude/Codex name mentions (link destinations excluded for the latter). Twelve modified Markdown files rendered successfully; gstack inspected the main document preview at desktop width and confirmed no page-level horizontal overflow at 390 px. This is local Markdown-preview QA, not a claim about every historical document's prose or GitHub's own responsive styling.
+
 ## Earlier Work (2026-09-08 Antigravity Documentation Harmonization)
 
 - **README.md**: Updated project description, highlighted top demo/YouTube/GitHub links, detailed the 6-step Studio workflow, and refreshed deployment information to revision `revisionproof-staging-00031-5bl` on source `b13d8b0`.
@@ -34,7 +44,7 @@ Branch: `main`. Latest deployed application merge: `a0c589ba10a241722f6301dec68e
 - **docs/README.md**: Re-indexed all documentation categories (Handoff, Deployment, Submission, Video & Scripts, QA Reports, Architecture) for easy navigation.
 - **docs/submission-pack-2026-08-27.md**: Modernized English submission copy to reflect full 6-step Studio capabilities, partner integrations, GitHub/Demo/YouTube links, and marked Devpost submission as unconfirmed / pending owner submission.
 - **docs/deployment-2026-09-07-antigravity-fixes.md**: Verified commit relationships (`dae8033` fix -> `b13d8b0` deployed source -> `a04b70b` release doc -> subsequent doc updates) and clarified that documentation commits do not alter the deployed application.
-- Verified that all internal document links match existing files on disk, confirmed `git diff --check`, and prepared documentation-only commit for remote push.
+- That pass reported matching internal links and a clean `git diff --check`. The later judge-facing review found a missing basic-editor deployment target and mislabeled revision links in the index; those navigation errors are corrected in the current documentation review.
 
 ## Relevant Docs
 
@@ -49,13 +59,14 @@ Branch: `main`. Latest deployed application merge: `a0c589ba10a241722f6301dec68e
 ## Remaining Work
 
 1. **Devpost Hackathon Submission**: Final submission through the Devpost portal remains unconfirmed and is pending final owner submission before the deadline (September 9, 2026, 14:00 PDT / September 10, 06:00 KST).
-2. **Repository Visibility**: Confirm repository visibility is public for judging access.
-3. **Judging Window Operations**: Keep Cloud Run service and ClickHouse Cloud service active during judging.
+2. **Repository Visibility**: GitHub API reported **PRIVATE** on 2026-09-08. The owner intends public release; make it public and verify signed-out access as a separate authorized action.
+3. **Video and Rights Review**: The linked video is 3:14; only its first three minutes are evaluated under the [official rules](https://agentic-cinema.devpost.com/rules). Review the evaluated portion and rights to all footage, audio, and branding. Do not mark every submission requirement complete solely because the video is uploaded.
+4. **Judging Window Operations**: The rules list September 23–October 7, 2026 for judging. Keep Cloud Run and ClickHouse available. The ClickHouse runbook recorded a September 24 trial expiry as of September 3; recheck that time-sensitive state with the owner before any billing action.
 
 ## Operational Watchouts & Invariants
 
 - **Concurrency & Single-Instance**: Cloud Run is configured with min/max 1 instance and concurrency 4. If concurrent long-running tasks occur, HTTP 429 may be returned. Keep this single-instance setting for cost control and process-local run consistency.
-- **Process-Local Memory**: Runs and events live in process memory; browser refresh or container restart can clear active runs. Public memory save remains read-only.
+- **Process-Local Memory**: Runs and events live in process memory. Browser refresh does not restore the active UI session; container restart or eviction can remove the backend run. Public memory save remains read-only.
 - **Cloud Project Scope**: Project `revisionproof-agentic-2026-kan` (348672234012), region `us-central1`, account `secureis@gmail.com`. Keep service accounts, secrets, and ClickHouse grants intact.
 - **Rollback Reference**: Revision `revisionproof-staging-00031-5bl` remains the immediate rollback reference if ever needed.
 - **Change Map Diagnostics**: Change Map samples at 2 fps (60 pairs in 30s) and serves as an inspection aid, not an exhaustive frame-by-frame verification replacement.
@@ -63,4 +74,4 @@ Branch: `main`. Latest deployed application merge: `a0c589ba10a241722f6301dec68e
 
 ## Suggested Next Action
 
-All project code, tests, deployments, videos, and documentation are complete and synchronized. The project is ready for final Devpost hackathon submission by the owner.
+Review the documentation branch before landing it. The application/sample deployment is complete, but public repository access, video evaluation/rights review, final Devpost submission, and judging-window service continuity remain owner actions. The current English submission pack is the checklist, not proof that these actions have already happened.

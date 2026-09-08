@@ -1,7 +1,8 @@
 # RevisionProof
 
-> **Deterministic Automated Video Verification & Review Workspace**<br>
-> Turn video edit requests into reviewable previews and verified exports. Check approved edits and preserve locked content before delivery.
+> **Make the edit. Check the result. Keep the final say.**
+>
+> Turn video feedback into editable plans, compare previews, and check the result before delivery. AI helps with the draft. You decide what gets approved.
 
 [![GitHub](https://img.shields.io/badge/GitHub-devkan%2FRevisionProof-181717?logo=github)](https://github.com/devkan/RevisionProof)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-Studio%20on%20Cloud%20Run-4285F4?logo=google-cloud)](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio)
@@ -15,36 +16,41 @@
 
 ## What is RevisionProof?
 
-A client, editor, or producer can approve one specific video revision without approving unintended side-effects that break locked elements alongside it. RevisionProof solves this with a clear dual guarantee:
-1. **Did the requested revision actually happen?**
-2. **Did anything previously locked, protected, or balanced regress?**
+When a video is nearly finished, even a small revision means another round of review. Did the new caption appear where it should? Did the cut remove something important? Does the audio still match the version you approved?
 
-By maintaining a strict boundary between **AI-assisted drafting** (Google Gemini via Vertex AI and Google ADK) and **deterministic automated verification** (deterministic Python, OpenCV, and FFmpeg), AI never grades its own homework. Only mathematical thresholds and human-in-the-loop sign-off authorize final delivery.
+RevisionProof brings editing and verification into one workspace for editors, producers, and anyone reviewing a revised video. Google Gemini helps turn feedback into a draft. You adjust the edits and choose a preview. Python, OpenCV, and FFmpeg check the output against that approved version and its frozen criteria. Final delivery still requires your approval.
+
+**For judges:** start with the [demo walkthrough](docs/demo-runbook.md), then see the [submission description and evidence](docs/submission-pack-2026-08-27.md). The 30-second KANAPP input and the 3:14 product walkthrough are different videos.
 
 ### Studio 6-Step Workflow
 
 **Use sample video** loads the exact KANAPP clip shown in the walkthrough, with no upload required. The [bundled sample record](assets/demo/README.md) includes its checksum and packaging details. The original scene-search proof demo keeps its separate Product Reveal source and scene index.
 
 1. **01 · UPLOAD / SOURCE**: Upload MP4, MOV, or WebM footage (up to 32 MB and 4–60 seconds), or select the pre-loaded 30-second English promo asset (`kanapp_promo_english_editable_30s.mp4`).
-2. **02 · EDITS & AI DRAFT**: Combine center punch-in zoom, text overlays, timed or speech-transcribed subtitles (Korean, English, or mixed speech), exact interval cuts, reviewed silence removal, speed adjustments (0.5–2×), volume adjustments (−60 to +12 dB), and a bounded logo overlay. You can write natural-language briefs into structured, editable revision items with Gemini.
+2. **02 · EDITS & AI DRAFT**: Add zoom, text, subtitles, cuts, speed changes, volume adjustments, or a logo. Enter exact settings yourself, or ask Gemini to draft an editable plan. Speech-generated subtitles remain drafts: review names, wording, and timing. Quiet-pause suggestions stay unselected until you choose them.
 3. **03 · CHECK PLAN**: Review original-video timecodes and exact parameters. Incompatible or overlapping edits are flagged before preview rendering.
-4. **04 · COMPARE A/B**: Generate and watch competing preview options (e.g., subtle vs. punchy zoom, alternate caption styling) and select the approved candidate. This freezes the specification and its SHA-256 hash (Spec 3.1).
-5. **05 · CHECK & VERIFY**: Build the full video or upload an external edited file for audit. Automated checks evaluate:
-   - **Approved edit verification** (verifying visual change occurred at the planned timecodes)
-   - **Protected content invariants** (ensuring designated CTA or protected regions remain untouched)
-   - **Audio invariant limits** (preventing clipping and unexpected volume spikes)
-   - **Revision Change Map**: Sampled frame-pair diagnostics (2 samples/second) highlighting requested, unchanged, and review-needed seconds, complete with a synchronized, side-by-side comparative video player for both internal builds and external uploads.
-6. **06 · APPROVE & DELIVER**: Human-in-the-loop gate. Only explicit human approval unlocks delivery download and audit logging.
+4. **04 · COMPARE A/B**: Watch the preview options and choose the version you want. This freezes the plan and the chosen full-preview SHA-256, a fingerprint of the approved file. Cut-only plans need just one preview.
+5. **05 · CHECK & VERIFY**: Build and check the full video, or submit an external MP4 for comparison. For Studio edit plans, three checks evaluate:
 
-See the [advanced editing guide](docs/advanced-editing-guide-2026-09-04.md) and [basic editing guide](docs/basic-editing-guide-2026-09-03.md) for detailed examples and current controls.
+   - **Approved preview match:** the export must be byte-for-byte identical to the chosen preview. An external re-encode does not qualify, even if it looks similar.
+   - **Kept scenes:** sampled frames are checked against the approved timeline, accounting for cuts and speed changes.
+   - **Approved audio:** RMS and peak levels are compared with the approved preview using the frozen limits. This is not a broadcast loudness certification.
+
+   The separate **Revision Change Map** samples two frame pairs per second to help you inspect requested changes and review-needed windows. Its synchronized player is a review aid, not an every-frame or semantic guarantee.
+
+6. **06 · APPROVE & DELIVER**: Review the checks and the video, then make the final delivery decision. Failed or unavailable required checks block delivery. Audit facts are recorded during verification; final approval adds a separate human decision.
+
+See the [editing guide](docs/advanced-editing-guide-2026-09-04.md) for supported controls and examples. The original scene-search demo uses a separate legacy verification contract; it is not the default Studio workflow.
 
 ---
 
 ## Revision Intelligence & ClickHouse MCP
 
 With intelligence enabled (`REVISIONPROOF_INTELLIGENCE_ENABLED=true`):
+
+- **Smart scene finder**: Describe a scene, review the returned time ranges, and choose where to edit. Google AI describes sampled frames; the official ClickHouse MCP server retrieves matches. This optional action uses Google AI and ClickHouse credits. You can also enter timecodes manually.
 - **Revision Change Map**: Samples original and revised video at two frame pairs per second, calculating visual deltas, residual difference from expected edits, and audio decibel changes. Clicking any window displays exact metrics and opens a synchronized side-by-side comparison player.
-- **Past Approved Edits Memory**: Powered by the official ClickHouse MCP server (`mcp-clickhouse`). Retrieves similar, previously verified and human-approved edits to provide context and suggested recipes using exact, HNSW, or QBit vector search without delaying the primary editing flow. The public deployment operates in read-only mode to safeguard reference data.
+- **Past Approved Edits Memory**: Retrieves previously verified, human-approved zooms and multi-edit recipes through `mcp-clickhouse`. A recipe can become an editable draft, never an automatic approval. Searches report the actual engine used, with exact fallback when needed; an empty library does not run a vector search. The public demo is read-only. Saving requires a separately configured private workspace key and all approval gates.
 
 ClickHouse 26.2+ is supported. See the [intelligence runbook](docs/clickhouse-intelligence-runbook.md) for setup, schema, private saving, backup, and restore.
 
@@ -52,16 +58,20 @@ ClickHouse 26.2+ is supported. See the [intelligence runbook](docs/clickhouse-in
 
 ## Deployed LIVE Demo
 
-The live Google Cloud Run service is available at:
+The hosted Google Cloud Run service is available at:
+
 - **Studio Interface**: [https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/studio)
 - **Classic UI**: [https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/)
 
-**Current Deployment Specifications**:
+**Deployment evidence recorded on 2026-09-08**:
+
 - **Cloud Run Revision**: `revisionproof-staging-00032-np7` (Region: `us-central1`)
 - **Deployed Application Source**: PR #3 merge `a0c589b` (identical tree to deployed archive `621423b`), adding the KANAPP sample while retaining all previous QA fixes.
 - **Container Image**: `us-central1-docker.pkg.dev/revisionproof-agentic-2026-kan/revisionproof/revisionproof-staging:1bc66b0f-a094-4f84-8215-925b518b867b`
-- **Verification Status**: Live health/readiness endpoints (`/health`, `/ready`) return HTTP 200 / LIVE. 357 backend tests and 82 frontend tests pass; the live KANAPP sample loads and generates A/B previews.
+- **Verification record**: 357 backend tests and 82 frontend tests passed. The deployed KANAPP sample loaded, played, and generated A/B previews. That sample smoke test stopped before final delivery approval and did not claim a new Gemini or MCP execution.
 - See the [KANAPP Sample Deployment Record](docs/deployment-2026-09-08-kanapp-sample.md) for source, CI, checksums, and live verification evidence.
+
+`LIVE` readiness confirms configuration, not successful AI or MCP calls in every run. Check each run's trace for execution evidence. In-progress runs are process-local and are not recovered after a service restart. The public demo has no tenant login; use the bundled sample or non-confidential footage.
 
 ---
 
@@ -71,14 +81,14 @@ Prerequisites: Python 3.12, Node 22+, uv, FFmpeg/FFprobe, and Noto Sans CJK (Lin
 
 ```powershell
 Copy-Item .env.example .env
-uv sync --project backend --extra dev --cache-dir backend/.uv-cache
-npm install --prefix frontend
+uv sync --project backend --frozen --extra dev --cache-dir backend/.uv-cache
+npm ci --prefix frontend
 backend/.venv/Scripts/python.exe scripts/generate_demo_assets.py
 npm run build --prefix frontend
 backend/.venv/Scripts/uvicorn.exe revisionproof.main:app --app-dir backend/src --reload --port 8000
 ```
 
-Open `http://127.0.0.1:8000/studio` for the 6-step Studio workspace, or `http://127.0.0.1:8000` for the classic UI. Fixture mode is labeled in both screens and never emits fake MCP or Gemini calls. `OFFLINE_REHEARSAL` is read-only. `LIVE` mode verifies Google Cloud, GCS, and ClickHouse credentials before reporting readiness.
+Open `http://127.0.0.1:8000/studio` for Studio, or `http://127.0.0.1:8000` for the classic UI. These PowerShell commands use the explicitly labeled FIXTURE setup in `.env.example`; they do not configure cloud credentials. Install the `live` extra and follow the [cloud runbook](docs/gcp-foundation-runbook.md) for LIVE setup. `OFFLINE_REHEARSAL` is read-only. Fixture output is never evidence of real Gemini or MCP execution.
 
 ---
 
@@ -101,13 +111,13 @@ backend/.venv/Scripts/python.exe scripts/verify_local_mcp.py
 
 ## Documentation & References
 
-- [Project Handoff & Operation Notes](HANDOFF.md)
-- [Documentation Index](docs/README.md)
+- [Judge Demo Walkthrough](docs/demo-runbook.md)
 - [Submission Pack & Release Gates](docs/submission-pack-2026-08-27.md)
-- [Antigravity QA Fixes Deployment Record](docs/deployment-2026-09-07-antigravity-fixes.md)
-- [ClickHouse Intelligence Runbook](docs/clickhouse-intelligence-runbook.md)
 - [Architecture and Trust Boundaries](docs/architecture.md)
 - [Security and Failure Policy](docs/security.md)
+- [Documentation Index](docs/README.md), including dated engineering and video-production records, some in Korean
+- [Project Handoff & Operation Notes](HANDOFF.md)
+- [ClickHouse Intelligence Runbook](docs/clickhouse-intelligence-runbook.md)
 
 ---
 
