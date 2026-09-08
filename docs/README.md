@@ -14,8 +14,9 @@ Quick Links:
 
 ---
 
-## 2. Latest Deployment & Verification (Antigravity Fixes)
+## 2. Latest Deployment & Verification (KANAPP Sample)
 
+- [KANAPP Sample Deployment (revision 00032 / main a0c589b)](deployment-2026-09-08-kanapp-sample.md) — exact walkthrough clip, PR #3, successful CI/Cloud Build, and public playback/preview verification.
 - [Antigravity 수정 배포 기록 (revision 00031 / source b13d8b0)](deployment-2026-09-07-antigravity-fixes.md) — PR #2 병합, Cloud Run 배포, 라이브 검증 및 회귀 증거.
 - [Antigravity 보완 독립 재검수 보고서](review-2026-09-07-antigravity-supplement.md) — Ruff 검사 및 실 DOM 회귀 테스트 통과 검수.
 - [Antigravity 보완 보고서 (Ruff 포맷팅 & 실 DOM 회귀 테스트 실증)](fix-supplement-2026-09-07.md) — 미사용 import 정리, 문자열 줄바꿈, happy-dom 실 DOM 테스트.

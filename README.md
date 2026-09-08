@@ -57,11 +57,11 @@ The live Google Cloud Run service is available at:
 - **Classic UI**: [https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/)
 
 **Current Deployment Specifications**:
-- **Cloud Run Revision**: `revisionproof-staging-00031-5bl` (Region: `us-central1`)
-- **Deployed Application Source**: `b13d8b0` (merged PR #2 containing all caption wrapping, external comparison, and Change Map state fixes)
-- **Container Image**: `us-central1-docker.pkg.dev/revisionproof-agentic-2026-kan/revisionproof/revisionproof-staging:44079831-b9b3-4f90-9f01-dee3deb3ac46`
-- **Verification Status**: Live health/readiness endpoints (`/health`, `/ready`) return HTTP 200 / LIVE. All 353 backend tests and 78 frontend tests pass with 100% success rate.
-- See [Antigravity QA Fixes Deployment Record](docs/deployment-2026-09-07-antigravity-fixes.md) for full deployment logs and live verification evidence.
+- **Cloud Run Revision**: `revisionproof-staging-00032-np7` (Region: `us-central1`)
+- **Deployed Application Source**: PR #3 merge `a0c589b` (identical tree to deployed archive `621423b`), adding the KANAPP sample while retaining all previous QA fixes.
+- **Container Image**: `us-central1-docker.pkg.dev/revisionproof-agentic-2026-kan/revisionproof/revisionproof-staging:1bc66b0f-a094-4f84-8215-925b518b867b`
+- **Verification Status**: Live health/readiness endpoints (`/health`, `/ready`) return HTTP 200 / LIVE. 357 backend tests and 82 frontend tests pass; the live KANAPP sample loads and generates A/B previews.
+- See the [KANAPP Sample Deployment Record](docs/deployment-2026-09-08-kanapp-sample.md) for source, CI, checksums, and live verification evidence.
 
 ---
 
