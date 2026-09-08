@@ -1,5 +1,7 @@
 # 기본 영상 편집 사용법과 검증 기록
 
+> Historical record, September 3, 2026. This Korean guide preserves the original rollout and its limits. For current English instructions and the KANAPP sample, use the [editing guide](advanced-editing-guide-2026-09-04.md) and [judge walkthrough](demo-runbook.md). Later releases added speech transcription, 32 MB uploads, spec 3.1, and multi-edit recipe memory; references to “current LIVE” below describe the original record date.
+
 현재 LIVE는 QA 수정본 `94c081c`, revision `00022-swm`이다. 영상 변경 시 초안 잔존, 정상 컷의 오판 BLOCKED, 로컬 자막 제거 오해석을 수정했고 실제 컷·복합 편집 검증을 통과했다. [최신 배포 기록](deployment-2026-09-03-qa-fixes.md)과 [현재 편집기](https://revisionproof-staging-sdixpvvwoq-uc.a.run.app/?release=94c081c)를 참조한다. 아래 `00021` 배포 증거는 이전 릴리스 기록이다.
 
 ## 이번에 추가한 기능

@@ -6,6 +6,8 @@ Implementation date: 2026-09-03. Local SQL/UI and LIVE Cloud migration/deploymen
 
 Use the normal README setup with `.env.example` copied to `.env`. The example enables `REVISIONPROOF_INTELLIGENCE_ENABLED=true`. Existing `.env` files must add this setting explicitly. Restart the backend after changing it.
 
+The steps below exercise the **original scene-search demo** in the classic UI, not the default KANAPP Studio workflow. Select that alternate demo first. For the current Studio sample, use the [English walkthrough](demo-runbook.md). Local FIXTURE saving is rehearsal only; the public LIVE library remains read-only. Multi-edit recipes use their own storage/query path and the same private-save approval gates.
+
 1. Review the default feedback and check the supported six-second punch-in.
 2. Create A/B previews and choose B. The complete video is rendered and checked.
 3. In **Revision Change Map**, choose a time window and **Compare this moment**. The larger original/revised players share play/pause and a seek slider; Escape closes the dialog.

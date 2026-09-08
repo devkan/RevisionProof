@@ -1,6 +1,17 @@
 # Integration status
 
-Updated: 2026-09-02
+Reviewed: 2026-09-08.
+
+## Current release and evidence boundary
+
+- Current deployment reference: [KANAPP sample release](deployment-2026-09-08-kanapp-sample.md), application merge `a0c589b`, revision `revisionproof-staging-00032-np7`.
+- On September 8, `/api/runtime` reported `mode=LIVE`, `live_ready=true`, intelligence enabled, and `memory_save_policy=read_only`. This establishes configuration readiness, not a successful call to every integration.
+- The latest sample smoke verified playback and A/B previews. Earlier [advanced-editing LIVE evidence](deployment-2026-09-04-advanced-editing.md) and [failure/recovery evidence](deployment-2026-09-07-antigravity-fixes.md) record actual executions at their stated dates.
+- Current components and supported behavior are described in the [architecture](architecture.md). In-progress runs and source uploads are not durably restored after a process restart.
+
+## Historical verification snapshot, September 2
+
+The table and run IDs below are preserved as dated evidence. “Latest,” “deployed,” and “final” in this snapshot refer to September 2, not the current release.
 
 | Integration | Code path | Local verification | Credential verification |
 |---|---|---:|---:|
