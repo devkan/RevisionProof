@@ -2,7 +2,7 @@
 
 Last updated: 2026-09-08
 Project: RevisionProof — `D:\Hackathon\006.Agentic Cinema Hackathon\RevisionProof`
-Documentation branch: `docs/judge-facing-english-20260908`, based on `main`. Latest deployed application merge: `a0c589ba10a241722f6301dec68e365041039249`; documentation-only changes do not redeploy the application.
+Default branch: `main`. English documentation source: `2e764c0`, prepared in `docs/judge-facing-english-20260908`. Latest deployed application merge: `a0c589ba10a241722f6301dec68e365041039249`; documentation-only changes do not redeploy the application.
 
 ## Core Links
 
@@ -36,6 +36,13 @@ Documentation branch: `docs/judge-facing-english-20260908`, based on `main`. Lat
 - Read-only checks confirmed GitHub is **PRIVATE**, the existing `main` documentation CI `34195316415` succeeded, and the live runtime reports LIVE readiness with read-only memory. This task does not make the repository public, submit Devpost, grant delivery approval, or change cloud/billing settings.
 - The supplied YouTube page opened signed out in gstack with an English title/description and a displayed 3:14 duration. This confirms page access, not a new full audio/subtitle review. Official rules evaluate only the first three minutes of a longer video; the final 14 seconds cannot be relied on for judging.
 - Documentation checks: 68 Markdown files, 235 relative links, zero missing targets, and no Markdown file unreachable from the root README/engineering entry points. The seven primary judge-facing documents have no Hangul characters or visible Claude/Codex name mentions (link destinations excluded for the latter). Twelve modified Markdown files rendered successfully; gstack inspected the main document preview at desktop width and confirmed no page-level horizontal overflow at 390 px. This is local Markdown-preview QA, not a claim about every historical document's prose or GitHub's own responsive styling.
+
+## GitHub Publication Preparation (2026-09-08)
+
+- The owner explicitly authorized pushing and merging the English documentation into `main`. Treat repository content as intended for public release, but leave the actual visibility switch to the owner.
+- Repository About now uses an English product description and links directly to the live Studio. No application source, cloud settings, or repository visibility were changed for this documentation integration.
+- The documentation work branch can be deleted after its commits are merged. Preserve existing backup branches and historical evidence. Do not rewrite Git history or remove attribution to imply a different development process.
+- Pre-merge checks covered the judging path, 68 Markdown documents and 235 relative links. Local regression tests passed 357 backend and 82 frontend tests, with passing lint/format and frontend build. Pytest reported a local cache-write warning, not a test failure. A limited scan of tracked content and Git history found no matches for common Google/GitHub API-key formats or private-key blocks; this is not a full secrets/security audit. Local environment files and deployment credentials remain ignored.
 
 ## Earlier Work (2026-09-08 Antigravity Documentation Harmonization)
 
@@ -74,4 +81,4 @@ Documentation branch: `docs/judge-facing-english-20260908`, based on `main`. Lat
 
 ## Suggested Next Action
 
-Review the documentation branch before landing it. The application/sample deployment is complete, but public repository access, video evaluation/rights review, final Devpost submission, and judging-window service continuity remain owner actions. The current English submission pack is the checklist, not proof that these actions have already happened.
+Use the default-branch [English documentation index](https://github.com/devkan/RevisionProof/blob/main/docs/README.md) as the judging entry point after integration. Public repository access, video evaluation/rights review, final Devpost submission, and judging-window service continuity remain owner actions. The current English submission pack is the checklist, not proof that those separate actions have already happened. Check GitHub's PR and CI state for merge verification; do not infer it from a local branch name.
